@@ -1,0 +1,7 @@
+{
+  "name": "ursella",
+  "description": "AI-powered operating system for small businesses featuring multi-tenant business management, real-time financial tracking, inventory management, and intelligent business insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
