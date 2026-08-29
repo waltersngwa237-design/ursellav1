@@ -13,6 +13,13 @@ export type AIIntentType =
   | 'recommendation'
   | 'daily_brief'
   | 'general_business_question'
+  | 'identity_lookup'
+  | 'fact_retrieval'
+  | 'explanation'
+  | 'analysis'
+  | 'diagnosis'
+  | 'calculation'
+  | 'general_overview'
   | 'unknown';
 
 export type AIDataConfidence = 'high_confidence' | 'moderate_confidence' | 'insufficient_data';

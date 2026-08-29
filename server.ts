@@ -179,6 +179,12 @@ app.post('/api/ai/chat', async (req, res) => {
       currentDateIso: new Date().toISOString(),
       toolResults,
       conversationHistory: history,
+      parsedIntent: {
+        intent: intentResult.intent,
+        domain: intentResult.domain,
+        timePeriod: intentResult.timePeriod,
+        primaryGoal: intentResult.primaryGoal,
+      },
     });
 
     structuredResponse.intent = intentResult.intent;
