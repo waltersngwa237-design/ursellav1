@@ -199,14 +199,12 @@ export class BusinessToolsService {
     if (saleIds.length > 0) {
       const { data: saleItems } = await serverSupabase
         .from('sale_items')
-        .select('quantity, unit_cost, total_cost')
+        .select('quantity, unit_cost, total')
         .in('sale_id', saleIds);
 
       if (saleItems && saleItems.length > 0) {
         cogsToday = saleItems.reduce((sum, item) => {
-          const cost = Number(item.total_cost || 0) > 0
-            ? Number(item.total_cost)
-            : Number(item.unit_cost || 0) * Number(item.quantity || 1);
+          const cost = Number(item.unit_cost || 0) * Number(item.quantity || 1);
           return sum + cost;
         }, 0);
       }
@@ -312,17 +310,40 @@ export class BusinessToolsService {
    * 6. Tool: get_customer_balances
    */
   public static async getCustomerBalances(businessId: string) {
-    const { data: customers } = await serverSupabase
-      .from('customers')
-      .select('id, name, phone, outstanding_debt, total_spent, total_orders, last_order_at')
-      .eq('business_id', businessId);
+    const [{ data: customers }, { data: unpaidSales }] = await Promise.all([
+      serverSupabase
+        .from('customers')
+        .select('id, name, phone, email')
+        .eq('business_id', businessId),
+      serverSupabase
+        .from('sales')
+        .select('id, customer_id, total, amount_paid, amount_due')
+        .eq('business_id', businessId)
+        .eq('sale_status', 'completed')
+        .gt('amount_due', 0),
+    ]);
 
     const list = customers || [];
-    const debtors = list
-      .filter((c) => Number(c.outstanding_debt || 0) > 0)
-      .sort((a, b) => Number(b.outstanding_debt || 0) - Number(a.outstanding_debt || 0));
+    const sales = unpaidSales || [];
+    const customerMap = new Map<string, any>(list.map((c) => [c.id, c]));
+    const debtMap = new Map<string, { id: string; name: string; phone?: string; debtAmount: number }>();
 
-    const totalDebt = debtors.reduce((sum, c) => sum + Number(c.outstanding_debt || 0), 0);
+    for (const s of sales) {
+      const cId = s.customer_id;
+      const cName = cId && customerMap.has(cId) ? customerMap.get(cId).name : 'Walk-in Customer';
+      const cPhone = cId && customerMap.has(cId) ? customerMap.get(cId).phone : undefined;
+      const key = cId || `unlinked-${s.id}`;
+
+      const curr = debtMap.get(key) || { id: cId || s.id, name: cName, phone: cPhone, debtAmount: 0 };
+      curr.debtAmount += Number(s.amount_due || 0);
+      debtMap.set(key, curr);
+    }
+
+    const debtors = Array.from(debtMap.values())
+      .filter((d) => d.debtAmount > 0)
+      .sort((a, b) => b.debtAmount - a.debtAmount);
+
+    const totalDebt = debtors.reduce((sum, c) => sum + Number(c.debtAmount || 0), 0);
 
     return {
       totalRegisteredCustomers: list.length,
@@ -332,8 +353,8 @@ export class BusinessToolsService {
         id: d.id,
         name: d.name,
         phone: d.phone,
-        debtAmount: Number(d.outstanding_debt),
-        totalSpent: Number(d.total_spent),
+        debtAmount: d.debtAmount,
+        totalSpent: 0,
       })),
     };
   }

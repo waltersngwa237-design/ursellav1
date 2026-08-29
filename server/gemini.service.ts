@@ -681,7 +681,132 @@ Return a valid JSON object matching the schema:
       };
     }
 
-    // 7. General Business Overview
+    // 7. Recommendations, Strategic Priorities & "What should I do?"
+    if (
+      q.includes('recommendation') ||
+      q.includes('what should i do') ||
+      q.includes('focus') ||
+      q.includes('next step') ||
+      q.includes('advice') ||
+      q.includes('priority') ||
+      q.includes('hurting') ||
+      q.includes('improve')
+    ) {
+      const rev = Number(overview.revenue || todaySales.revenue || 0);
+      const margin = Number(overview.gross_margin || todaySales.grossMarginPct || 0);
+      const gp = Number(overview.gross_profit || todaySales.grossProfit || 0);
+      const outCount = inv.outOfStockCount || 0;
+      const lowCount = inv.lowStockCount || 0;
+      const debtAmount = Number(debtors.totalOutstandingDebt || 0);
+      const opex = Number(overview.operating_expenses || expenses.totalExpenses || 0);
+      const tx = Number(overview.transaction_count || todaySales.salesCount || 0);
+
+      const recs: Array<{ id: string; title: string; reasoning: string; actionSuggestion: string; priority: 'high' | 'medium' | 'low' }> = [];
+      const points: string[] = [];
+
+      if (rev > 0 && margin < 30) {
+        points.push(`**Improve product profit margins:** You are currently generating a **${margin}%** gross margin. Out of **${currency} ${rev.toLocaleString()}** in revenue, only **${currency} ${gp.toLocaleString()}** remains after direct inventory costs.`);
+        recs.push({
+          id: 'rec-margin',
+          title: 'Review Catalog Pricing & Product Costs',
+          reasoning: `A ${margin}% gross margin leaves narrow margin to cover store operating expenses.`,
+          actionSuggestion: 'Identify high-margin products to promote and adjust pricing on weak-margin items.',
+          priority: 'high',
+        });
+      }
+
+      if (outCount > 0 || lowCount > 0) {
+        points.push(`**Replenish critical inventory:** You have **${outCount}** product(s) completely out of stock and **${lowCount}** below minimum reorder thresholds. Stockouts directly prevent sales.`);
+        recs.push({
+          id: 'rec-restock',
+          title: 'Restock Depleted SKUs',
+          reasoning: `${outCount + lowCount} items need replenishment.`,
+          actionSuggestion: 'Create purchase orders in Business & Stock.',
+          priority: 'high',
+        });
+      }
+
+      if (debtAmount > 0) {
+        points.push(`**Collect pending customer credit:** **${currency} ${debtAmount.toLocaleString()}** is currently tied up across **${debtors.debtorsCount || 1}** customer debtor account(s).`);
+        recs.push({
+          id: 'rec-debt',
+          title: 'Collect Outstanding Customer Credit',
+          reasoning: `Converting ${currency} ${debtAmount.toLocaleString()} in receivables into cash boosts operating liquidity.`,
+          actionSuggestion: 'Send WhatsApp or SMS payment reminders from Customers & CRM.',
+          priority: 'medium',
+        });
+      }
+
+      if (opex === 0 && rev > 0) {
+        points.push(`**Track store operating expenses:** You have recorded **${currency} 0** in operating expenses, so your net take-home profit cannot yet be calculated.`);
+        recs.push({
+          id: 'rec-expense',
+          title: 'Log Operating Expenses',
+          reasoning: 'Tracking daily overhead like rent, utilities, and transport shows your true net profit.',
+          actionSuggestion: 'Record store expenses in Reports & Accounting.',
+          priority: 'medium',
+        });
+      }
+
+      if (tx === 0) {
+        return {
+          answer: `Based on your current setup for **${ctx.businessName}**, here are my top recommendations to get started:\n\n1. **Record your initial sales in the POS terminal:** Process transactions in **Sell (POS)** to start generating real-time revenue, gross margin, and inventory tracking.\n2. **Verify product cost and selling prices:** Ensure every catalog item has accurate cost and selling prices so your gross margins are calculated correctly.\n3. **Set minimum stock reorder points:** Set alert thresholds on your fastest-moving items to prevent surprise stockouts.`,
+          keyMetrics: [
+            {
+              label: 'Catalog Items',
+              value: products.length,
+              formattedValue: `${products.length} products`,
+              trend: 'neutral',
+            },
+          ],
+          recommendations: [
+            {
+              id: 'rec-pos',
+              title: 'Process First Sale in POS',
+              reasoning: 'Real-time metrics activate as soon as sales are recorded.',
+              actionSuggestion: 'Open Sell (POS) and record a transaction.',
+              priority: 'high',
+            },
+          ],
+          confidence: 'high_confidence',
+          followUpSuggestions: [
+            'Which products are low on stock?',
+            'What are my catalog margins?',
+          ],
+        };
+      }
+
+      const volumeNote = tx < 5
+        ? `\n\n*Note: You have ${tx} completed sale(s) on record, so long-term trends are still preliminary.*`
+        : '';
+
+      return {
+        answer: `Based on your current numbers for **${ctx.businessName}**, here are my key recommendations:\n\n${points.map((p, i) => `${i + 1}. ${p}`).join('\n\n')}${volumeNote}`,
+        keyMetrics: [
+          {
+            label: 'Gross Margin',
+            value: `${margin}%`,
+            formattedValue: `${margin}%`,
+            trend: margin >= 30 ? 'positive' : 'neutral',
+          },
+          {
+            label: 'Receivables',
+            value: debtAmount,
+            formattedValue: `${currency} ${debtAmount.toLocaleString()}`,
+            trend: debtAmount > 0 ? 'negative' : 'positive',
+          },
+        ],
+        recommendations: recs,
+        confidence: tx < 5 ? 'insufficient_data' : 'high_confidence',
+        followUpSuggestions: [
+          'Which products have the best margins?',
+          'Who owes me money?',
+          'How are my sales today?',
+        ],
+      };
+    }
+
+    // 8. General Business Overview
     const rev = Number(overview.revenue || 0);
     const gp = Number(overview.gross_profit || 0);
     const margin = Number(overview.gross_margin || 0);

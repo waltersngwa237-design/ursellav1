@@ -22,6 +22,7 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
 
   const categories = [
     { id: 'all', label: 'All Topics', icon: <Sparkles className="w-3.5 h-3.5 text-amber-400" /> },
+    { id: 'advisory', label: 'Advisor & Strategy', icon: <Sparkles className="w-3.5 h-3.5 text-amber-400" /> },
     { id: 'sales', label: 'Sales & Revenue', icon: <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> },
     { id: 'inventory', label: 'Stock & Alerts', icon: <Package className="w-3.5 h-3.5 text-blue-400" /> },
     { id: 'debts', label: 'Customer Debts', icon: <Users className="w-3.5 h-3.5 text-purple-400" /> },
@@ -30,40 +31,64 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
 
   const prompts = [
     {
+      category: 'advisory',
+      title: 'Business Recommendations',
+      subtitle: 'Prioritized, actionable steps based on current numbers',
+      prompt: 'Any recommendations?',
+    },
+    {
+      category: 'advisory',
+      title: 'Today’s Focus',
+      subtitle: 'Key strategic focus items and immediate actions',
+      prompt: 'What should I focus on today?',
+    },
+    {
       category: 'sales',
-      title: 'Today’s Performance',
+      title: 'Sales Today',
       subtitle: 'Total sales, orders, and cash collected today',
-      prompt: 'What are my total sales and revenue today?',
+      prompt: 'How are my sales today?',
+    },
+    {
+      category: 'profit',
+      title: 'Profitability Analysis',
+      subtitle: 'Gross profit, gross margins, and net performance',
+      prompt: 'How profitable am I?',
+    },
+    {
+      category: 'profit',
+      title: 'Profitability Diagnosis',
+      subtitle: 'Identify cost drains and low-margin bottlenecks',
+      prompt: 'What is hurting my profitability?',
+    },
+    {
+      category: 'sales',
+      title: 'Best-Selling Products',
+      subtitle: 'Highest volume & revenue contributors',
+      prompt: 'What are my best-selling products?',
+    },
+    {
+      category: 'profit',
+      title: 'Product Margins',
+      subtitle: 'Which catalog items deliver highest unit margins',
+      prompt: 'Which products have the best margins?',
     },
     {
       category: 'inventory',
-      title: 'Low Stock & Restock Alert',
+      title: 'Low Stock Alert',
       subtitle: 'Products running critically low or sold out',
-      prompt: 'Which products are currently low in stock or out of stock?',
+      prompt: 'Do I have any low-stock products?',
     },
     {
       category: 'debts',
       title: 'Outstanding Debts',
       subtitle: 'Who owes money and total unpaid balances',
-      prompt: 'Who owes me money and what is the total outstanding debt balance?',
+      prompt: 'Who owes me money?',
     },
     {
       category: 'sales',
-      title: 'Top Selling Products',
-      subtitle: 'Highest volume & revenue contributors',
-      prompt: 'Which products are my top sellers and highest revenue generators?',
-    },
-    {
-      category: 'profit',
-      title: 'Profit Margins & Expenses',
-      subtitle: 'Estimated gross profit and spending summary',
-      prompt: 'What is my current gross profit margin and where am I spending most on expenses?',
-    },
-    {
-      category: 'debts',
-      title: 'Top Customers',
-      subtitle: 'Best loyal buyers and recent visit history',
-      prompt: 'Who are my top customers and when did they last purchase?',
+      title: 'Monthly Performance',
+      subtitle: '30-day revenue, volume, and expense overview',
+      prompt: 'How is my business performing this month?',
     },
   ];
 
