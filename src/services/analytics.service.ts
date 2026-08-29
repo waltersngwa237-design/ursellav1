@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
+import { isValidUUID } from '../lib/uuid.ts';
 import type {
   CompleteBusinessAnalytics,
   DateRangePreset,
@@ -327,12 +328,77 @@ export const AnalyticsService = {
           };
         }
       } catch (err) {
-        console.warn('Supabase analytics RPC failed, falling back to client-side math:', err);
+        console.warn('Supabase analytics RPC failed, falling back to direct table queries:', err);
+      }
+
+      // If RPC was not available or failed, fetch directly from Supabase tables
+      if (isValidUUID(businessId)) {
+        try {
+          const tableAnalytics = await this.fetchAndCalculateFromSupabaseTables(businessId, window);
+          if (tableAnalytics) {
+            return tableAnalytics;
+          }
+        } catch (tableErr) {
+          console.warn('Direct Supabase table query failed, falling back to localStorage:', tableErr);
+        }
       }
     }
 
     // Comprehensive client-side deterministic fallback engine
     return this.calculateLocalAnalytics(businessId, window);
+  },
+
+  /**
+   * Fetches data directly from Supabase tables when RPC functions are not present.
+   */
+  async fetchAndCalculateFromSupabaseTables(
+    businessId: string,
+    window: DateRangeWindow
+  ): Promise<CompleteBusinessAnalytics | null> {
+    try {
+      const [
+        bizRes,
+        salesRes,
+        itemsRes,
+        productsRes,
+        expensesRes,
+        customersRes,
+        paymentsRes,
+      ] = await Promise.all([
+        (supabase as any).from('businesses').select('name, currency, timezone').eq('id', businessId).maybeSingle(),
+        (supabase as any).from('sales').select('*').eq('business_id', businessId),
+        (supabase as any).from('sale_items').select('*'),
+        (supabase as any).from('products').select('*').eq('business_id', businessId),
+        (supabase as any).from('expenses').select('*').eq('business_id', businessId),
+        (supabase as any).from('customers').select('*').eq('business_id', businessId),
+        (supabase as any).from('payments').select('*').eq('business_id', businessId),
+      ]);
+
+      const bizData = bizRes.data || {};
+      const salesList: Sale[] = (salesRes.data || []) as Sale[];
+      const itemsList: SaleItem[] = (itemsRes.data || []) as SaleItem[];
+      const productsList: Product[] = (productsRes.data || []) as Product[];
+      const expensesList: Expense[] = (expensesRes.data || []) as Expense[];
+      const customersList: Customer[] = (customersRes.data || []) as Customer[];
+      const paymentsList: Payment[] = (paymentsRes.data || []) as Payment[];
+
+      return this.computeAnalyticsFromLists(
+        businessId,
+        bizData.name || 'Business',
+        bizData.currency || 'USD',
+        bizData.timezone || 'UTC',
+        window,
+        salesList,
+        itemsList,
+        productsList,
+        expensesList,
+        customersList,
+        paymentsList
+      );
+    } catch (err) {
+      console.warn('Failed to query Supabase tables for analytics:', err);
+      return null;
+    }
   },
 
   /**
@@ -353,6 +419,37 @@ export const AnalyticsService = {
     const customersList: Customer[] = JSON.parse(localStorage.getItem(custKey) || '[]');
     const paymentsList: Payment[] = JSON.parse(localStorage.getItem(payKey) || '[]');
 
+    return this.computeAnalyticsFromLists(
+      businessId,
+      'Business',
+      'USD',
+      'UTC',
+      window,
+      salesList,
+      itemsList,
+      productsList,
+      expensesList,
+      customersList,
+      paymentsList
+    );
+  },
+
+  /**
+   * Core deterministic analytics engine that executes over any set of records (Supabase or Local).
+   */
+  computeAnalyticsFromLists(
+    businessId: string,
+    businessName: string,
+    currency: string,
+    timezone: string,
+    window: DateRangeWindow,
+    salesList: Sale[],
+    itemsList: SaleItem[],
+    productsList: Product[],
+    expensesList: Expense[],
+    customersList: Customer[],
+    paymentsList: Payment[]
+  ): CompleteBusinessAnalytics {
     const startMs = new Date(window.startDate).getTime();
     const endMs = new Date(window.endDate).getTime();
     const priorStartMs = new Date(window.priorStartDate).getTime();
@@ -559,9 +656,9 @@ export const AnalyticsService = {
 
     return {
       businessId,
-      businessName: 'Business',
-      currency: 'USD',
-      timezone: 'UTC',
+      businessName: businessName || 'Business',
+      currency: currency || 'USD',
+      timezone: timezone || 'UTC',
       window,
       financialOverview,
       comparison,

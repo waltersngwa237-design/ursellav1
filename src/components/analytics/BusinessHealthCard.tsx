@@ -9,7 +9,7 @@ interface BusinessHealthCardProps {
 export const BusinessHealthCard: React.FC<BusinessHealthCardProps> = ({ indicator }) => {
   const [showMethodology, setShowMethodology] = useState(false);
 
-  const { score, rating, methodology, drivers } = indicator;
+  const { score = 50, rating = 'Good', methodology = '', drivers = [] } = indicator || {};
 
   let ratingColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
   let barColor = 'bg-emerald-500';

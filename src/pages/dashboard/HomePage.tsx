@@ -45,7 +45,7 @@ interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   const { profile, user } = useAuth();
-  const { activeBusiness, activeRole, currency } = useBusiness();
+  const { activeBusiness, activeRole, currency, loading: businessLoading } = useBusiness();
 
   const [preset, setPreset] = useState<DateRangePreset>('last_30_days');
   const [analytics, setAnalytics] = useState<CompleteBusinessAnalytics | null>(null);
@@ -53,11 +53,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
+  const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF || CURRENCY_MAP.USD;
 
   const loadData = useCallback(
     async (isManual = false) => {
-      if (!activeBusiness?.id) return;
+      if (!activeBusiness?.id) {
+        if (!businessLoading) {
+          setLoading(false);
+        }
+        return;
+      }
       try {
         if (isManual) setRefreshing(true);
         else setLoading(true);
@@ -73,15 +78,29 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
         setRefreshing(false);
       }
     },
-    [activeBusiness?.id, preset]
+    [activeBusiness?.id, preset, businessLoading]
   );
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  if (loading && !analytics) {
+  if ((loading || businessLoading) && !analytics) {
     return <DashboardSkeleton />;
+  }
+
+  if (!activeBusiness) {
+    return (
+      <div className="py-12 px-4 max-w-xl mx-auto text-center space-y-4">
+        <EmptyState
+          icon={<Package className="w-10 h-10 text-amber-400" />}
+          title="No Active Business Found"
+          description="Create your first business workspace or select an existing one to access the Ursella dashboard."
+          actionLabel="Create Business Workspace"
+          onAction={() => onNavigate('business')}
+        />
+      </div>
+    );
   }
 
   // Greeting based on time of day
@@ -240,7 +259,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
 
           {/* Metric 2: Gross Profit */}
           <MetricTrendCard
-            title={`Gross Profit (${analytics.financialOverview.grossMargin.toFixed(1)}% margin)`}
+            title={`Gross Profit (${(analytics.financialOverview.grossMargin ?? 0).toFixed(1)}% margin)`}
             comparison={analytics.comparison.grossProfit}
             currencyConfig={currencyConfig}
             icon={<DollarSign className="w-4 h-4 text-cyan-400" />}
@@ -304,7 +323,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               <div>
                 <span className="text-xs text-zinc-400 font-medium">Customer Receivables</span>
                 <div className="text-lg font-bold text-rose-400 mt-0.5">
-                  {currencyConfig.format(analytics.financialOverview.outstandingReceivables)}
+                  {currencyConfig.format(analytics.financialOverview.outstandingReceivables ?? 0)}
                 </div>
               </div>
               <Button
@@ -425,17 +444,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-zinc-100 truncate">{p.name}</p>
                     <p className="text-[11px] text-zinc-400 truncate">
-                      {p.unitsSold} units sold • Margin: {p.grossMargin.toFixed(1)}% •{' '}
-                      {p.observedVelocityUnitsPerDay.toFixed(2)}/day
+                      {p.unitsSold ?? 0} units sold • Margin: {(p.grossMargin ?? 0).toFixed(1)}% •{' '}
+                      {(p.observedVelocityUnitsPerDay ?? 0).toFixed(2)}/day
                     </p>
                   </div>
 
                   <div className="text-right shrink-0">
                     <p className="text-xs font-bold text-emerald-400">
-                      {currencyConfig.format(p.revenue)}
+                      {currencyConfig.format(p.revenue ?? 0)}
                     </p>
                     <span className="text-[10px] text-zinc-500">
-                      Profit: {currencyConfig.format(p.grossProfit)}
+                      Profit: {currencyConfig.format(p.grossProfit ?? 0)}
                     </span>
                   </div>
                 </div>

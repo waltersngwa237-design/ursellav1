@@ -27,10 +27,11 @@ export class PDFAndPrintService {
     business: Business | null,
     currencyConfig: CurrencyConfig
   ): string {
+    const anyBiz = business as (Business & { phone?: string; address?: string }) | null;
     const businessName = business?.name || 'Ursella Merchant';
     const businessDesc = business?.description || 'Official Sales Receipt';
-    const businessPhone = business?.phone ? `Tel: ${business.phone}` : '';
-    const businessAddress = business?.address ? `${business.address}` : '';
+    const businessPhone = anyBiz?.phone ? `Tel: ${anyBiz.phone}` : '';
+    const businessAddress = anyBiz?.address ? `${anyBiz.address}` : (business?.country || '');
     const dateFormatted = new Date(sale.sold_at).toLocaleString(undefined, {
       year: 'numeric',
       month: 'short',
@@ -398,8 +399,9 @@ export class PDFAndPrintService {
     doc.text(sanitizeText(businessDesc), pageWidth / 2, y, { align: 'center' });
     y += 3.5;
 
-    if (business?.phone || business?.address) {
-      const contact = [business?.phone ? `Tel: ${business.phone}` : '', business?.address || '']
+    const anyBiz = business as (Business & { phone?: string; address?: string }) | null;
+    if (anyBiz?.phone || anyBiz?.address || business?.country) {
+      const contact = [anyBiz?.phone ? `Tel: ${anyBiz.phone}` : '', anyBiz?.address || business?.country || '']
         .filter(Boolean)
         .join(' | ');
       doc.text(sanitizeText(contact), pageWidth / 2, y, { align: 'center' });

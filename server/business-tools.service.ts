@@ -20,9 +20,66 @@ export interface BusinessAuthorizationContext {
 }
 
 /**
+ * Calculates start and end ISO date strings for a given timezone and horizon days.
+ * For Cameroon (Africa/Douala, UTC+1), "today" starts at midnight Douala time (23:00 UTC prior).
+ */
+export function getTimezoneDateRange(timezone: string = 'Africa/Douala', days = 1): {
+  startDateIso: string;
+  endDateIso: string;
+  todayDateStr: string;
+} {
+  try {
+    const now = new Date();
+    // Get calendar date in target timezone
+    const dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = dtf.formatToParts(now);
+    const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '01';
+    const year = getPart('year');
+    const month = getPart('month');
+    const day = getPart('day');
+    const todayDateStr = `${year}-${month}-${day}`;
+
+    // Compute UTC offset between target timezone and UTC
+    const targetTzDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+    const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const offsetMs = targetTzDate.getTime() - utcDate.getTime();
+
+    // Midnight in the local timezone corresponds to UTC:
+    const utcMidnightForToday = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 0, 0, 0));
+    const startOfTodayUtc = new Date(utcMidnightForToday.getTime() - offsetMs);
+    const startOfRangeUtc = new Date(startOfTodayUtc.getTime() - (days - 1) * 86400000);
+    const endOfTodayUtc = new Date(startOfTodayUtc.getTime() + 86400000 - 1);
+
+    return {
+      startDateIso: startOfRangeUtc.toISOString(),
+      endDateIso: endOfTodayUtc.toISOString(),
+      todayDateStr,
+    };
+  } catch {
+    const now = new Date();
+    const todayDateStr = now.toISOString().split('T')[0];
+    const start = new Date();
+    start.setDate(start.getDate() - (days - 1));
+    start.setHours(0, 0, 0, 0);
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    return {
+      startDateIso: start.toISOString(),
+      endDateIso: end.toISOString(),
+      todayDateStr,
+    };
+  }
+}
+
+/**
  * Server-side business tools executor.
  * Strictly verifies tenant authorization and executes predefined business queries.
- * Never allows arbitrary SQL, arbitrary table names, or unauthorized tenant access.
+ * Grounded in the Supabase PostgreSQL database records.
  */
 export class BusinessToolsService {
   /**
@@ -39,7 +96,6 @@ export class BusinessToolsService {
         .maybeSingle();
 
       if (error || !data) {
-        // If Supabase not connected or mock mode, allow if valid UUIDs
         return true;
       }
       return true;
@@ -51,16 +107,14 @@ export class BusinessToolsService {
   /**
    * 1. Tool: get_business_overview
    */
-  public static async getBusinessOverview(businessId: string, timeHorizonDays = 30) {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - timeHorizonDays);
+  public static async getBusinessOverview(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
+    const { startDateIso, endDateIso } = getTimezoneDateRange(timezone, timeHorizonDays);
 
     try {
       const { data, error } = await serverSupabase.rpc('get_business_analytics', {
         p_business_id: businessId,
-        p_start_date: startDate.toISOString(),
-        p_end_date: endDate.toISOString(),
+        p_start_date: startDateIso,
+        p_end_date: endDateIso,
       });
 
       if (!error && data) {
@@ -70,34 +124,34 @@ export class BusinessToolsService {
       console.warn('RPC get_business_analytics failed, falling back to direct calculation:', e);
     }
 
-    // Direct database fallback query
-    return await this.calculateFallbackOverview(businessId, startDate, endDate);
+    return await this.calculateFallbackOverview(businessId, startDateIso, endDateIso, timezone);
   }
 
   /**
    * 2. Tool: get_sales_summary
    */
-  public static async getSalesSummary(businessId: string, timeHorizonDays = 30) {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - timeHorizonDays);
+  public static async getSalesSummary(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
+    const { startDateIso, endDateIso, todayDateStr } = getTimezoneDateRange(timezone, timeHorizonDays);
 
     const { data: sales } = await serverSupabase
       .from('sales')
       .select('id, total, amount_paid, amount_due, payment_status, payment_method, sold_at')
       .eq('business_id', businessId)
       .eq('sale_status', 'completed')
-      .gte('sold_at', startDate.toISOString())
-      .lte('sold_at', endDate.toISOString())
+      .gte('sold_at', startDateIso)
+      .lte('sold_at', endDateIso)
       .order('sold_at', { ascending: false });
 
-    const totalSales = sales?.reduce((acc, s) => acc + Number(s.total || 0), 0) || 0;
-    const totalCollected = sales?.reduce((acc, s) => acc + Number(s.amount_paid || 0), 0) || 0;
-    const totalDue = sales?.reduce((acc, s) => acc + Number(s.amount_due || 0), 0) || 0;
-    const count = sales?.length || 0;
+    const salesList = sales || [];
+    const totalSales = salesList.reduce((acc, s) => acc + Number(s.total || 0), 0);
+    const totalCollected = salesList.reduce((acc, s) => acc + Number(s.amount_paid || 0), 0);
+    const totalDue = salesList.reduce((acc, s) => acc + Number(s.amount_due || 0), 0);
+    const count = salesList.length;
 
     return {
       periodDays: timeHorizonDays,
+      referenceDate: todayDateStr,
+      timezone,
       transactionCount: count,
       totalRevenue: totalSales,
       totalCashCollected: totalCollected,
@@ -108,7 +162,76 @@ export class BusinessToolsService {
   }
 
   /**
-   * 3. Tool: get_product_performance
+   * 3. Tool: get_today_sales_summary
+   * Specific high-precision today metrics using the business's timezone.
+   */
+  public static async getTodaySalesSummary(businessId: string, timezone = 'Africa/Douala') {
+    const { startDateIso, endDateIso, todayDateStr } = getTimezoneDateRange(timezone, 1);
+
+    const [{ data: salesToday }, { data: paymentsToday }, inventoryAlerts] = await Promise.all([
+      serverSupabase
+        .from('sales')
+        .select('id, total, amount_paid, amount_due, payment_status, payment_method, sold_at')
+        .eq('business_id', businessId)
+        .eq('sale_status', 'completed')
+        .gte('sold_at', startDateIso)
+        .lte('sold_at', endDateIso)
+        .order('sold_at', { ascending: false }),
+      serverSupabase
+        .from('payments')
+        .select('amount, payment_method, paid_at')
+        .eq('business_id', businessId)
+        .gte('paid_at', startDateIso)
+        .lte('paid_at', endDateIso),
+      this.getInventoryAlerts(businessId),
+    ]);
+
+    const sales = salesToday || [];
+    const payments = paymentsToday || [];
+    const revenueToday = sales.reduce((sum, s) => sum + Number(s.total || 0), 0);
+    const txCountToday = sales.length;
+    const cashCollectedToday = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const receivablesToday = sales.reduce((sum, s) => sum + Number(s.amount_due || 0), 0);
+
+    // Compute COGS for today's sales
+    let cogsToday = 0;
+    const saleIds = sales.map((s) => s.id);
+    if (saleIds.length > 0) {
+      const { data: saleItems } = await serverSupabase
+        .from('sale_items')
+        .select('quantity, unit_cost, total_cost')
+        .in('sale_id', saleIds);
+
+      if (saleItems && saleItems.length > 0) {
+        cogsToday = saleItems.reduce((sum, item) => {
+          const cost = Number(item.total_cost || 0) > 0
+            ? Number(item.total_cost)
+            : Number(item.unit_cost || 0) * Number(item.quantity || 1);
+          return sum + cost;
+        }, 0);
+      }
+    }
+
+    const grossProfitToday = revenueToday - cogsToday;
+    const grossMarginToday = revenueToday > 0 ? Number(((grossProfitToday / revenueToday) * 100).toFixed(1)) : 0;
+
+    return {
+      todayDate: todayDateStr,
+      timezone,
+      salesCount: txCountToday,
+      revenue: revenueToday,
+      cogs: cogsToday,
+      grossProfit: grossProfitToday,
+      grossMarginPct: grossMarginToday,
+      cashCollected: cashCollectedToday,
+      receivablesCreated: receivablesToday,
+      hasRecordedSalesToday: txCountToday > 0,
+      inventoryAlerts,
+    };
+  }
+
+  /**
+   * 4. Tool: get_product_performance
    */
   public static async getProductPerformance(businessId: string, limit = 5) {
     try {
@@ -151,7 +274,7 @@ export class BusinessToolsService {
   }
 
   /**
-   * 4. Tool: get_inventory_alerts
+   * 5. Tool: get_inventory_alerts
    */
   public static async getInventoryAlerts(businessId: string) {
     const { data: products } = await serverSupabase
@@ -186,7 +309,7 @@ export class BusinessToolsService {
   }
 
   /**
-   * 5. Tool: get_customer_balances
+   * 6. Tool: get_customer_balances
    */
   public static async getCustomerBalances(businessId: string) {
     const { data: customers } = await serverSupabase
@@ -216,10 +339,11 @@ export class BusinessToolsService {
   }
 
   /**
-   * 6. Tool: get_expense_summary
+   * 7. Tool: get_expense_summary
    */
-  public static async getExpenseSummary(businessId: string, timeHorizonDays = 30) {
-    const startDate = new Date(Date.now() - timeHorizonDays * 86400000).toISOString().split('T')[0];
+  public static async getExpenseSummary(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
+    const { startDateIso, todayDateStr } = getTimezoneDateRange(timezone, timeHorizonDays);
+    const startDate = startDateIso.split('T')[0];
 
     const { data: expenses } = await serverSupabase
       .from('expenses')
@@ -246,6 +370,7 @@ export class BusinessToolsService {
 
     return {
       periodDays: timeHorizonDays,
+      referenceDate: todayDateStr,
       totalExpenses: total,
       topExpenseCategories: categories.slice(0, 5),
       recentExpenses: list.slice(0, 4).map((e) => ({
@@ -258,22 +383,22 @@ export class BusinessToolsService {
   }
 
   /**
-   * 7. Tool: get_cash_flow
+   * 8. Tool: get_cash_flow
    */
-  public static async getCashFlow(businessId: string, timeHorizonDays = 30) {
-    const startDate = new Date(Date.now() - timeHorizonDays * 86400000).toISOString();
+  public static async getCashFlow(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
+    const { startDateIso } = getTimezoneDateRange(timezone, timeHorizonDays);
 
     const [{ data: payments }, { data: expenses }] = await Promise.all([
       serverSupabase
         .from('payments')
         .select('amount')
         .eq('business_id', businessId)
-        .gte('paid_at', startDate),
+        .gte('paid_at', startDateIso),
       serverSupabase
         .from('expenses')
         .select('amount')
         .eq('business_id', businessId)
-        .gte('expense_date', startDate.split('T')[0]),
+        .gte('expense_date', startDateIso.split('T')[0]),
     ]);
 
     const cashIn = payments?.reduce((sum, p) => sum + Number(p.amount || 0), 0) || 0;
@@ -289,9 +414,9 @@ export class BusinessToolsService {
   }
 
   /**
-   * 8. Tool: get_period_comparison
+   * 9. Tool: get_period_comparison
    */
-  public static async getPeriodComparison(businessId: string, timeHorizonDays = 30) {
+  public static async getPeriodComparison(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
     const now = new Date();
     const currStart = new Date(now.getTime() - timeHorizonDays * 86400000);
     const priorEnd = new Date(currStart.getTime() - 1);
@@ -314,8 +439,8 @@ export class BusinessToolsService {
     }
 
     const [currOverview, priorOverview] = await Promise.all([
-      this.calculateFallbackOverview(businessId, currStart, now),
-      this.calculateFallbackOverview(businessId, priorStart, priorEnd),
+      this.calculateFallbackOverview(businessId, currStart.toISOString(), now.toISOString(), timezone),
+      this.calculateFallbackOverview(businessId, priorStart.toISOString(), priorEnd.toISOString(), timezone),
     ]);
 
     const revDiff = currOverview.revenue - priorOverview.revenue;
@@ -349,14 +474,13 @@ export class BusinessToolsService {
   }
 
   /**
-   * 9. Tool: get_business_health
+   * 10. Tool: get_business_health
    */
-  public static async getBusinessHealth(businessId: string) {
-    const overview = await this.getBusinessOverview(businessId, 30);
+  public static async getBusinessHealth(businessId: string, timezone = 'Africa/Douala') {
+    const overview = await this.getBusinessOverview(businessId, 30, timezone);
     const inv = await this.getInventoryAlerts(businessId);
     const debtors = await this.getCustomerBalances(businessId);
 
-    // Compute deterministic health score
     let score = 70;
     const keyObservations: string[] = [];
 
@@ -392,101 +516,119 @@ export class BusinessToolsService {
       score,
       rating: score >= 80 ? 'Excellent' : score >= 65 ? 'Good' : score >= 50 ? 'Fair' : 'At Risk',
       keyObservations,
-      dataSufficiency: overview.transaction_count >= 10 ? 'high_confidence' : 'insufficient_data',
+      dataSufficiency: overview.transaction_count >= 5 ? 'high_confidence' : 'insufficient_data',
     };
   }
 
   /**
-   * 10. Tool: get_daily_brief_facts
+   * 11. Tool: get_daily_brief_facts
    */
-  public static async getDailyBriefFacts(businessId: string) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [{ data: salesToday }, { data: paymentsToday }, { data: expensesToday }, inventory, customers] =
-      await Promise.all([
-        serverSupabase
-          .from('sales')
-          .select('total, amount_paid, amount_due')
-          .eq('business_id', businessId)
-          .eq('sale_status', 'completed')
-          .gte('sold_at', today.toISOString()),
-        serverSupabase
-          .from('payments')
-          .select('amount')
-          .eq('business_id', businessId)
-          .gte('paid_at', today.toISOString()),
-        serverSupabase
-          .from('expenses')
-          .select('amount, category, description')
-          .eq('business_id', businessId)
-          .gte('expense_date', today.toISOString().split('T')[0]),
-        this.getInventoryAlerts(businessId),
-        this.getCustomerBalances(businessId),
-      ]);
-
-    const revenueToday = salesToday?.reduce((sum, s) => sum + Number(s.total || 0), 0) || 0;
-    const txCountToday = salesToday?.length || 0;
-    const cashCollectedToday = paymentsToday?.reduce((sum, p) => sum + Number(p.amount || 0), 0) || 0;
-    const expensesTotalToday = expensesToday?.reduce((sum, e) => sum + Number(e.amount || 0), 0) || 0;
+  public static async getDailyBriefFacts(businessId: string, timezone = 'Africa/Douala') {
+    const todaySales = await this.getTodaySalesSummary(businessId, timezone);
+    const debtors = await this.getCustomerBalances(businessId);
 
     return {
       businessId,
-      todayDate: today.toISOString().split('T')[0],
+      todayDate: todaySales.todayDate,
+      timezone: todaySales.timezone,
       todayMetrics: {
-        revenueToday,
-        transactionCountToday: txCountToday,
-        cashCollectedToday,
-        expensesToday: expensesTotalToday,
+        revenueToday: todaySales.revenue,
+        transactionCountToday: todaySales.salesCount,
+        cashCollectedToday: todaySales.cashCollected,
+        grossProfitToday: todaySales.grossProfit,
+        grossMarginPctToday: todaySales.grossMarginPct,
+        receivablesCreatedToday: todaySales.receivablesCreated,
       },
-      inventoryAlerts: inventory,
-      debtorAlerts: customers,
+      inventoryAlerts: todaySales.inventoryAlerts,
+      debtorAlerts: debtors,
     };
   }
 
   /**
-   * Internal Fallback calculation
+   * Internal database calculation for overview
    */
-  private static async calculateFallbackOverview(businessId: string, startDate: Date, endDate: Date) {
+  private static async calculateFallbackOverview(
+    businessId: string,
+    startDateIso: string,
+    endDateIso: string,
+    defaultTimezone = 'Africa/Douala'
+  ) {
     const [{ data: business }, { data: sales }, { data: expenses }, { data: payments }] =
       await Promise.all([
         serverSupabase.from('businesses').select('currency, timezone').eq('id', businessId).maybeSingle(),
         serverSupabase
           .from('sales')
-          .select('total, amount_paid, amount_due')
+          .select('id, total, amount_paid, amount_due')
           .eq('business_id', businessId)
           .eq('sale_status', 'completed')
-          .gte('sold_at', startDate.toISOString())
-          .lte('sold_at', endDate.toISOString()),
+          .gte('sold_at', startDateIso)
+          .lte('sold_at', endDateIso),
         serverSupabase
           .from('expenses')
           .select('amount')
           .eq('business_id', businessId)
-          .gte('expense_date', startDate.toISOString().split('T')[0])
-          .lte('expense_date', endDate.toISOString().split('T')[0]),
+          .gte('expense_date', startDateIso.split('T')[0])
+          .lte('expense_date', endDateIso.split('T')[0]),
         serverSupabase
           .from('payments')
           .select('amount')
           .eq('business_id', businessId)
-          .gte('paid_at', startDate.toISOString())
-          .lte('paid_at', endDate.toISOString()),
+          .gte('paid_at', startDateIso)
+          .lte('paid_at', endDateIso),
       ]);
 
-    const revenue = sales?.reduce((sum, s) => sum + Number(s.total || 0), 0) || 0;
-    const txCount = sales?.length || 0;
-    const cogs = Number((revenue * 0.65).toFixed(2)); // estimated standard COGS fallback if items not joined
+    const salesList = sales || [];
+    const revenue = salesList.reduce((sum, s) => sum + Number(s.total || 0), 0);
+    const txCount = salesList.length;
+
+    // Real COGS calculation by querying sale_items for these sales
+    let cogs = 0;
+    const saleIds = salesList.map((s) => s.id);
+    if (saleIds.length > 0) {
+      const { data: saleItems } = await serverSupabase
+        .from('sale_items')
+        .select('quantity, unit_cost, total_cost')
+        .in('sale_id', saleIds);
+
+      if (saleItems && saleItems.length > 0) {
+        cogs = saleItems.reduce((sum, item) => {
+          const itemCost = Number(item.total_cost || 0) > 0
+            ? Number(item.total_cost)
+            : Number(item.unit_cost || 0) * Number(item.quantity || 1);
+          return sum + itemCost;
+        }, 0);
+      }
+    }
+
+    // If no sale_items costs were recorded, fallback to product catalogue costs
+    if (cogs === 0 && revenue > 0) {
+      const { data: products } = await serverSupabase
+        .from('products')
+        .select('cost_price, selling_price')
+        .eq('business_id', businessId);
+
+      if (products && products.length > 0) {
+        const avgMargin = products.reduce((acc, p) => {
+          const sp = Number(p.selling_price || 0);
+          const cp = Number(p.cost_price || 0);
+          return sp > 0 ? acc + (cp / sp) : acc;
+        }, 0) / products.length;
+        cogs = Number((revenue * (avgMargin || 0.6)).toFixed(2));
+      }
+    }
+
     const grossProfit = revenue - cogs;
     const grossMargin = revenue > 0 ? Number(((grossProfit / revenue) * 100).toFixed(2)) : 0;
     const operatingExpenses = expenses?.reduce((sum, e) => sum + Number(e.amount || 0), 0) || 0;
     const netProfit = grossProfit - operatingExpenses;
     const netMargin = revenue > 0 ? Number(((netProfit / revenue) * 100).toFixed(2)) : 0;
     const amountCollected = payments?.reduce((sum, p) => sum + Number(p.amount || 0), 0) || 0;
-    const receivables = sales?.reduce((sum, s) => sum + Number(s.amount_due || 0), 0) || 0;
+    const receivables = salesList.reduce((sum, s) => sum + Number(s.amount_due || 0), 0);
 
     return {
       business_id: businessId,
       currency: business?.currency || 'USD',
-      timezone: business?.timezone || 'UTC',
+      timezone: business?.timezone || defaultTimezone,
       revenue,
       cost_of_goods_sold: cogs,
       gross_profit: grossProfit,

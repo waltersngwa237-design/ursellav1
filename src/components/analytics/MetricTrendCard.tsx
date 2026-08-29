@@ -23,7 +23,17 @@ export const MetricTrendCard: React.FC<MetricTrendCardProps> = ({
   invertColors = false,
   tooltip,
 }) => {
-  const { current, prior, percentageChange, trend } = comparison;
+  const safeComp = comparison || {
+    current: 0,
+    prior: 0,
+    percentageChange: null,
+    trend: 'neutral',
+  };
+
+  const current = safeComp.current ?? 0;
+  const prior = safeComp.prior ?? 0;
+  const percentageChange = safeComp.percentageChange;
+  const trend = safeComp.trend || 'neutral';
 
   const formattedCurrent = formatAsCurrency
     ? currencyConfig.format(current)
@@ -43,7 +53,7 @@ export const MetricTrendCard: React.FC<MetricTrendCardProps> = ({
     isGood = isDown;
   }
 
-  if (percentageChange !== null && percentageChange !== 0) {
+  if (percentageChange !== null && percentageChange !== undefined && !isNaN(percentageChange) && percentageChange !== 0) {
     if (isGood) {
       badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
     } else {
@@ -73,7 +83,7 @@ export const MetricTrendCard: React.FC<MetricTrendCardProps> = ({
           <span className="text-zinc-300 font-medium truncate">{formattedPrior}</span>
         </div>
 
-        {percentageChange !== null ? (
+        {percentageChange !== null && percentageChange !== undefined && !isNaN(percentageChange) ? (
           <div
             className={`flex items-center gap-0.5 px-2 py-0.5 rounded-md border font-semibold text-[11px] shrink-0 ${badgeColor}`}
           >

@@ -38,15 +38,15 @@ export const RevenueTrendsChart: React.FC<RevenueTrendsChartProps> = ({
     setActiveSeries((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const chartData = data.map((d) => ({
-    date: d.date.length > 5 ? d.date.slice(5) : d.date, // e.g. "08-26"
-    fullDate: d.date,
-    revenue: d.revenue,
-    grossProfit: d.grossProfit,
-    expenses: d.expenses,
-    netProfit: d.estimatedNetProfit,
-    cashCollected: d.cashCollected,
-    transactionCount: d.transactionCount,
+  const chartData = (data || []).map((d) => ({
+    date: d.date?.length > 5 ? d.date.slice(5) : (d.date || ''), // e.g. "08-26"
+    fullDate: d.date || '',
+    revenue: d.revenue ?? 0,
+    grossProfit: d.grossProfit ?? 0,
+    expenses: d.expenses ?? 0,
+    netProfit: d.estimatedNetProfit ?? 0,
+    cashCollected: d.cashCollected ?? 0,
+    transactionCount: d.transactionCount ?? 0,
   }));
 
   const hasData = chartData.some(

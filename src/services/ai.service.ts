@@ -13,11 +13,30 @@ const LOCAL_STORAGE_MESSAGES_KEY = 'ursella_ai_messages';
 
 export class AIService {
   /**
-   * Sends a user query to the server-side Ursella AI engine.
+   * Sends a user query to the Ursella AI engine via Supabase Edge Function (or local server proxy).
    */
   public static async sendChatMessage(
     payload: AIChatRequestPayload
   ): Promise<AIChatResponsePayload> {
+    // 1. Try invoking the Supabase Edge Function 'ursella-ai' if configured
+    if (isSupabaseConfigured && isValidUUID(payload.businessId)) {
+      try {
+        const { data: edgeData, error: edgeError } = await supabase.functions.invoke('ursella-ai', {
+          body: payload,
+        });
+
+        if (!edgeError && edgeData && edgeData.response) {
+          return edgeData as AIChatResponsePayload;
+        }
+        if (edgeError) {
+          console.warn('Supabase Edge Function invocation failed, falling back to server route:', edgeError);
+        }
+      } catch (err) {
+        console.warn('Edge function invoke error, falling back to server route:', err);
+      }
+    }
+
+    // 2. Full-stack server proxy fallback
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: {

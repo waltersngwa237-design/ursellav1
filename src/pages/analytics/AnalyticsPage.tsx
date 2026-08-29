@@ -38,8 +38,8 @@ interface AnalyticsPageProps {
 type AnalyticsTab = 'overview' | 'sales' | 'products' | 'customers' | 'expenses';
 
 export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
-  const { activeBusiness, currency } = useBusiness();
-  const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
+  const { activeBusiness, currency, loading: businessLoading } = useBusiness();
+  const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF || CURRENCY_MAP.USD;
 
   const [activePreset, setActivePreset] = useState<DateRangePreset>('last_30_days');
   const [customStart, setCustomStart] = useState<string | undefined>(undefined);
@@ -56,7 +56,12 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
 
   const loadAnalytics = useCallback(
     async (isManual = false) => {
-      if (!activeBusiness?.id) return;
+      if (!activeBusiness?.id) {
+        if (!businessLoading) {
+          setLoading(false);
+        }
+        return;
+      }
       try {
         if (isManual) setRefreshing(true);
         else setLoading(true);
@@ -81,7 +86,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
         setRefreshing(false);
       }
     },
-    [activeBusiness?.id, activePreset, customStart, customEnd]
+    [activeBusiness?.id, activePreset, customStart, customEnd, businessLoading]
   );
 
   useEffect(() => {
@@ -94,7 +99,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
     setActivePreset('custom');
   };
 
-  if (loading && !analytics) {
+  if ((loading || businessLoading) && !analytics) {
     return <DashboardSkeleton />;
   }
 

@@ -98,13 +98,19 @@ app.post('/api/ai/chat', async (req, res) => {
       toolsExecuted.push(toolName);
       if (toolName === 'get_business_overview') {
         toolExecutionPromises.push(
-          BusinessToolsService.getBusinessOverview(businessId, horizon).then((res) => {
+          BusinessToolsService.getBusinessOverview(businessId, horizon, timezone).then((res) => {
             toolResults[toolName] = res;
           })
         );
       } else if (toolName === 'get_sales_summary') {
         toolExecutionPromises.push(
-          BusinessToolsService.getSalesSummary(businessId, horizon).then((res) => {
+          BusinessToolsService.getSalesSummary(businessId, horizon, timezone).then((res) => {
+            toolResults[toolName] = res;
+          })
+        );
+      } else if (toolName === 'get_today_sales_summary') {
+        toolExecutionPromises.push(
+          BusinessToolsService.getTodaySalesSummary(businessId, timezone).then((res) => {
             toolResults[toolName] = res;
           })
         );
@@ -128,31 +134,31 @@ app.post('/api/ai/chat', async (req, res) => {
         );
       } else if (toolName === 'get_expense_summary') {
         toolExecutionPromises.push(
-          BusinessToolsService.getExpenseSummary(businessId, horizon).then((res) => {
+          BusinessToolsService.getExpenseSummary(businessId, horizon, timezone).then((res) => {
             toolResults[toolName] = res;
           })
         );
       } else if (toolName === 'get_cash_flow') {
         toolExecutionPromises.push(
-          BusinessToolsService.getCashFlow(businessId, horizon).then((res) => {
+          BusinessToolsService.getCashFlow(businessId, horizon, timezone).then((res) => {
             toolResults[toolName] = res;
           })
         );
       } else if (toolName === 'get_period_comparison') {
         toolExecutionPromises.push(
-          BusinessToolsService.getPeriodComparison(businessId, horizon).then((res) => {
+          BusinessToolsService.getPeriodComparison(businessId, horizon, timezone).then((res) => {
             toolResults[toolName] = res;
           })
         );
       } else if (toolName === 'get_business_health') {
         toolExecutionPromises.push(
-          BusinessToolsService.getBusinessHealth(businessId).then((res) => {
+          BusinessToolsService.getBusinessHealth(businessId, timezone).then((res) => {
             toolResults[toolName] = res;
           })
         );
       } else if (toolName === 'get_daily_brief_facts') {
         toolExecutionPromises.push(
-          BusinessToolsService.getDailyBriefFacts(businessId).then((res) => {
+          BusinessToolsService.getDailyBriefFacts(businessId, timezone).then((res) => {
             toolResults[toolName] = res;
           })
         );

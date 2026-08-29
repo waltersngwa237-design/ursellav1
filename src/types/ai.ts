@@ -1,6 +1,7 @@
 export type AIIntentType =
   | 'business_overview'
   | 'sales'
+  | 'sales_today'
   | 'products'
   | 'inventory'
   | 'customers'

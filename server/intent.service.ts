@@ -1,6 +1,7 @@
 export type AIIntentType =
   | 'business_overview'
   | 'sales'
+  | 'sales_today'
   | 'products'
   | 'inventory'
   | 'customers'
@@ -39,13 +40,34 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
   ) {
     return {
       intent: 'daily_brief',
-      requiredTools: ['get_daily_brief_facts', 'get_inventory_alerts', 'get_customer_balances'],
+      requiredTools: ['get_daily_brief_facts', 'get_today_sales_summary', 'get_inventory_alerts', 'get_customer_balances'],
       suggestedTimeHorizonDays: 1,
       confidence: 0.95,
     };
   }
 
-  // 2. Receivables & Debtors
+  // 2. Specific "Today" queries (Sales today, revenue today, sold today)
+  if (
+    q.includes('today') ||
+    q.includes('sell today') ||
+    q.includes('sold today') ||
+    q.includes('sales today') ||
+    q.includes('revenue today') ||
+    q.includes('profit today') ||
+    q.includes('orders today') ||
+    q.includes('what did i sell today') ||
+    q.includes('how much did i sell today') ||
+    q.includes('how are my sales today')
+  ) {
+    return {
+      intent: 'sales_today',
+      requiredTools: ['get_today_sales_summary', 'get_daily_brief_facts', 'get_inventory_alerts', 'get_business_overview'],
+      suggestedTimeHorizonDays: 1,
+      confidence: 0.96,
+    };
+  }
+
+  // 3. Receivables & Debtors
   if (
     q.includes('who owes') ||
     q.includes('debt') ||
@@ -63,7 +85,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 3. Inventory & Low Stock
+  // 4. Inventory & Low Stock
   if (
     q.includes('low stock') ||
     q.includes('running low') ||
@@ -82,7 +104,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 4. Products & Catalog Performance
+  // 5. Products & Catalog Performance (Best sellers, top products)
   if (
     q.includes('product') ||
     q.includes('best selling') ||
@@ -101,7 +123,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 5. Expenses & Costs
+  // 6. Expenses & Costs
   if (
     q.includes('expense') ||
     q.includes('spending') ||
@@ -119,7 +141,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 6. Cash Flow & Payments
+  // 7. Cash Flow & Payments
   if (
     q.includes('cash flow') ||
     q.includes('cash collected') ||
@@ -136,7 +158,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 7. Profitability & Margins
+  // 8. Profitability & Margins
   if (
     q.includes('gross margin') ||
     q.includes('net profit') ||
@@ -147,13 +169,13 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
   ) {
     return {
       intent: 'profitability',
-      requiredTools: ['get_business_overview', 'get_period_comparison'],
+      requiredTools: ['get_business_overview', 'get_today_sales_summary', 'get_period_comparison'],
       suggestedTimeHorizonDays: 30,
       confidence: 0.89,
     };
   }
 
-  // 8. Trends & Comparisons ("Why are sales down", "Compare to last month")
+  // 9. Trends & Comparisons ("Why are sales down", "Compare to last month")
   if (
     q.includes('why are sales') ||
     q.includes('sales down') ||
@@ -174,7 +196,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 9. Recommendations & Planning ("What should I focus on")
+  // 10. Recommendations & Planning ("What should I focus on")
   if (
     q.includes('focus on') ||
     q.includes('what should i do') ||
@@ -197,7 +219,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 10. Store Identity & Preferences
+  // 11. Store Identity & Preferences
   if (
     q.includes('business name') ||
     q.includes('store name') ||
@@ -218,27 +240,23 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 11. Sales / What did I sell today
+  // 12. General Sales / Revenue
   if (
-    q.includes('sell today') ||
-    q.includes('sold today') ||
-    q.includes('today sales') ||
-    q.includes('sales today') ||
-    q.includes('sales this week') ||
-    q.includes('sales this month') ||
+    q.includes('sales') ||
     q.includes('revenue') ||
-    q.includes('transactions')
+    q.includes('transactions') ||
+    q.includes('sales this week') ||
+    q.includes('sales this month')
   ) {
-    const isToday = q.includes('today');
     return {
       intent: 'sales',
-      requiredTools: ['get_sales_summary', 'get_business_overview'],
-      suggestedTimeHorizonDays: isToday ? 1 : 30,
+      requiredTools: ['get_sales_summary', 'get_business_overview', 'get_today_sales_summary'],
+      suggestedTimeHorizonDays: 30,
       confidence: 0.9,
     };
   }
 
-  // 11. Customer intelligence
+  // 13. Customer intelligence
   if (q.includes('customer') || q.includes('clients') || q.includes('buyer')) {
     return {
       intent: 'customers',
@@ -248,11 +266,12 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 12. General Business Overview ("How is my business doing")
+  // 14. General Business Overview ("How is my business doing")
   return {
     intent: 'business_overview',
     requiredTools: [
       'get_business_overview',
+      'get_today_sales_summary',
       'get_period_comparison',
       'get_inventory_alerts',
       'get_business_health',
