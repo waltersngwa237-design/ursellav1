@@ -7,7 +7,12 @@ import type {
   CustomerWithSummary,
   Sale,
   Payment,
+  ProductWithCategory,
+  InventoryTransaction,
+  Expense,
 } from '../types/index.ts';
+import type { ProductDetailResult } from './product.service.ts';
+import type { InventoryLedgerItem } from './inventory.service.ts';
 
 /**
  * Clean sanitization for PDF text output to avoid font encoding issues.
@@ -1260,5 +1265,980 @@ export class PDFAndPrintService {
         }
       }, 250);
     };
+  }
+
+  /**
+   * Generates a multi-page comprehensive Sales History / Transaction Ledger PDF.
+   */
+  public static exportSalesHistoryPDF(
+    sales: SaleWithDetails[],
+    business: Business | null,
+    currencyConfig: CurrencyConfig,
+    filterLabel: string = 'All Recorded Sales'
+  ): void {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth(); // 297mm
+    const pageHeight = doc.internal.pageSize.getHeight(); // 210mm
+    const margin = 14;
+    const contentWidth = pageWidth - margin * 2;
+
+    const totalGross = sales.reduce((sum, s) => sum + s.total, 0);
+    const totalPaid = sales.reduce((sum, s) => sum + s.amount_paid, 0);
+    const totalDue = sales.reduce((sum, s) => sum + s.amount_due, 0);
+    const completedSales = sales.filter((s) => s.sale_status === 'completed').length;
+    const businessName = sanitizeText(business?.name || 'Ursella Business Operations');
+
+    let y = margin;
+    let pageNumber = 1;
+
+    const drawHeader = (docInstance: jsPDF, isFirstPage: boolean) => {
+      docInstance.setFillColor(15, 23, 42); // slate-900
+      docInstance.rect(margin, y, contentWidth, isFirstPage ? 20 : 12, 'F');
+
+      docInstance.setTextColor(255, 255, 255);
+      docInstance.setFont('helvetica', 'bold');
+      docInstance.setFontSize(isFirstPage ? 13 : 10);
+      docInstance.text(businessName.toUpperCase(), margin + 6, y + (isFirstPage ? 8 : 7));
+
+      docInstance.setFont('helvetica', 'normal');
+      docInstance.setFontSize(isFirstPage ? 9 : 8);
+      docInstance.setTextColor(148, 163, 184);
+      docInstance.text(
+        isFirstPage
+          ? `SALES TRANSACTION LEDGER | Filter: ${sanitizeText(filterLabel)}`
+          : `SALES TRANSACTION LEDGER (Cont.)`,
+        margin + 6,
+        y + (isFirstPage ? 14 : 10)
+      );
+
+      docInstance.setFontSize(8);
+      docInstance.text(
+        `Generated: ${new Date().toLocaleString()}`,
+        pageWidth - margin - 6,
+        y + (isFirstPage ? 8 : 7),
+        { align: 'right' }
+      );
+
+      y += isFirstPage ? 24 : 15;
+
+      if (isFirstPage) {
+        // KPI Summary Cards
+        const cardWidth = (contentWidth - 9) / 4;
+        const cardHeight = 14;
+
+        // Card 1: Total Transactions
+        docInstance.setFillColor(248, 250, 252);
+        docInstance.roundedRect(margin, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+        docInstance.setFont('helvetica', 'bold');
+        docInstance.setFontSize(7);
+        docInstance.setTextColor(100, 116, 139);
+        docInstance.text('TOTAL TRANSACTIONS', margin + 3, y + 4.5);
+        docInstance.setFontSize(10);
+        docInstance.setTextColor(15, 23, 42);
+        docInstance.text(`${sales.length} (${completedSales} Paid/Done)`, margin + 3, y + 10.5);
+
+        // Card 2: Total Gross Sales
+        docInstance.setFillColor(248, 250, 252);
+        docInstance.roundedRect(margin + cardWidth + 3, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+        docInstance.setFont('helvetica', 'bold');
+        docInstance.setFontSize(7);
+        docInstance.setTextColor(100, 116, 139);
+        docInstance.text('TOTAL GROSS SALES', margin + cardWidth + 6, y + 4.5);
+        docInstance.setFontSize(10);
+        docInstance.setTextColor(5, 150, 105);
+        docInstance.text(currencyConfig.format(totalGross), margin + cardWidth + 6, y + 10.5);
+
+        // Card 3: Collected Revenue
+        docInstance.setFillColor(248, 250, 252);
+        docInstance.roundedRect(margin + (cardWidth + 3) * 2, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+        docInstance.setFont('helvetica', 'bold');
+        docInstance.setFontSize(7);
+        docInstance.setTextColor(100, 116, 139);
+        docInstance.text('TOTAL CASH/PAID', margin + (cardWidth + 3) * 2 + 3, y + 4.5);
+        docInstance.setFontSize(10);
+        docInstance.setTextColor(37, 99, 235);
+        docInstance.text(currencyConfig.format(totalPaid), margin + (cardWidth + 3) * 2 + 3, y + 10.5);
+
+        // Card 4: Outstanding Receivables
+        docInstance.setFillColor(248, 250, 252);
+        docInstance.roundedRect(margin + (cardWidth + 3) * 3, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+        docInstance.setFont('helvetica', 'bold');
+        docInstance.setFontSize(7);
+        docInstance.setTextColor(100, 116, 139);
+        docInstance.text('OUTSTANDING BALANCE', margin + (cardWidth + 3) * 3 + 3, y + 4.5);
+        docInstance.setFontSize(10);
+        docInstance.setTextColor(totalDue > 0 ? 220 : 100, totalDue > 0 ? 38 : 116, totalDue > 0 ? 38 : 139);
+        docInstance.text(currencyConfig.format(totalDue), margin + (cardWidth + 3) * 3 + 3, y + 10.5);
+
+        y += cardHeight + 4;
+      }
+
+      // Table Header
+      docInstance.setFillColor(241, 245, 249);
+      docInstance.rect(margin, y, contentWidth, 7, 'F');
+      docInstance.setDrawColor(203, 213, 225);
+      docInstance.line(margin, y + 7, margin + contentWidth, y + 7);
+
+      docInstance.setFont('helvetica', 'bold');
+      docInstance.setFontSize(7);
+      docInstance.setTextColor(51, 65, 85);
+
+      docInstance.text('DATE / TIME', margin + 3, y + 4.8);
+      docInstance.text('RECEIPT #', margin + 35, y + 4.8);
+      docInstance.text('CUSTOMER', margin + 65, y + 4.8);
+      docInstance.text('ITEMS SOLD SUMMARY', margin + 110, y + 4.8);
+      docInstance.text('TOTAL', margin + 185, y + 4.8, { align: 'right' });
+      docInstance.text('PAID', margin + 215, y + 4.8, { align: 'right' });
+      docInstance.text('DUE', margin + 242, y + 4.8, { align: 'right' });
+      docInstance.text('STATUS', margin + 252, y + 4.8);
+      docInstance.text('METHOD', margin + 273, y + 4.8);
+
+      y += 8;
+    };
+
+    drawHeader(doc, true);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+
+    sales.forEach((sale, index) => {
+      // Check if page overflow
+      if (y > pageHeight - 18) {
+        // Footer on current page
+        doc.setFontSize(6.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Page ${pageNumber} | Ursella Operational POS Intelligence`, margin, pageHeight - 6);
+        doc.text(`Official Business Ledger`, pageWidth - margin, pageHeight - 6, { align: 'right' });
+
+        doc.addPage();
+        pageNumber += 1;
+        y = margin;
+        drawHeader(doc, false);
+      }
+
+      if (index % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y - 0.5, contentWidth, 6.5, 'F');
+      }
+
+      const dateStr = new Date(sale.sold_at).toLocaleString();
+      const receiptNo = `#${sale.id.substring(0, 8).toUpperCase()}`;
+      const customerName = sanitizeText(sale.customer?.name || 'Walk-in Customer');
+      const itemsSummary = sanitizeText(
+        (sale.items || [])
+          .map((i) => `${i.product_name || 'Item'} (x${i.quantity})`)
+          .join(', ')
+      ).substring(0, 48);
+
+      doc.setTextColor(30, 41, 59);
+      doc.text(dateStr, margin + 3, y + 4);
+      doc.setFont('helvetica', 'bold');
+      doc.text(receiptNo, margin + 35, y + 4);
+      doc.setFont('helvetica', 'normal');
+      doc.text(customerName.substring(0, 22), margin + 65, y + 4);
+      doc.setTextColor(100, 116, 139);
+      doc.text(itemsSummary || '1 transaction item', margin + 110, y + 4);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(currencyConfig.format(sale.total), margin + 185, y + 4, { align: 'right' });
+
+      doc.setTextColor(5, 150, 105);
+      doc.text(currencyConfig.format(sale.amount_paid), margin + 215, y + 4, { align: 'right' });
+
+      doc.setTextColor(sale.amount_due > 0 ? 220 : 100, sale.amount_due > 0 ? 38 : 116, sale.amount_due > 0 ? 38 : 139);
+      doc.text(currencyConfig.format(sale.amount_due), margin + 242, y + 4, { align: 'right' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(sale.sale_status === 'completed' ? 5 : 220, sale.sale_status === 'completed' ? 150 : 38, sale.sale_status === 'completed' ? 105 : 38);
+      doc.text(sale.sale_status.toUpperCase(), margin + 252, y + 4);
+
+      doc.setTextColor(71, 85, 105);
+      doc.text((sale.payment_method || 'CASH').replace('_', ' ').toUpperCase(), margin + 273, y + 4);
+
+      y += 6.5;
+    });
+
+    // Final page footer
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Page ${pageNumber} | Ursella Operational POS Intelligence`, margin, pageHeight - 6);
+    doc.text(`Official Business Ledger - Total ${sales.length} Sales`, pageWidth - margin, pageHeight - 6, {
+      align: 'right',
+    });
+
+    const fileSafeName = (business?.name || 'Ursella').replace(/[^a-zA-Z0-9]/g, '_');
+    doc.save(`Sales_History_${fileSafeName}_${new Date().toISOString().split('T')[0]}.pdf`);
+  }
+
+  /**
+   * Directly prints sales history in an isolated browser print frame.
+   */
+  public static printSalesHistoryDirectly(
+    sales: SaleWithDetails[],
+    business: Business | null,
+    currencyConfig: CurrencyConfig,
+    filterLabel: string = 'All Sales'
+  ): void {
+    const businessName = business?.name || 'Ursella Merchant';
+    const totalGross = sales.reduce((sum, s) => sum + s.total, 0);
+    const totalPaid = sales.reduce((sum, s) => sum + s.amount_paid, 0);
+    const totalDue = sales.reduce((sum, s) => sum + s.amount_due, 0);
+
+    const rows = sales
+      .map(
+        (s) => `
+      <tr>
+        <td>${new Date(s.sold_at).toLocaleString()}</td>
+        <td><strong>#${s.id.substring(0, 8).toUpperCase()}</strong></td>
+        <td>${s.customer?.name || 'Walk-in Customer'}</td>
+        <td style="color: #64748b; font-size: 10px;">${(s.items || []).map((i) => `${i.product_name} (x${i.quantity})`).join(', ')}</td>
+        <td style="text-align: right; font-weight: bold;">${currencyConfig.format(s.total)}</td>
+        <td style="text-align: right; color: #059669;">${currencyConfig.format(s.amount_paid)}</td>
+        <td style="text-align: right; color: ${s.amount_due > 0 ? '#dc2626' : '#64748b'};">${currencyConfig.format(s.amount_due)}</td>
+        <td style="text-align: center;"><span style="padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; background: ${s.sale_status === 'completed' ? '#dcfce7; color: #166534;' : '#fee2e2; color: #991b1b;'}">${s.sale_status.toUpperCase()}</span></td>
+        <td>${(s.payment_method || 'CASH').replace('_', ' ').toUpperCase()}</td>
+      </tr>
+    `
+      )
+      .join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Sales Ledger - ${businessName}</title>
+        <style>
+          @page { size: A4 landscape; margin: 10mm; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 10mm; color: #0f172a; font-size: 11px; }
+          .header { border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-end; }
+          .biz-title { font-size: 18px; font-weight: 800; text-transform: uppercase; }
+          .doc-title { font-size: 12px; color: #0284c7; font-weight: 700; margin-top: 2px; }
+          .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+          .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 6px; }
+          .kpi-lbl { font-size: 9px; color: #64748b; font-weight: bold; text-transform: uppercase; }
+          .kpi-val { font-size: 14px; font-weight: 800; color: #0f172a; margin-top: 2px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+          th { background: #f1f5f9; text-align: left; padding: 6px 8px; font-size: 9px; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; }
+          td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; font-size: 10px; }
+          tr:nth-child(even) { background-color: #fafafa; }
+          .footer { margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 6px; text-align: center; font-size: 9px; color: #94a3b8; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="biz-title">${businessName}</div>
+            <div class="doc-title">SALES TRANSACTION LEDGER (${filterLabel})</div>
+          </div>
+          <div style="text-align: right; font-size: 10px; color: #64748b;">
+            Generated: ${new Date().toLocaleString()}
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-lbl">Total Records</div>
+            <div class="kpi-val">${sales.length} Sales</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-lbl">Total Gross</div>
+            <div class="kpi-val" style="color: #059669;">${currencyConfig.format(totalGross)}</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-lbl">Total Collected</div>
+            <div class="kpi-val" style="color: #0284c7;">${currencyConfig.format(totalPaid)}</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-lbl">Outstanding Due</div>
+            <div class="kpi-val" style="color: ${totalDue > 0 ? '#dc2626' : '#059669'};">${currencyConfig.format(totalDue)}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Receipt #</th>
+              <th>Customer</th>
+              <th>Items</th>
+              <th style="text-align: right;">Total</th>
+              <th style="text-align: right;">Paid</th>
+              <th style="text-align: right;">Due</th>
+              <th style="text-align: center;">Status</th>
+              <th>Method</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || '<tr><td colspan="9" style="text-align: center; color: #94a3b8; padding: 20px;">No sales found.</td></tr>'}
+          </tbody>
+        </table>
+
+        <div class="footer">Ursella Business Intelligence - Official Sales Ledger</div>
+      </body>
+      </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.style.zIndex = '-9999';
+
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    iframe.onload = () => {
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+          }, 3000);
+        }
+      }, 250);
+    };
+  }
+
+  /**
+   * Generates a Product Catalog & Inventory Valuation PDF (handles Active, Archived, or All products).
+   */
+  public static exportProductCatalogPDF(
+    products: ProductWithCategory[],
+    business: Business | null,
+    currencyConfig: CurrencyConfig,
+    filterLabel: string = 'All Catalog Products'
+  ): void {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
+    const pageHeight = doc.internal.pageSize.getHeight(); // 297mm
+    const margin = 12;
+    const contentWidth = pageWidth - margin * 2;
+
+    const totalStock = products.reduce((sum, p) => sum + p.stock_quantity, 0);
+    const totalValuation = products.reduce((sum, p) => sum + p.stock_quantity * p.cost_price, 0);
+    const archivedCount = products.filter((p) => !p.is_active).length;
+    const activeCount = products.length - archivedCount;
+    const businessName = sanitizeText(business?.name || 'Ursella Business Operations');
+
+    let y = margin;
+    let pageNumber = 1;
+
+    const drawHeader = (docInstance: jsPDF, isFirstPage: boolean) => {
+      docInstance.setFillColor(15, 23, 42);
+      docInstance.rect(margin, y, contentWidth, isFirstPage ? 18 : 10, 'F');
+
+      docInstance.setTextColor(255, 255, 255);
+      docInstance.setFont('helvetica', 'bold');
+      docInstance.setFontSize(isFirstPage ? 12 : 9);
+      docInstance.text(businessName.toUpperCase(), margin + 5, y + (isFirstPage ? 7 : 6));
+
+      docInstance.setFont('helvetica', 'normal');
+      docInstance.setFontSize(isFirstPage ? 8.5 : 7.5);
+      docInstance.setTextColor(148, 163, 184);
+      docInstance.text(
+        isFirstPage ? `PRODUCT CATALOG & STOCK VALUATION | ${sanitizeText(filterLabel)}` : `PRODUCT CATALOG (Cont.)`,
+        margin + 5,
+        y + (isFirstPage ? 13 : 9)
+      );
+
+      docInstance.setFontSize(7.5);
+      docInstance.text(`Date: ${new Date().toLocaleDateString()}`, pageWidth - margin - 5, y + (isFirstPage ? 7 : 6), {
+        align: 'right',
+      });
+
+      y += isFirstPage ? 22 : 13;
+
+      if (isFirstPage) {
+        // Summary KPIs
+        const cardWidth = (contentWidth - 6) / 3;
+        const cardHeight = 13;
+
+        // Card 1
+        docInstance.setFillColor(248, 250, 252);
+        docInstance.roundedRect(margin, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+        docInstance.setFont('helvetica', 'bold');
+        docInstance.setFontSize(6.5);
+        docInstance.setTextColor(100, 116, 139);
+        docInstance.text('TOTAL CATALOG PRODUCTS', margin + 3, y + 4.5);
+        docInstance.setFontSize(9.5);
+        docInstance.setTextColor(15, 23, 42);
+        docInstance.text(`${products.length} (${activeCount} Active, ${archivedCount} Archived)`, margin + 3, y + 10);
+
+        // Card 2
+        docInstance.setFillColor(248, 250, 252);
+        docInstance.roundedRect(margin + cardWidth + 3, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+        docInstance.setFont('helvetica', 'bold');
+        docInstance.setFontSize(6.5);
+        docInstance.setTextColor(100, 116, 139);
+        docInstance.text('TOTAL UNITS ON HAND', margin + cardWidth + 6, y + 4.5);
+        docInstance.setFontSize(9.5);
+        docInstance.setTextColor(37, 99, 235);
+        docInstance.text(`${totalStock} Units`, margin + cardWidth + 6, y + 10);
+
+        // Card 3
+        docInstance.setFillColor(248, 250, 252);
+        docInstance.roundedRect(margin + (cardWidth + 3) * 2, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+        docInstance.setFont('helvetica', 'bold');
+        docInstance.setFontSize(6.5);
+        docInstance.setTextColor(100, 116, 139);
+        docInstance.text('TOTAL INVENTORY VALUATION', margin + (cardWidth + 3) * 2 + 3, y + 4.5);
+        docInstance.setFontSize(9.5);
+        docInstance.setTextColor(5, 150, 105);
+        docInstance.text(currencyConfig.format(totalValuation), margin + (cardWidth + 3) * 2 + 3, y + 10);
+
+        y += cardHeight + 4;
+      }
+
+      // Table Header
+      docInstance.setFillColor(241, 245, 249);
+      docInstance.rect(margin, y, contentWidth, 6.5, 'F');
+      docInstance.setDrawColor(203, 213, 225);
+      docInstance.line(margin, y + 6.5, margin + contentWidth, y + 6.5);
+
+      docInstance.setFont('helvetica', 'bold');
+      docInstance.setFontSize(6.5);
+      docInstance.setTextColor(51, 65, 85);
+
+      docInstance.text('SKU', margin + 2, y + 4.5);
+      docInstance.text('PRODUCT NAME', margin + 24, y + 4.5);
+      docInstance.text('CATEGORY', margin + 78, y + 4.5);
+      docInstance.text('STATUS', margin + 110, y + 4.5);
+      docInstance.text('COST', margin + 128, y + 4.5, { align: 'right' });
+      docInstance.text('PRICE', margin + 148, y + 4.5, { align: 'right' });
+      docInstance.text('STOCK', margin + 165, y + 4.5, { align: 'right' });
+      docInstance.text('VALUATION', margin + 184, y + 4.5, { align: 'right' });
+
+      y += 7.5;
+    };
+
+    drawHeader(doc, true);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+
+    products.forEach((prod, index) => {
+      if (y > pageHeight - 16) {
+        doc.setFontSize(6.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Page ${pageNumber} | Ursella Product Inventory Catalog`, margin, pageHeight - 6);
+        doc.text(`Official Business Record`, pageWidth - margin, pageHeight - 6, { align: 'right' });
+
+        doc.addPage();
+        pageNumber += 1;
+        y = margin;
+        drawHeader(doc, false);
+      }
+
+      if (index % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y - 0.5, contentWidth, 6, 'F');
+      }
+
+      const sku = sanitizeText(prod.sku || '-');
+      const name = sanitizeText(prod.name);
+      const cat = sanitizeText(prod.category?.name || 'General');
+      const statusStr = prod.is_active ? 'ACTIVE' : 'ARCHIVED';
+      const itemValuation = prod.stock_quantity * prod.cost_price;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(sku.substring(0, 12), margin + 2, y + 3.8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(name.substring(0, 32), margin + 24, y + 3.8);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(cat.substring(0, 18), margin + 78, y + 3.8);
+
+      if (prod.is_active) {
+        doc.setTextColor(5, 150, 105);
+      } else {
+        doc.setTextColor(148, 163, 184);
+      }
+      doc.text(statusStr, margin + 110, y + 3.8);
+
+      doc.setTextColor(71, 85, 105);
+      doc.text(currencyConfig.format(prod.cost_price), margin + 128, y + 3.8, { align: 'right' });
+
+      doc.setTextColor(15, 23, 42);
+      doc.text(currencyConfig.format(prod.selling_price), margin + 148, y + 3.8, { align: 'right' });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(prod.stock_quantity <= prod.minimum_stock_level ? 220 : 15, prod.stock_quantity <= prod.minimum_stock_level ? 38 : 23, prod.stock_quantity <= prod.minimum_stock_level ? 38 : 42);
+      doc.text(`${prod.stock_quantity}`, margin + 165, y + 3.8, { align: 'right' });
+
+      doc.setTextColor(5, 150, 105);
+      doc.text(currencyConfig.format(itemValuation), margin + 184, y + 3.8, { align: 'right' });
+
+      y += 6;
+    });
+
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Page ${pageNumber} | Ursella Product Inventory Catalog`, margin, pageHeight - 6);
+    doc.text(`Total ${products.length} items listed`, pageWidth - margin, pageHeight - 6, { align: 'right' });
+
+    doc.save(`Product_Catalog_${(business?.name || 'Ursella').replace(/\s+/g, '_')}.pdf`);
+  }
+
+  /**
+   * Exports an individual product's full trace and audit trail as a PDF.
+   * Includes product details, margin, all inventory movements, and sales history.
+   */
+  public static exportProductTracePDF(
+    detail: ProductDetailResult,
+    business: Business | null,
+    currencyConfig: CurrencyConfig
+  ): void {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const contentWidth = pageWidth - margin * 2;
+
+    const prod = detail.product;
+    const businessName = sanitizeText(business?.name || 'Ursella Business Operations');
+    let y = margin;
+
+    // Header
+    doc.setFillColor(15, 23, 42);
+    doc.rect(margin, y, contentWidth, 20, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text(sanitizeText(prod.name).toUpperCase(), margin + 5, y + 8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `PRODUCT TRACE & AUDIT TRAIL | Status: ${prod.is_active ? 'ACTIVE' : 'ARCHIVED'} | ${businessName}`,
+      margin + 5,
+      y + 14
+    );
+
+    doc.setFontSize(7.5);
+    doc.text(`Exported: ${new Date().toLocaleString()}`, pageWidth - margin - 5, y + 8, { align: 'right' });
+
+    y += 24;
+
+    // Economic & Stock Profile
+    const cardWidth = (contentWidth - 9) / 4;
+    const cardHeight = 14;
+
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('SELLING PRICE', margin + 3, y + 4.5);
+    doc.setFontSize(9.5);
+    doc.setTextColor(5, 150, 105);
+    doc.text(currencyConfig.format(prod.selling_price), margin + 3, y + 10.5);
+
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin + cardWidth + 3, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('COST BASIS', margin + cardWidth + 6, y + 4.5);
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(currencyConfig.format(prod.cost_price), margin + cardWidth + 6, y + 10.5);
+
+    const marginAmt = Math.max(0, prod.selling_price - prod.cost_price);
+    const marginPct = prod.selling_price > 0 ? Math.round((marginAmt / prod.selling_price) * 100) : 0;
+
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin + (cardWidth + 3) * 2, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('ESTIMATED MARGIN', margin + (cardWidth + 3) * 2 + 3, y + 4.5);
+    doc.setFontSize(9.5);
+    doc.setTextColor(37, 99, 235);
+    doc.text(`+${currencyConfig.format(marginAmt)} (${marginPct}%)`, margin + (cardWidth + 3) * 2 + 3, y + 10.5);
+
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin + (cardWidth + 3) * 3, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('CURRENT STOCK', margin + (cardWidth + 3) * 3 + 3, y + 4.5);
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${prod.stock_quantity} Units`, margin + (cardWidth + 3) * 3 + 3, y + 10.5);
+
+    y += cardHeight + 6;
+
+    // SECTION 1: INVENTORY MOVEMENT AUDIT TRAIL
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text('1. STOCK LEDGER AUDIT TRAIL (MOVEMENTS)', margin, y + 2);
+    y += 5;
+
+    doc.setFillColor(241, 245, 249);
+    doc.rect(margin, y, contentWidth, 6, 'F');
+    doc.setFontSize(6.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text('DATE', margin + 2, y + 4.2);
+    doc.text('TRANSACTION TYPE', margin + 35, y + 4.2);
+    doc.text('QTY CHANGE', margin + 85, y + 4.2, { align: 'right' });
+    doc.text('AUDITOR NOTES / REASON', margin + 95, y + 4.2);
+    y += 7;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+
+    if (detail.inventoryHistory.length === 0) {
+      doc.setTextColor(148, 163, 184);
+      doc.text('No historical inventory transactions recorded.', margin + 2, y + 4);
+      y += 8;
+    } else {
+      detail.inventoryHistory.forEach((tx, idx) => {
+        if (y > pageHeight - 16) {
+          doc.addPage();
+          y = margin;
+        }
+        if (idx % 2 === 1) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(margin, y - 0.5, contentWidth, 5.5, 'F');
+        }
+        doc.setTextColor(30, 41, 59);
+        doc.text(new Date(tx.created_at).toLocaleDateString(), margin + 2, y + 3.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(tx.transaction_type === 'sale' ? 220 : 5, tx.transaction_type === 'sale' ? 38 : 150, tx.transaction_type === 'sale' ? 38 : 105);
+        doc.text(tx.transaction_type.toUpperCase(), margin + 35, y + 3.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(15, 23, 42);
+        doc.text(String(tx.quantity), margin + 85, y + 3.5, { align: 'right' });
+        doc.setTextColor(100, 116, 139);
+        doc.text(sanitizeText(tx.notes || tx.reference_type || '-').substring(0, 55), margin + 95, y + 3.5);
+        y += 5.5;
+      });
+    }
+
+    y += 4;
+
+    // SECTION 2: SALES SNAPSHOTS
+    if (detail.salesHistory.length > 0) {
+      if (y > pageHeight - 35) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      doc.text('2. RECENT SALES TRANSACTION SNAPSHOTS', margin, y + 2);
+      y += 5;
+
+      doc.setFillColor(241, 245, 249);
+      doc.rect(margin, y, contentWidth, 6, 'F');
+      doc.setFontSize(6.5);
+      doc.setTextColor(51, 65, 85);
+      doc.text('SALE DATE', margin + 2, y + 4.2);
+      doc.text('CUSTOMER', margin + 45, y + 4.2);
+      doc.text('QTY SOLD', margin + 110, y + 4.2, { align: 'right' });
+      doc.text('REVENUE', margin + 145, y + 4.2, { align: 'right' });
+      y += 7;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+
+      detail.salesHistory.forEach((sh, sIdx) => {
+        if (y > pageHeight - 16) {
+          doc.addPage();
+          y = margin;
+        }
+        if (sIdx % 2 === 1) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(margin, y - 0.5, contentWidth, 5.5, 'F');
+        }
+        doc.setTextColor(30, 41, 59);
+        doc.text(new Date(sh.sold_at).toLocaleDateString(), margin + 2, y + 3.5);
+        doc.text(sanitizeText(sh.customer_name || 'Walk-in Customer').substring(0, 30), margin + 45, y + 3.5);
+        doc.text(String(sh.quantity), margin + 110, y + 3.5, { align: 'right' });
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(5, 150, 105);
+        doc.text(currencyConfig.format(sh.total), margin + 145, y + 3.5, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        y += 5.5;
+      });
+    }
+
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Ursella Product Traceability Ledger | Product ID: ${prod.id}`, margin, pageHeight - 6);
+
+    doc.save(`Product_Trace_${sanitizeText(prod.name).replace(/\s+/g, '_')}.pdf`);
+  }
+
+  /**
+   * Exports an Operational Expense Ledger as a PDF report.
+   */
+  public static exportExpenseReportPDF(
+    expenses: Expense[],
+    business: Business | null,
+    currencyConfig: CurrencyConfig,
+    filterLabel: string = 'All Recorded Expenses'
+  ): void {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const contentWidth = pageWidth - margin * 2;
+
+    const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const businessName = sanitizeText(business?.name || 'Ursella Business Operations');
+
+    let y = margin;
+    let pageNumber = 1;
+
+    const drawHeader = (docInstance: jsPDF, isFirstPage: boolean) => {
+      docInstance.setFillColor(15, 23, 42);
+      docInstance.rect(margin, y, contentWidth, isFirstPage ? 18 : 10, 'F');
+
+      docInstance.setTextColor(255, 255, 255);
+      docInstance.setFont('helvetica', 'bold');
+      docInstance.setFontSize(isFirstPage ? 12 : 9);
+      docInstance.text(businessName.toUpperCase(), margin + 5, y + (isFirstPage ? 7 : 6));
+
+      docInstance.setFont('helvetica', 'normal');
+      docInstance.setFontSize(isFirstPage ? 8.5 : 7.5);
+      docInstance.setTextColor(148, 163, 184);
+      docInstance.text(
+        isFirstPage ? `OPERATIONAL EXPENSE LEDGER | ${sanitizeText(filterLabel)}` : `EXPENSE LEDGER (Cont.)`,
+        margin + 5,
+        y + (isFirstPage ? 13 : 9)
+      );
+
+      docInstance.setFontSize(7.5);
+      docInstance.text(`Date: ${new Date().toLocaleDateString()}`, pageWidth - margin - 5, y + (isFirstPage ? 7 : 6), {
+        align: 'right',
+      });
+
+      y += isFirstPage ? 22 : 13;
+
+      if (isFirstPage) {
+        // Summary Cards
+        docInstance.setFillColor(248, 250, 252);
+        docInstance.roundedRect(margin, y, contentWidth, 12, 1.5, 1.5, 'FD');
+        docInstance.setFont('helvetica', 'bold');
+        docInstance.setFontSize(7);
+        docInstance.setTextColor(100, 116, 139);
+        docInstance.text('TOTAL EXPENSES RECORDED', margin + 4, y + 4.5);
+        docInstance.setFontSize(10);
+        docInstance.setTextColor(220, 38, 38);
+        docInstance.text(
+          `${currencyConfig.format(totalExpense)} across ${expenses.length} records`,
+          margin + 4,
+          y + 9.5
+        );
+
+        y += 16;
+      }
+
+      // Table Header
+      docInstance.setFillColor(241, 245, 249);
+      docInstance.rect(margin, y, contentWidth, 6.5, 'F');
+      docInstance.setDrawColor(203, 213, 225);
+      docInstance.line(margin, y + 6.5, margin + contentWidth, y + 6.5);
+
+      docInstance.setFont('helvetica', 'bold');
+      docInstance.setFontSize(6.5);
+      docInstance.setTextColor(51, 65, 85);
+      docInstance.text('DATE', margin + 2, y + 4.5);
+      docInstance.text('CATEGORY', margin + 30, y + 4.5);
+      docInstance.text('DESCRIPTION / VENDOR', margin + 70, y + 4.5);
+      docInstance.text('METHOD', margin + 130, y + 4.5);
+      docInstance.text('AMOUNT', margin + 180, y + 4.5, { align: 'right' });
+
+      y += 7.5;
+    };
+
+    drawHeader(doc, true);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+
+    expenses.forEach((exp, index) => {
+      if (y > pageHeight - 16) {
+        doc.setFontSize(6.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Page ${pageNumber} | Ursella Expense Ledger`, margin, pageHeight - 6);
+        doc.addPage();
+        pageNumber += 1;
+        y = margin;
+        drawHeader(doc, false);
+      }
+
+      if (index % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y - 0.5, contentWidth, 6, 'F');
+      }
+
+      doc.setTextColor(30, 41, 59);
+      doc.text(new Date(exp.expense_date).toLocaleDateString(), margin + 2, y + 3.8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text(sanitizeText(exp.category).substring(0, 20), margin + 30, y + 3.8);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(sanitizeText(exp.description || '-').substring(0, 32), margin + 70, y + 3.8);
+
+      doc.setTextColor(71, 85, 105);
+      doc.text(exp.payment_method.toUpperCase(), margin + 130, y + 3.8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(220, 38, 38);
+      doc.text(currencyConfig.format(exp.amount), margin + 180, y + 3.8, { align: 'right' });
+
+      y += 6;
+    });
+
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Page ${pageNumber} | Ursella Expense Ledger`, margin, pageHeight - 6);
+    doc.text(`Total: ${currencyConfig.format(totalExpense)}`, pageWidth - margin, pageHeight - 6, { align: 'right' });
+
+    doc.save(`Expenses_${(business?.name || 'Ursella').replace(/\s+/g, '_')}.pdf`);
+  }
+
+  /**
+   * Exports the entire Stock Audit Movement Ledger as a PDF report.
+   */
+  public static exportInventoryLedgerPDF(
+    ledger: InventoryLedgerItem[],
+    business: Business | null,
+    currencyConfig: CurrencyConfig
+  ): void {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const contentWidth = pageWidth - margin * 2;
+
+    const businessName = sanitizeText(business?.name || 'Ursella Business Operations');
+
+    let y = margin;
+    let pageNumber = 1;
+
+    const drawHeader = (docInstance: jsPDF, isFirstPage: boolean) => {
+      docInstance.setFillColor(15, 23, 42);
+      docInstance.rect(margin, y, contentWidth, isFirstPage ? 18 : 10, 'F');
+
+      docInstance.setTextColor(255, 255, 255);
+      docInstance.setFont('helvetica', 'bold');
+      docInstance.setFontSize(isFirstPage ? 12 : 9);
+      docInstance.text(businessName.toUpperCase(), margin + 5, y + (isFirstPage ? 7 : 6));
+
+      docInstance.setFont('helvetica', 'normal');
+      docInstance.setFontSize(isFirstPage ? 8.5 : 7.5);
+      docInstance.setTextColor(148, 163, 184);
+      docInstance.text(
+        isFirstPage ? `INVENTORY MOVEMENT & STOCK AUDIT LEDGER` : `STOCK AUDIT LEDGER (Cont.)`,
+        margin + 5,
+        y + (isFirstPage ? 13 : 9)
+      );
+
+      docInstance.setFontSize(7.5);
+      docInstance.text(`Date: ${new Date().toLocaleDateString()}`, pageWidth - margin - 5, y + (isFirstPage ? 7 : 6), {
+        align: 'right',
+      });
+
+      y += isFirstPage ? 22 : 13;
+
+      // Table Header
+      docInstance.setFillColor(241, 245, 249);
+      docInstance.rect(margin, y, contentWidth, 6.5, 'F');
+      docInstance.setDrawColor(203, 213, 225);
+      docInstance.line(margin, y + 6.5, margin + contentWidth, y + 6.5);
+
+      docInstance.setFont('helvetica', 'bold');
+      docInstance.setFontSize(6.5);
+      docInstance.setTextColor(51, 65, 85);
+      docInstance.text('DATE', margin + 2, y + 4.5);
+      docInstance.text('PRODUCT', margin + 28, y + 4.5);
+      docInstance.text('TYPE', margin + 80, y + 4.5);
+      docInstance.text('QTY', margin + 115, y + 4.5, { align: 'right' });
+      docInstance.text('NOTES / REASON', margin + 125, y + 4.5);
+
+      y += 7.5;
+    };
+
+    drawHeader(doc, true);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+
+    ledger.forEach((item, index) => {
+      if (y > pageHeight - 16) {
+        doc.setFontSize(6.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Page ${pageNumber} | Ursella Stock Movement Ledger`, margin, pageHeight - 6);
+        doc.addPage();
+        pageNumber += 1;
+        y = margin;
+        drawHeader(doc, false);
+      }
+
+      if (index % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y - 0.5, contentWidth, 6, 'F');
+      }
+
+      doc.setTextColor(30, 41, 59);
+      doc.text(new Date(item.created_at).toLocaleDateString(), margin + 2, y + 3.8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(sanitizeText(item.product?.name || 'Product').substring(0, 28), margin + 28, y + 3.8);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(item.transaction_type === 'sale' ? 220 : 5, item.transaction_type === 'sale' ? 38 : 150, item.transaction_type === 'sale' ? 38 : 105);
+      doc.text(item.transaction_type.toUpperCase(), margin + 80, y + 3.8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(String(item.quantity), margin + 115, y + 3.8, { align: 'right' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(sanitizeText(item.notes || item.reference_type || '-').substring(0, 38), margin + 125, y + 3.8);
+
+      y += 6;
+    });
+
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Page ${pageNumber} | Ursella Stock Movement Ledger`, margin, pageHeight - 6);
+    doc.text(`Total ${ledger.length} inventory movements recorded`, pageWidth - margin, pageHeight - 6, { align: 'right' });
+
+    doc.save(`Inventory_Ledger_${(business?.name || 'Ursella').replace(/\s+/g, '_')}.pdf`);
   }
 }
