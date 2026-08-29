@@ -342,19 +342,19 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
   }
 
   return (
-    <div className="flex h-[calc(100vh-8.5rem)] md:h-[calc(100vh-6.5rem)] overflow-hidden rounded-2xl bg-zinc-950 border border-zinc-800/80 shadow-xl relative">
+    <div className="flex flex-1 h-full min-h-0 w-full overflow-hidden bg-zinc-950 relative">
       {/* ========================================================================= */}
       {/* 1. CONVERSATION HISTORY SIDEBAR                                           */}
       {/* ========================================================================= */}
       <div
-        className={`fixed md:relative inset-y-0 left-0 z-40 bg-zinc-900 border-r border-zinc-800 flex flex-col transition-all duration-300 ease-in-out ${
-          isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'
+        className={`fixed md:relative inset-y-0 left-0 z-40 bg-zinc-900 border-r border-zinc-800 flex flex-col h-full shrink-0 transition-all duration-300 ease-in-out ${
+          isSidebarOpen ? 'translate-x-0 w-72 sm:w-80' : '-translate-x-full md:translate-x-0'
         } ${
-          isDesktopSidebarCollapsed ? 'md:hidden' : 'md:w-68'
+          isDesktopSidebarCollapsed ? 'md:hidden' : 'md:w-72 lg:w-80'
         }`}
       >
         {/* Sidebar Header */}
-        <div className="p-3.5 border-b border-zinc-800 flex items-center justify-between">
+        <div className="p-3.5 border-b border-zinc-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center">
               <History className="w-4 h-4" />
@@ -383,7 +383,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
 
         {/* Conversation Search Bar */}
         {conversations.length > 2 && (
-          <div className="px-2.5 pt-2.5">
+          <div className="px-2.5 pt-2.5 shrink-0">
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800 text-xs text-zinc-400">
               <Search className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
               <input
@@ -406,7 +406,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
         )}
 
         {/* Conversation List */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
           {filteredConversations.length === 0 ? (
             <div className="py-8 text-center text-zinc-400 text-xs">
               No conversations found.
@@ -427,7 +427,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
                   }}
                   className={`group flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all text-xs ${
                     isActive
-                      ? 'bg-amber-500/15 border border-amber-500/30 text-amber-200 font-semibold'
+                      ? 'bg-amber-500/15 border border-amber-500/30 text-amber-200 font-semibold shadow-xs'
                       : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
                   }`}
                 >
@@ -495,7 +495,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
 
         {/* Sidebar Footer: Manage All Chats */}
         {conversations.length > 0 && (
-          <div className="p-2.5 border-t border-zinc-800">
+          <div className="p-2.5 border-t border-zinc-800 shrink-0">
             {showClearConfirm ? (
               <div className="p-2 rounded-xl bg-rose-950/40 border border-rose-900/60 space-y-1.5">
                 <p className="text-[11px] text-rose-200 font-medium leading-tight">
@@ -540,9 +540,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
       {/* ========================================================================= */}
       {/* 2. MAIN CHAT WORKSPACE                                                    */}
       {/* ========================================================================= */}
-      <div className="flex-1 flex flex-col bg-zinc-950 min-w-0">
+      <div className="flex-1 flex flex-col bg-zinc-950 min-w-0 h-full overflow-hidden">
         {/* Top Workspace Header */}
-        <div className="h-14 px-3 sm:px-5 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-900/40 backdrop-blur-xs shrink-0">
+        <div className="h-14 px-4 sm:px-6 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-900/40 backdrop-blur-xs shrink-0">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Mobile Sidebar Toggle */}
             <button
@@ -567,7 +567,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
             </button>
 
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0">
+              <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0 shadow-xs">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div className="min-w-0">
@@ -644,20 +644,20 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
           </div>
         </div>
 
-        {/* Message Container Area */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8 space-y-4">
+        {/* Message Container Area - ONLY this section scrolls */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 sm:px-8 space-y-4">
           {/* Welcome Screen when Chat is empty */}
           {messages.length === 0 && (
-            <div className="max-w-3xl mx-auto py-6 sm:py-10 space-y-6">
-              <div className="text-center space-y-2">
-                <div className="inline-flex p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                  <Sparkles className="w-6 h-6" />
+            <div className="max-w-4xl lg:max-w-5xl mx-auto py-8 sm:py-14 space-y-8">
+              <div className="text-center space-y-3">
+                <div className="inline-flex p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-sm">
+                  <Sparkles className="w-7 h-7" />
                 </div>
-                <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                   How can I help your business today?
                 </h1>
-                <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
-                  Ask questions about sales, inventory stockouts, unpaid customer debts, and profit margins.
+                <p className="text-xs sm:text-sm text-zinc-400 max-w-lg mx-auto leading-relaxed">
+                  Ask questions about sales trends, inventory stockouts, unpaid customer debts, and profit margins.
                 </p>
               </div>
 
@@ -672,7 +672,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
           )}
 
           {/* Active Message History */}
-          <div className="max-w-3xl mx-auto space-y-4">
+          <div className="max-w-4xl lg:max-w-5xl mx-auto space-y-4">
             {messages.map((msg) => (
               <AIMessageCard
                 key={msg.id}
@@ -707,11 +707,11 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
         </div>
 
         {/* ========================================================================= */}
-        {/* 3. INPUT BAR                                                              */}
+        {/* 3. INPUT BAR - Fixed at bottom of chat workspace                          */}
         {/* ========================================================================= */}
-        <div className="p-3 sm:p-4 border-t border-zinc-800/80 bg-zinc-900/60 backdrop-blur-md shrink-0">
-          <div className="max-w-3xl mx-auto">
-            <div className="relative flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-2xl p-1.5 sm:p-2 focus-within:border-amber-500/50 focus-within:ring-1 focus-within:ring-amber-500/30 transition-all shadow-inner">
+        <div className="p-3.5 sm:p-5 border-t border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md shrink-0">
+          <div className="max-w-4xl lg:max-w-5xl mx-auto">
+            <div className="relative flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700/80 rounded-2xl p-1.5 sm:p-2 focus-within:border-amber-500/60 focus-within:ring-1 focus-within:ring-amber-500/30 transition-all shadow-md">
               <textarea
                 ref={textareaRef}
                 value={inputText}
@@ -720,13 +720,13 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
                 placeholder={`Ask anything about ${activeBusiness.name}...`}
                 rows={1}
                 disabled={loading}
-                className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-zinc-100 placeholder-zinc-400 focus:outline-hidden resize-none py-1.5 px-3 max-h-32 min-h-[2.25rem] leading-relaxed disabled:opacity-50"
+                className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-hidden resize-none py-2 px-3 max-h-36 min-h-[2.5rem] leading-relaxed disabled:opacity-50"
               />
 
               <button
                 onClick={() => handleSendMessage()}
                 disabled={!inputText.trim() || loading}
-                className="p-2 sm:p-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                className="p-2.5 sm:p-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-xs"
                 title="Send query"
               >
                 <Send className="w-4 h-4" />

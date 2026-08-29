@@ -75,7 +75,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
 
   // Assistant Message (Chatbot conversational bubble)
   return (
-    <div className="group flex items-start gap-3 my-3 sm:my-5 max-w-3xl">
+    <div className="group flex items-start gap-3 my-3 sm:my-5 w-full">
       {/* Bot Avatar */}
       <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500/20 to-amber-400/30 border border-amber-500/40 flex items-center justify-center shrink-0 text-amber-300 shadow-sm mt-0.5">
         <Sparkles className="w-4 h-4" />

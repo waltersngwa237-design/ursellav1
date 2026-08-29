@@ -21,6 +21,11 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
+  // Hide the floating action button completely on the AI Advisor tab
+  if (currentRoute === 'ai') {
+    return null;
+  }
+
   const actions = [
     {
       label: 'New Sale (POS)',

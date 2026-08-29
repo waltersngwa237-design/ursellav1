@@ -197,9 +197,13 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* ========================================================================= */}
       {/* MAIN CONTENT AREA & TOPBAR                                                */}
       {/* ========================================================================= */}
-      <div className="flex-1 flex flex-col min-w-0 pb-20 md:pb-8">
+      <div className={`flex-1 flex flex-col min-w-0 ${
+        currentRoute === 'ai' 
+          ? 'h-[100dvh] md:h-screen overflow-hidden pb-16 md:pb-0' 
+          : 'pb-20 md:pb-8'
+      }`}>
         {/* Mobile Top Bar */}
-        <header className="md:hidden sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between">
+        <header className="md:hidden sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
@@ -234,7 +238,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         </header>
 
         {/* Desktop Top Header Bar for Notifications & Feedback */}
-        <div className="hidden md:flex items-center justify-end px-8 py-3 border-b border-zinc-800/60 bg-zinc-950/40">
+        <div className="hidden md:flex items-center justify-end px-8 py-3 border-b border-zinc-800/60 bg-zinc-950/40 shrink-0">
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setIsFeedbackModalOpen(true)}
@@ -260,7 +264,11 @@ export const AppShell: React.FC<AppShellProps> = ({
         </div>
 
         {/* Page Body */}
-        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className={`flex-1 w-full min-h-0 ${
+          currentRoute === 'ai' 
+            ? 'p-0 max-w-none flex flex-col overflow-hidden' 
+            : 'p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto'
+        }`}>
           {children}
         </main>
       </div>
@@ -375,10 +383,12 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* ========================================================================= */}
       {/* FLOATING ACTION BUTTON (SPEED-DIAL FOR INSTANT OPERATIONAL ACCESS)         */}
       {/* ========================================================================= */}
-      <FloatingActionButton
-        onNavigate={handleQuickAction}
-        currentRoute={currentRoute}
-      />
+      {currentRoute !== 'ai' && (
+        <FloatingActionButton
+          onNavigate={handleQuickAction}
+          currentRoute={currentRoute}
+        />
+      )}
 
       {/* ========================================================================= */}
       {/* MODALS: Register New Business Modal                                       */}
