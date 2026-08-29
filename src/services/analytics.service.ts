@@ -367,7 +367,7 @@ export const AnalyticsService = {
       ] = await Promise.all([
         (supabase as any).from('businesses').select('name, currency, timezone').eq('id', businessId).maybeSingle(),
         (supabase as any).from('sales').select('*').eq('business_id', businessId),
-        (supabase as any).from('sale_items').select('*'),
+        (supabase as any).from('sale_items').select('*').eq('business_id', businessId),
         (supabase as any).from('products').select('*').eq('business_id', businessId),
         (supabase as any).from('expenses').select('*').eq('business_id', businessId),
         (supabase as any).from('customers').select('*').eq('business_id', businessId),

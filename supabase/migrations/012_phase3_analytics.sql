@@ -63,15 +63,21 @@ BEGIN
 
     -- 1. Sales, Units Sold & Revenue (Completed sales only)
     SELECT 
-        COALESCE(SUM(s.total), 0.00),
-        COUNT(s.id),
-        COALESCE(SUM(si.quantity), 0)
+        COALESCE(SUM(total), 0.00),
+        COUNT(id)
     INTO 
         v_revenue,
-        v_transaction_count,
-        v_units_sold
-    FROM public.sales s
-    LEFT JOIN public.sale_items si ON si.sale_id = s.id
+        v_transaction_count
+    FROM public.sales
+    WHERE business_id = p_business_id 
+      AND sale_status = 'completed'
+      AND sold_at >= p_start_date 
+      AND sold_at <= p_end_date;
+
+    SELECT COALESCE(SUM(si.quantity), 0)
+    INTO v_units_sold
+    FROM public.sale_items si
+    INNER JOIN public.sales s ON s.id = si.sale_id
     WHERE s.business_id = p_business_id 
       AND s.sale_status = 'completed'
       AND s.sold_at >= p_start_date 
@@ -203,15 +209,25 @@ BEGIN
             ('1 ' || p_interval)::INTERVAL
         ) AS bucket_time
     ),
-    sales_agg AS (
+    sales_base AS (
         SELECT 
             date_trunc(p_interval, s.sold_at AT TIME ZONE v_timezone) AS bucket_time,
             COALESCE(SUM(s.total), 0.00) AS revenue,
-            COALESCE(SUM(si.unit_cost * si.quantity), 0.00) AS cogs,
-            COUNT(DISTINCT s.id) AS tx_count,
-            COALESCE(SUM(si.quantity), 0) AS units_sold
+            COUNT(s.id) AS tx_count
         FROM public.sales s
-        LEFT JOIN public.sale_items si ON si.sale_id = s.id
+        WHERE s.business_id = p_business_id
+          AND s.sale_status = 'completed'
+          AND s.sold_at >= p_start_date
+          AND s.sold_at <= p_end_date
+        GROUP BY 1
+    ),
+    items_base AS (
+        SELECT 
+            date_trunc(p_interval, s.sold_at AT TIME ZONE v_timezone) AS bucket_time,
+            COALESCE(SUM(si.unit_cost * si.quantity), 0.00) AS cogs,
+            COALESCE(SUM(si.quantity), 0) AS units_sold
+        FROM public.sale_items si
+        INNER JOIN public.sales s ON s.id = si.sale_id
         WHERE s.business_id = p_business_id
           AND s.sale_status = 'completed'
           AND s.sold_at >= p_start_date
@@ -242,18 +258,19 @@ BEGIN
         jsonb_build_object(
             'date', to_char(s.bucket_time, 'YYYY-MM-DD'),
             'timestamp', s.bucket_time,
-            'revenue', COALESCE(sa.revenue, 0.00),
-            'cost_of_goods_sold', COALESCE(sa.cogs, 0.00),
-            'gross_profit', COALESCE(sa.revenue, 0.00) - COALESCE(sa.cogs, 0.00),
+            'revenue', COALESCE(sb.revenue, 0.00),
+            'cost_of_goods_sold', COALESCE(ib.cogs, 0.00),
+            'gross_profit', COALESCE(sb.revenue, 0.00) - COALESCE(ib.cogs, 0.00),
             'expenses', COALESCE(ea.expenses, 0.00),
-            'estimated_net_profit', (COALESCE(sa.revenue, 0.00) - COALESCE(sa.cogs, 0.00)) - COALESCE(ea.expenses, 0.00),
+            'estimated_net_profit', (COALESCE(sb.revenue, 0.00) - COALESCE(ib.cogs, 0.00)) - COALESCE(ea.expenses, 0.00),
             'cash_collected', COALESCE(pa.cash_collected, 0.00),
-            'transaction_count', COALESCE(sa.tx_count, 0),
-            'units_sold', COALESCE(sa.units_sold, 0)
+            'transaction_count', COALESCE(sb.tx_count, 0),
+            'units_sold', COALESCE(ib.units_sold, 0)
         ) ORDER BY s.bucket_time ASC
     ) INTO v_result
     FROM series s
-    LEFT JOIN sales_agg sa ON sa.bucket_time = s.bucket_time
+    LEFT JOIN sales_base sb ON sb.bucket_time = s.bucket_time
+    LEFT JOIN items_base ib ON ib.bucket_time = s.bucket_time
     LEFT JOIN expenses_agg ea ON ea.bucket_time = s.bucket_time
     LEFT JOIN payments_agg pa ON pa.bucket_time = s.bucket_time;
 
