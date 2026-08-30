@@ -20,6 +20,7 @@ export type AIIntentType =
   | 'diagnosis'
   | 'calculation'
   | 'general_overview'
+  | 'fifo_audit'
   | 'unknown';
 
 export type AIDataConfidence = 'high_confidence' | 'moderate_confidence' | 'insufficient_data';

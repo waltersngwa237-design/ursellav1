@@ -1,4 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
+import {
+  runLedger,
+  createUrsellaAdapter,
+  buildInput,
+  openingLotsFromProducts,
+  productCostIndex,
+  compareToRecordedCost,
+  reconcileStock,
+  type UrsellaProductRow,
+  type UrsellaInventoryTransactionRow,
+  type UrsellaSaleItemRow,
+} from '../src/lib/fifo/index.ts';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseKey =
@@ -23,7 +35,7 @@ export interface BusinessAuthorizationContext {
  * Calculates start and end ISO date strings for a given timezone and horizon days.
  * For Cameroon (Africa/Douala, UTC+1), "today" starts at midnight Douala time (23:00 UTC prior).
  */
-export function getTimezoneDateRange(timezone: string = 'Africa/Douala', days = 1): {
+export function getTimezoneDateRange(timezone = 'Africa/Douala', days = 1): {
   startDateIso: string;
   endDateIso: string;
   todayDateStr: string;
@@ -79,11 +91,12 @@ export function getTimezoneDateRange(timezone: string = 'Africa/Douala', days = 
 /**
  * Server-side business tools executor.
  * Strictly verifies tenant authorization and executes predefined business queries.
- * Grounded in the Supabase PostgreSQL database records.
+ * Grounded in authoritative Supabase PostgreSQL database records and pure FIFO costing.
  */
 export class BusinessToolsService {
   /**
-   * Verifies user has access to the business.
+   * Verifies user has authorized access to the business.
+   * Multi-tenant security rule: NEVER fail open.
    */
   public static async verifyTenantAccess(userId: string, businessId: string): Promise<boolean> {
     if (!userId || !businessId) return false;
@@ -96,12 +109,61 @@ export class BusinessToolsService {
         .maybeSingle();
 
       if (error || !data) {
-        return true;
+        return false;
       }
       return true;
     } catch {
-      return true;
+      return false;
     }
+  }
+
+  /**
+   * Runs the authoritative FIFO engine across a business's inventory transactions and sales.
+   */
+  public static async runFIFOLedger(businessId: string) {
+    const [
+      { data: products },
+      { data: transactions },
+      { data: saleItems },
+    ] = await Promise.all([
+      serverSupabase.from('products').select('*').eq('business_id', businessId),
+      serverSupabase.from('inventory_transactions').select('*').eq('business_id', businessId).order('created_at', { ascending: true }),
+      serverSupabase.from('sale_items').select('*').eq('business_id', businessId).order('created_at', { ascending: true }),
+    ]);
+
+    const productRows = (products || []) as UrsellaProductRow[];
+    const movementRows = (transactions || []) as UrsellaInventoryTransactionRow[];
+    const itemRows = (saleItems || []) as UrsellaSaleItemRow[];
+
+    const adapter = createUrsellaAdapter({
+      productCostById: productCostIndex(productRows),
+    });
+
+    const built = buildInput(adapter, {
+      products: productRows,
+      stockMovements: movementRows,
+      saleLineItems: itemRows,
+    });
+
+    // Opening lots from products if no explicit initial_stock rows exist
+    const hasInitialTransactions = movementRows.some(
+      (m) => m.transaction_type === 'initial_stock' || m.transaction_type === 'purchase'
+    );
+    const openingEvents = hasInitialTransactions ? [] : openingLotsFromProducts(productRows);
+
+    const ledgerResult = runLedger([...openingEvents, ...built.events]);
+
+    const costDrift = compareToRecordedCost(itemRows, ledgerResult.sales);
+    const stockReconciliation = reconcileStock(productRows, ledgerResult.valuationByProduct);
+
+    return {
+      productRows,
+      itemRows,
+      movementRows,
+      ledgerResult,
+      costDrift,
+      stockReconciliation,
+    };
   }
 
   /**
@@ -110,73 +172,71 @@ export class BusinessToolsService {
   public static async getBusinessOverview(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
     const { startDateIso, endDateIso } = getTimezoneDateRange(timezone, timeHorizonDays);
 
-    try {
-      const { data, error } = await serverSupabase.rpc('get_business_analytics', {
-        p_business_id: businessId,
-        p_start_date: startDateIso,
-        p_end_date: endDateIso,
-      });
-
-      if (!error && data) {
-        return data;
-      }
-    } catch (e) {
-      console.warn('RPC get_business_analytics failed, falling back to direct calculation:', e);
-    }
-
-    return await this.calculateFallbackOverview(businessId, startDateIso, endDateIso, timezone);
+    return await this.calculateOverviewWithFIFO(businessId, startDateIso, endDateIso, timezone);
   }
 
   /**
-   * 2. Tool: get_sales_summary
+   * 2. Tool: get_inventory_alerts
    */
-  public static async getSalesSummary(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
-    const { startDateIso, endDateIso, todayDateStr } = getTimezoneDateRange(timezone, timeHorizonDays);
-
-    const { data: sales } = await serverSupabase
-      .from('sales')
-      .select('id, total, amount_paid, amount_due, payment_status, payment_method, sold_at')
+  public static async getInventoryAlerts(businessId: string) {
+    const { data: products } = await serverSupabase
+      .from('products')
+      .select('id, name, sku, cost_price, selling_price, stock_quantity, minimum_stock_level, is_active')
       .eq('business_id', businessId)
-      .eq('sale_status', 'completed')
-      .gte('sold_at', startDateIso)
-      .lte('sold_at', endDateIso)
-      .order('sold_at', { ascending: false });
+      .eq('is_active', true);
 
-    const salesList = sales || [];
-    const totalSales = salesList.reduce((acc, s) => acc + Number(s.total || 0), 0);
-    const totalCollected = salesList.reduce((acc, s) => acc + Number(s.amount_paid || 0), 0);
-    const totalDue = salesList.reduce((acc, s) => acc + Number(s.amount_due || 0), 0);
-    const count = salesList.length;
+    const activeList = products || [];
+    const outOfStock = activeList.filter((p) => (p.stock_quantity || 0) === 0);
+    const lowStock = activeList.filter(
+      (p) => (p.stock_quantity || 0) > 0 && (p.stock_quantity || 0) <= (p.minimum_stock_level || 5)
+    );
+
+    // Calculate FIFO inventory valuation
+    let fifoValuation = 0;
+    try {
+      const fifo = await this.runFIFOLedger(businessId);
+      fifoValuation = fifo.ledgerResult.totals.inventoryValue;
+    } catch {
+      fifoValuation = activeList.reduce((sum, p) => sum + (Number(p.stock_quantity || 0) * Number(p.cost_price || 0)), 0);
+    }
+
+    const criticalItemsToRestock = [...outOfStock, ...lowStock].map((p) => ({
+      productId: p.id,
+      name: p.name,
+      sku: p.sku,
+      currentStock: p.stock_quantity,
+      minimumStockLevel: p.minimum_stock_level || 5,
+      costPrice: p.cost_price,
+      sellingPrice: p.selling_price,
+      status: (p.stock_quantity || 0) === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
+      estimatedRestockCost: ((p.minimum_stock_level || 5) * 2 - (p.stock_quantity || 0)) * (p.cost_price || 0),
+    }));
 
     return {
-      periodDays: timeHorizonDays,
-      referenceDate: todayDateStr,
-      timezone,
-      transactionCount: count,
-      totalRevenue: totalSales,
-      totalCashCollected: totalCollected,
-      totalReceivablesOutstanding: totalDue,
-      averageOrderValue: count > 0 ? Number((totalSales / count).toFixed(2)) : 0,
-      recentSalesCount: Math.min(count, 5),
+      totalActiveSKUs: activeList.length,
+      outOfStockCount: outOfStock.length,
+      lowStockCount: lowStock.length,
+      healthyStockCount: activeList.length - outOfStock.length - lowStock.length,
+      totalInventoryValuation: fifoValuation,
+      criticalItemsToRestock,
+      hasStockIssues: outOfStock.length > 0 || lowStock.length > 0,
     };
   }
 
   /**
    * 3. Tool: get_today_sales_summary
-   * Specific high-precision today metrics using the business's timezone.
    */
   public static async getTodaySalesSummary(businessId: string, timezone = 'Africa/Douala') {
     const { startDateIso, endDateIso, todayDateStr } = getTimezoneDateRange(timezone, 1);
 
-    const [{ data: salesToday }, { data: paymentsToday }, inventoryAlerts] = await Promise.all([
+    const [{ data: salesToday }, { data: paymentsToday }, invAlerts] = await Promise.all([
       serverSupabase
         .from('sales')
         .select('id, total, amount_paid, amount_due, payment_status, payment_method, sold_at')
         .eq('business_id', businessId)
         .eq('sale_status', 'completed')
         .gte('sold_at', startDateIso)
-        .lte('sold_at', endDateIso)
-        .order('sold_at', { ascending: false }),
+        .lte('sold_at', endDateIso),
       serverSupabase
         .from('payments')
         .select('amount, payment_method, paid_at')
@@ -193,20 +253,23 @@ export class BusinessToolsService {
     const cashCollectedToday = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
     const receivablesToday = sales.reduce((sum, s) => sum + Number(s.amount_due || 0), 0);
 
-    // Compute COGS for today's sales
+    // Authoritative FIFO COGS calculation for today's sales
     let cogsToday = 0;
-    const saleIds = sales.map((s) => s.id);
-    if (saleIds.length > 0) {
-      const { data: saleItems } = await serverSupabase
-        .from('sale_items')
-        .select('quantity, unit_cost, total')
-        .in('sale_id', saleIds);
-
-      if (saleItems && saleItems.length > 0) {
-        cogsToday = saleItems.reduce((sum, item) => {
-          const cost = Number(item.unit_cost || 0) * Number(item.quantity || 1);
-          return sum + cost;
-        }, 0);
+    const saleIds = new Set(sales.map((s) => s.id));
+    if (saleIds.size > 0) {
+      try {
+        const fifo = await this.runFIFOLedger(businessId);
+        const fifoByItem = new Map(fifo.ledgerResult.sales.map((s) => [s.saleEventId, s.cogs]));
+        const todayItems = fifo.itemRows.filter((i) => saleIds.has(i.sale_id));
+        cogsToday = todayItems.reduce((acc, i) => acc + (fifoByItem.get(i.id) ?? (Number(i.unit_cost || 0) * Number(i.quantity || 1))), 0);
+      } catch {
+        const { data: saleItems } = await serverSupabase
+          .from('sale_items')
+          .select('quantity, unit_cost')
+          .in('sale_id', Array.from(saleIds));
+        if (saleItems) {
+          cogsToday = saleItems.reduce((acc, i) => acc + Number(i.unit_cost || 0) * Number(i.quantity || 1), 0);
+        }
       }
     }
 
@@ -224,273 +287,248 @@ export class BusinessToolsService {
       cashCollected: cashCollectedToday,
       receivablesCreated: receivablesToday,
       hasRecordedSalesToday: txCountToday > 0,
-      inventoryAlerts,
+      inventoryAlerts: invAlerts,
     };
   }
 
   /**
    * 4. Tool: get_product_performance
    */
-  public static async getProductPerformance(businessId: string, limit = 5) {
+  public static async getProductPerformance(businessId: string, limit = 10) {
     try {
-      const { data, error } = await serverSupabase.rpc('get_product_analytics', {
-        p_business_id: businessId,
-        p_start_date: new Date(Date.now() - 30 * 86400000).toISOString(),
-        p_end_date: new Date().toISOString(),
-        p_limit: limit,
-      });
+      const fifo = await this.runFIFOLedger(businessId);
+      const fifoByItem = new Map(fifo.ledgerResult.sales.map((s) => [s.saleEventId, s]));
 
-      if (!error && data) {
-        return data;
+      const productStats = new Map<
+        string,
+        { name: string; sku?: string | null; sellingPrice: number; costPrice: number; unitsSold: number; revenue: number; cogs: number; stockQuantity: number }
+      >();
+
+      for (const p of fifo.productRows) {
+        productStats.set(p.id, {
+          name: p.name,
+          sku: p.sku,
+          sellingPrice: Number(p.selling_price || 0),
+          costPrice: Number(p.cost_price || 0),
+          unitsSold: 0,
+          revenue: 0,
+          cogs: 0,
+          stockQuantity: Number(p.stock_quantity || 0),
+        });
       }
+
+      for (const item of fifo.itemRows) {
+        if (!item.product_id) continue;
+        const entry = productStats.get(item.product_id);
+        if (!entry) continue;
+        const fifoSold = fifoByItem.get(item.id);
+        const qty = Number(item.quantity || 0);
+        const rev = Number(item.total || 0);
+        const cogs = fifoSold ? fifoSold.cogs : Number(item.unit_cost || 0) * qty;
+
+        entry.unitsSold += qty;
+        entry.revenue += rev;
+        entry.cogs += cogs;
+      }
+
+      const results = Array.from(productStats.values())
+        .map((p) => {
+          const grossProfit = p.revenue - p.cogs;
+          const marginPct = p.revenue > 0 ? Number(((grossProfit / p.revenue) * 100).toFixed(1)) : 0;
+          return {
+            name: p.name,
+            sku: p.sku,
+            unitsSold: p.unitsSold,
+            revenue: p.revenue,
+            cogs: p.cogs,
+            grossProfit,
+            marginPct,
+            sellingPrice: p.sellingPrice,
+            costPrice: p.costPrice,
+            stockQuantity: p.stockQuantity,
+          };
+        })
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, limit);
+
+      return results;
     } catch {
-      // Fallback
+      const { data: products } = await serverSupabase
+        .from('products')
+        .select('name, sku, selling_price, cost_price, stock_quantity')
+        .eq('business_id', businessId)
+        .limit(limit);
+
+      return (products || []).map((p) => ({
+        name: p.name,
+        sku: p.sku,
+        unitsSold: 0,
+        revenue: 0,
+        cogs: 0,
+        grossProfit: 0,
+        marginPct: 0,
+        sellingPrice: Number(p.selling_price || 0),
+        costPrice: Number(p.cost_price || 0),
+        stockQuantity: Number(p.stock_quantity || 0),
+      }));
     }
-
-    // Direct query fallback
-    const { data: products } = await serverSupabase
-      .from('products')
-      .select('id, name, selling_price, cost_price, stock_quantity, minimum_stock_level')
-      .eq('business_id', businessId)
-      .eq('is_active', true)
-      .limit(limit);
-
-    return (
-      products?.map((p) => ({
-        id: p.id,
-        name: p.name,
-        sellingPrice: Number(p.selling_price),
-        costPrice: Number(p.cost_price),
-        unitMargin: Number(p.selling_price) - Number(p.cost_price),
-        marginPct:
-          Number(p.selling_price) > 0
-            ? Number((((Number(p.selling_price) - Number(p.cost_price)) / Number(p.selling_price)) * 100).toFixed(1))
-            : 0,
-        stockQuantity: p.stock_quantity,
-      })) || []
-    );
   }
 
   /**
-   * 5. Tool: get_inventory_alerts
-   */
-  public static async getInventoryAlerts(businessId: string) {
-    const { data: products } = await serverSupabase
-      .from('products')
-      .select('id, name, stock_quantity, minimum_stock_level, cost_price')
-      .eq('business_id', businessId)
-      .eq('is_active', true);
-
-    const activeList = products || [];
-    const lowStock = activeList.filter(
-      (p) => p.stock_quantity > 0 && p.stock_quantity <= (p.minimum_stock_level || 5)
-    );
-    const outOfStock = activeList.filter((p) => p.stock_quantity === 0);
-    const totalValuation = activeList.reduce(
-      (sum, p) => sum + Number(p.stock_quantity || 0) * Number(p.cost_price || 0),
-      0
-    );
-
-    return {
-      totalActiveSKUs: activeList.length,
-      totalInventoryValuation: totalValuation,
-      lowStockCount: lowStock.length,
-      outOfStockCount: outOfStock.length,
-      criticalItemsToRestock: [...outOfStock, ...lowStock].slice(0, 6).map((p) => ({
-        id: p.id,
-        name: p.name,
-        currentStock: p.stock_quantity,
-        minimumStockLevel: p.minimum_stock_level || 5,
-        status: p.stock_quantity === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
-      })),
-    };
-  }
-
-  /**
-   * 6. Tool: get_customer_balances
+   * 5. Tool: get_customer_balances (Debtors / Receivables)
    */
   public static async getCustomerBalances(businessId: string) {
     const [{ data: customers }, { data: unpaidSales }] = await Promise.all([
-      serverSupabase
-        .from('customers')
-        .select('id, name, phone, email')
-        .eq('business_id', businessId),
+      serverSupabase.from('customers').select('id, name, phone, email').eq('business_id', businessId),
       serverSupabase
         .from('sales')
-        .select('id, customer_id, total, amount_paid, amount_due')
+        .select('id, customer_id, total, amount_paid, amount_due, payment_status, sold_at')
         .eq('business_id', businessId)
         .eq('sale_status', 'completed')
         .gt('amount_due', 0),
     ]);
 
-    const list = customers || [];
-    const sales = unpaidSales || [];
-    const customerMap = new Map<string, any>(list.map((c) => [c.id, c]));
-    const debtMap = new Map<string, { id: string; name: string; phone?: string; debtAmount: number }>();
+    const custMap = new Map((customers || []).map((c) => [c.id, c]));
+    const debtorTotals = new Map<string, { name: string; phone?: string; totalDue: number; ordersCount: number }>();
 
-    for (const s of sales) {
-      const cId = s.customer_id;
-      const cName = cId && customerMap.has(cId) ? customerMap.get(cId).name : 'Walk-in Customer';
-      const cPhone = cId && customerMap.has(cId) ? customerMap.get(cId).phone : undefined;
-      const key = cId || `unlinked-${s.id}`;
+    let totalOutstanding = 0;
 
-      const curr = debtMap.get(key) || { id: cId || s.id, name: cName, phone: cPhone, debtAmount: 0 };
-      curr.debtAmount += Number(s.amount_due || 0);
-      debtMap.set(key, curr);
+    for (const s of unpaidSales || []) {
+      const due = Number(s.amount_due || 0);
+      totalOutstanding += due;
+      const cust = s.customer_id ? custMap.get(s.customer_id) : null;
+      const custId = s.customer_id || 'unassigned';
+      const name = cust?.name || 'Walk-in / Unassigned Customer';
+
+      const existing = debtorTotals.get(custId) || {
+        name,
+        phone: cust?.phone || undefined,
+        totalDue: 0,
+        ordersCount: 0,
+      };
+
+      existing.totalDue += due;
+      existing.ordersCount += 1;
+      debtorTotals.set(custId, existing);
     }
 
-    const debtors = Array.from(debtMap.values())
-      .filter((d) => d.debtAmount > 0)
-      .sort((a, b) => b.debtAmount - a.debtAmount);
-
-    const totalDebt = debtors.reduce((sum, c) => sum + Number(c.debtAmount || 0), 0);
-
-    return {
-      totalRegisteredCustomers: list.length,
-      debtorsCount: debtors.length,
-      totalOutstandingDebt: totalDebt,
-      topDebtors: debtors.slice(0, 5).map((d) => ({
-        id: d.id,
+    const topDebtors = Array.from(debtorTotals.values())
+      .map((d) => ({
         name: d.name,
         phone: d.phone,
-        debtAmount: d.debtAmount,
-        totalSpent: 0,
-      })),
+        debtAmount: d.totalDue,
+        unpaidOrdersCount: d.ordersCount,
+      }))
+      .sort((a, b) => b.debtAmount - a.debtAmount);
+
+    return {
+      totalOutstandingDebt: totalOutstanding,
+      debtorsCount: topDebtors.length,
+      topDebtors,
+      hasOutstandingDebtors: topDebtors.length > 0,
     };
   }
 
   /**
-   * 7. Tool: get_expense_summary
+   * 6. Tool: get_expense_summary
    */
   public static async getExpenseSummary(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
-    const { startDateIso, todayDateStr } = getTimezoneDateRange(timezone, timeHorizonDays);
-    const startDate = startDateIso.split('T')[0];
+    const { startDateIso, endDateIso } = getTimezoneDateRange(timezone, timeHorizonDays);
 
     const { data: expenses } = await serverSupabase
       .from('expenses')
-      .select('id, category, description, amount, expense_date')
+      .select('amount, category, description, expense_date')
       .eq('business_id', businessId)
-      .gte('expense_date', startDate);
+      .gte('expense_date', startDateIso.split('T')[0])
+      .lte('expense_date', endDateIso.split('T')[0]);
 
-    const list = expenses || [];
-    const total = list.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const expList = expenses || [];
+    const totalExpenses = expList.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
-    const categoryMap: Record<string, number> = {};
-    for (const e of list) {
-      const cat = e.category || 'Other';
-      categoryMap[cat] = (categoryMap[cat] || 0) + Number(e.amount || 0);
+    const categoryMap = new Map<string, number>();
+    for (const e of expList) {
+      const cat = e.category || 'General';
+      categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(e.amount || 0));
     }
 
-    const categories = Object.entries(categoryMap)
-      .map(([category, amount]) => ({
-        category,
-        amount,
-        percentageOfTotal: total > 0 ? Number(((amount / total) * 100).toFixed(1)) : 0,
-      }))
-      .sort((a, b) => b.amount - a.amount);
+    const expensesByCategory = Array.from(categoryMap.entries()).map(([category, amount]) => ({
+      category,
+      amount,
+      percentage: totalExpenses > 0 ? Number(((amount / totalExpenses) * 100).toFixed(1)) : 0,
+    }));
 
     return {
-      periodDays: timeHorizonDays,
-      referenceDate: todayDateStr,
-      totalExpenses: total,
-      topExpenseCategories: categories.slice(0, 5),
-      recentExpenses: list.slice(0, 4).map((e) => ({
-        category: e.category,
-        description: e.description,
-        amount: Number(e.amount),
-        date: e.expense_date,
-      })),
+      totalExpenses,
+      expenseCount: expList.length,
+      expensesByCategory,
+      timeHorizonDays,
     };
   }
 
   /**
-   * 8. Tool: get_cash_flow
+   * 7. Tool: get_cash_flow
    */
   public static async getCashFlow(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
-    const { startDateIso } = getTimezoneDateRange(timezone, timeHorizonDays);
+    const { startDateIso, endDateIso } = getTimezoneDateRange(timezone, timeHorizonDays);
 
     const [{ data: payments }, { data: expenses }] = await Promise.all([
       serverSupabase
         .from('payments')
-        .select('amount')
+        .select('amount, payment_method, paid_at')
         .eq('business_id', businessId)
-        .gte('paid_at', startDateIso),
+        .gte('paid_at', startDateIso)
+        .lte('paid_at', endDateIso),
       serverSupabase
         .from('expenses')
-        .select('amount')
+        .select('amount, expense_date')
         .eq('business_id', businessId)
-        .gte('expense_date', startDateIso.split('T')[0]),
+        .gte('expense_date', startDateIso.split('T')[0])
+        .lte('expense_date', endDateIso.split('T')[0]),
     ]);
 
-    const cashIn = payments?.reduce((sum, p) => sum + Number(p.amount || 0), 0) || 0;
-    const cashOut = expenses?.reduce((sum, e) => sum + Number(e.amount || 0), 0) || 0;
+    const cashIn = (payments || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const cashOut = (expenses || []).reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const netCashFlow = cashIn - cashOut;
 
     return {
-      periodDays: timeHorizonDays,
-      cashInflow: cashIn,
-      cashOutflow: cashOut,
-      netCashFlow: cashIn - cashOut,
-      cashStatus: cashIn >= cashOut ? 'POSITIVE_CASH_FLOW' : 'NEGATIVE_CASH_FLOW',
+      cashInflows: cashIn,
+      cashOutflows: cashOut,
+      netCashFlow,
+      timeHorizonDays,
     };
+  }
+
+  /**
+   * 8. Tool: get_sales_summary
+   */
+  public static async getSalesSummary(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
+    return await this.getBusinessOverview(businessId, timeHorizonDays, timezone);
   }
 
   /**
    * 9. Tool: get_period_comparison
    */
-  public static async getPeriodComparison(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
-    const now = new Date();
-    const currStart = new Date(now.getTime() - timeHorizonDays * 86400000);
-    const priorEnd = new Date(currStart.getTime() - 1);
-    const priorStart = new Date(currStart.getTime() - timeHorizonDays * 86400000);
+  public static async getPeriodComparison(businessId: string, days = 7, timezone = 'Africa/Douala') {
+    const current = await this.getBusinessOverview(businessId, days, timezone);
+    const prior = await this.getBusinessOverview(businessId, days * 2, timezone);
 
-    try {
-      const { data, error } = await serverSupabase.rpc('get_period_comparison', {
-        p_business_id: businessId,
-        p_current_start: currStart.toISOString(),
-        p_current_end: now.toISOString(),
-        p_prior_start: priorStart.toISOString(),
-        p_prior_end: priorEnd.toISOString(),
-      });
-
-      if (!error && data) {
-        return data;
-      }
-    } catch {
-      // Fallback
-    }
-
-    const [currOverview, priorOverview] = await Promise.all([
-      this.calculateFallbackOverview(businessId, currStart.toISOString(), now.toISOString(), timezone),
-      this.calculateFallbackOverview(businessId, priorStart.toISOString(), priorEnd.toISOString(), timezone),
-    ]);
-
-    const revDiff = currOverview.revenue - priorOverview.revenue;
-    const revPct =
-      priorOverview.revenue > 0 ? Number(((revDiff / priorOverview.revenue) * 100).toFixed(1)) : null;
+    const priorRevenue = Math.max(0, prior.revenue - current.revenue);
+    const revenueGrowthPct = priorRevenue > 0 ? Number((((current.revenue - priorRevenue) / priorRevenue) * 100).toFixed(1)) : 0;
 
     return {
-      revenue: {
-        current: currOverview.revenue,
-        prior: priorOverview.revenue,
-        percentageChange: revPct,
-        trend: revDiff > 0 ? 'positive' : revDiff < 0 ? 'negative' : 'neutral',
+      currentPeriod: {
+        days,
+        revenue: current.revenue,
+        cogs: current.cost_of_goods_sold,
+        grossProfit: current.gross_profit,
+        transactions: current.transaction_count,
       },
-      grossProfit: {
-        current: currOverview.gross_profit,
-        prior: priorOverview.gross_profit,
-        percentageChange:
-          priorOverview.gross_profit > 0
-            ? Number((((currOverview.gross_profit - priorOverview.gross_profit) / priorOverview.gross_profit) * 100).toFixed(1))
-            : null,
+      priorPeriod: {
+        days,
+        revenue: priorRevenue,
       },
-      expenses: {
-        current: currOverview.operating_expenses,
-        prior: priorOverview.operating_expenses,
-      },
-      transactionCount: {
-        current: currOverview.transaction_count,
-        prior: priorOverview.transaction_count,
-      },
+      revenueGrowthPct,
+      trend: revenueGrowthPct > 0 ? 'growth' : revenueGrowthPct < 0 ? 'contraction' : 'flat',
     };
   }
 
@@ -566,20 +604,34 @@ export class BusinessToolsService {
   }
 
   /**
-   * Internal database calculation for overview
+   * 12. Tool: get_fifo_inventory_valuation (Authoritative FIFO Ledger Audit)
    */
-  private static async calculateFallbackOverview(
+  public static async getFIFOInventoryValuation(businessId: string) {
+    const fifo = await this.runFIFOLedger(businessId);
+    return {
+      totals: fifo.ledgerResult.totals,
+      valuationByProduct: fifo.ledgerResult.valuationByProduct,
+      warnings: fifo.ledgerResult.warnings,
+      costDrift: fifo.costDrift,
+      stockReconciliation: fifo.stockReconciliation,
+    };
+  }
+
+  /**
+   * Authoritative calculation of overview metrics using the FIFO ledger.
+   */
+  private static async calculateOverviewWithFIFO(
     businessId: string,
     startDateIso: string,
     endDateIso: string,
     defaultTimezone = 'Africa/Douala'
   ) {
-    const [{ data: business }, { data: sales }, { data: expenses }, { data: payments }] =
+    const [{ data: business }, { data: sales }, { data: expenses }, { data: payments }, fifo] =
       await Promise.all([
         serverSupabase.from('businesses').select('currency, timezone').eq('id', businessId).maybeSingle(),
         serverSupabase
           .from('sales')
-          .select('id, total, amount_paid, amount_due')
+          .select('id, total, amount_paid, amount_due, sold_at')
           .eq('business_id', businessId)
           .eq('sale_status', 'completed')
           .gte('sold_at', startDateIso)
@@ -596,46 +648,30 @@ export class BusinessToolsService {
           .eq('business_id', businessId)
           .gte('paid_at', startDateIso)
           .lte('paid_at', endDateIso),
+        this.runFIFOLedger(businessId),
       ]);
 
     const salesList = sales || [];
     const revenue = salesList.reduce((sum, s) => sum + Number(s.total || 0), 0);
     const txCount = salesList.length;
 
-    // Real COGS calculation by querying sale_items for these sales
-    let cogs = 0;
-    const saleIds = salesList.map((s) => s.id);
-    if (saleIds.length > 0) {
-      const { data: saleItems } = await serverSupabase
-        .from('sale_items')
-        .select('quantity, unit_cost, total_cost')
-        .in('sale_id', saleIds);
+    // FIFO COGS for sales in this timeframe
+    const windowSaleIds = new Set(salesList.map((s) => s.id));
+    const fifoByItem = new Map(fifo.ledgerResult.sales.map((s) => [s.saleEventId, s.cogs]));
+    const windowItems = fifo.itemRows.filter((i) => windowSaleIds.has(i.sale_id));
 
-      if (saleItems && saleItems.length > 0) {
-        cogs = saleItems.reduce((sum, item) => {
-          const itemCost = Number(item.total_cost || 0) > 0
-            ? Number(item.total_cost)
-            : Number(item.unit_cost || 0) * Number(item.quantity || 1);
-          return sum + itemCost;
-        }, 0);
-      }
-    }
+    let cogs = windowItems.reduce(
+      (sum, item) => sum + (fifoByItem.get(item.id) ?? (Number(item.unit_cost || 0) * Number(item.quantity || 1))),
+      0
+    );
 
-    // If no sale_items costs were recorded, fallback to product catalogue costs
-    if (cogs === 0 && revenue > 0) {
-      const { data: products } = await serverSupabase
-        .from('products')
-        .select('cost_price, selling_price')
-        .eq('business_id', businessId);
-
-      if (products && products.length > 0) {
-        const avgMargin = products.reduce((acc, p) => {
-          const sp = Number(p.selling_price || 0);
-          const cp = Number(p.cost_price || 0);
-          return sp > 0 ? acc + (cp / sp) : acc;
-        }, 0) / products.length;
-        cogs = Number((revenue * (avgMargin || 0.6)).toFixed(2));
-      }
+    if (cogs === 0 && revenue > 0 && fifo.productRows.length > 0) {
+      const avgCostRatio = fifo.productRows.reduce((acc, p) => {
+        const sp = Number(p.selling_price || 0);
+        const cp = Number(p.cost_price || 0);
+        return sp > 0 ? acc + cp / sp : acc;
+      }, 0) / fifo.productRows.length;
+      cogs = Number((revenue * (avgCostRatio || 0.6)).toFixed(2));
     }
 
     const grossProfit = revenue - cogs;
@@ -652,15 +688,25 @@ export class BusinessToolsService {
       timezone: business?.timezone || defaultTimezone,
       revenue,
       cost_of_goods_sold: cogs,
+      cogs,
       gross_profit: grossProfit,
+      grossProfit,
       gross_margin: grossMargin,
+      grossMarginPercent: grossMargin,
       operating_expenses: operatingExpenses,
+      operatingExpenses,
       estimated_net_profit: netProfit,
+      netProfit,
       net_margin: netMargin,
+      netMarginPercent: netMargin,
       transaction_count: txCount,
+      transactionCount: txCount,
       average_order_value: txCount > 0 ? Number((revenue / txCount).toFixed(2)) : 0,
+      averageOrderValue: txCount > 0 ? Number((revenue / txCount).toFixed(2)) : 0,
       amount_collected: amountCollected,
+      totalCashCollected: amountCollected,
       outstanding_receivables: receivables,
+      totalReceivablesOutstanding: receivables,
     };
   }
 }

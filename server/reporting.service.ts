@@ -87,11 +87,11 @@ export class ReportingService {
       periodLabel,
       currency: 'USD',
       summaryMetrics: {
-        totalRevenue: overview.revenue || salesSummary.totalRevenue,
-        transactionCount: overview.transactionCount || salesSummary.transactionCount,
-        averageOrderValue: salesSummary.averageOrderValue,
-        totalCashCollected: salesSummary.totalCashCollected,
-        outstandingDebt: salesSummary.totalReceivablesOutstanding,
+        totalRevenue: overview.revenue,
+        transactionCount: overview.transactionCount,
+        averageOrderValue: overview.averageOrderValue,
+        totalCashCollected: overview.totalCashCollected,
+        outstandingDebt: overview.totalReceivablesOutstanding,
       },
       breakdownRows: sales || [],
     };
@@ -180,7 +180,7 @@ export class ReportingService {
     const { daysCount, periodLabel } = this.resolveDateRange(opts);
     const expenseData = await BusinessToolsService.getExpenseSummary(businessId, daysCount);
 
-    const topCategory = expenseData.topExpenseCategories[0];
+    const topCategory = expenseData.expensesByCategory[0];
 
     return {
       reportType: 'expenses',
@@ -190,14 +190,14 @@ export class ReportingService {
       currency: 'USD',
       summaryMetrics: {
         totalExpenses: expenseData.totalExpenses,
-        expenseCount: expenseData.recentExpenses.length,
+        expenseCount: expenseData.expenseCount,
         topCategory: topCategory?.category || 'None',
         topCategoryAmount: topCategory?.amount || 0,
       },
-      breakdownRows: expenseData.topExpenseCategories.map((c) => ({
+      breakdownRows: expenseData.expensesByCategory.map((c) => ({
         category: c.category,
         totalAmount: c.amount,
-        percentOfTotal: c.percentageOfTotal,
+        percentOfTotal: c.percentage,
       })),
     };
   }
@@ -217,13 +217,13 @@ export class ReportingService {
       summaryMetrics: {
         totalReceivables: debtors.totalOutstandingDebt,
         activeDebtorsCount: debtors.debtorsCount,
-        totalCustomers: debtors.totalRegisteredCustomers,
+        totalCustomers: debtors.debtorsCount,
       },
       breakdownRows: debtors.topDebtors.map((d) => ({
         customerName: d.name,
         phone: d.phone || 'N/A',
         balance: d.debtAmount,
-        totalSpent: d.totalSpent,
+        totalSpent: d.debtAmount,
       })),
     };
   }
@@ -242,18 +242,18 @@ export class ReportingService {
       periodLabel,
       currency: 'USD',
       summaryMetrics: {
-        totalCashIn: cashFlow.cashInflow,
-        totalCashOut: cashFlow.cashOutflow,
+        totalCashIn: cashFlow.cashInflows,
+        totalCashOut: cashFlow.cashOutflows,
         netCashVariance: cashFlow.netCashFlow,
         healthRating: cashFlow.netCashFlow >= 0 ? 'POSITIVE' : 'NEGATIVE',
       },
       breakdownRows: [
         {
           period: periodLabel,
-          inflow: cashFlow.cashInflow,
-          outflow: cashFlow.cashOutflow,
+          inflow: cashFlow.cashInflows,
+          outflow: cashFlow.cashOutflows,
           net: cashFlow.netCashFlow,
-          status: cashFlow.cashStatus,
+          status: cashFlow.netCashFlow >= 0 ? 'SURPLUS' : 'DEFICIT',
         },
       ],
     };

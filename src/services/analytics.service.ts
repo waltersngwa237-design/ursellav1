@@ -1,5 +1,12 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 import { isValidUUID } from '../lib/uuid.ts';
+import {
+  runLedger,
+  createUrsellaAdapter,
+  buildInput,
+  openingLotsFromProducts,
+  productCostIndex,
+} from '../lib/fifo/index.ts';
 import type {
   CompleteBusinessAnalytics,
   DateRangePreset,
@@ -21,6 +28,7 @@ import type {
   Expense,
   Customer,
   Payment,
+  InventoryTransaction,
 } from '../types/index.ts';
 
 export const AnalyticsService = {
@@ -364,6 +372,7 @@ export const AnalyticsService = {
         expensesRes,
         customersRes,
         paymentsRes,
+        txRes,
       ] = await Promise.all([
         (supabase as any).from('businesses').select('name, currency, timezone').eq('id', businessId).maybeSingle(),
         (supabase as any).from('sales').select('*').eq('business_id', businessId),
@@ -372,6 +381,7 @@ export const AnalyticsService = {
         (supabase as any).from('expenses').select('*').eq('business_id', businessId),
         (supabase as any).from('customers').select('*').eq('business_id', businessId),
         (supabase as any).from('payments').select('*').eq('business_id', businessId),
+        (supabase as any).from('inventory_transactions').select('*').eq('business_id', businessId).order('created_at', { ascending: true }),
       ]);
 
       const bizData = bizRes.data || {};
@@ -381,6 +391,7 @@ export const AnalyticsService = {
       const expensesList: Expense[] = (expensesRes.data || []) as Expense[];
       const customersList: Customer[] = (customersRes.data || []) as Customer[];
       const paymentsList: Payment[] = (paymentsRes.data || []) as Payment[];
+      const txList: InventoryTransaction[] = (txRes.data || []) as InventoryTransaction[];
 
       return this.computeAnalyticsFromLists(
         businessId,
@@ -393,7 +404,8 @@ export const AnalyticsService = {
         productsList,
         expensesList,
         customersList,
-        paymentsList
+        paymentsList,
+        txList
       );
     } catch (err) {
       console.warn('Failed to query Supabase tables for analytics:', err);
@@ -411,6 +423,7 @@ export const AnalyticsService = {
     const expKey = `ursella_expenses_${businessId}`;
     const custKey = `ursella_customers_${businessId}`;
     const payKey = `ursella_payments_${businessId}`;
+    const txKey = `ursella_inventory_transactions_${businessId}`;
 
     const salesList: Sale[] = JSON.parse(localStorage.getItem(salesKey) || '[]');
     const itemsList: SaleItem[] = JSON.parse(localStorage.getItem(itemsKey) || '[]');
@@ -418,6 +431,7 @@ export const AnalyticsService = {
     const expensesList: Expense[] = JSON.parse(localStorage.getItem(expKey) || '[]');
     const customersList: Customer[] = JSON.parse(localStorage.getItem(custKey) || '[]');
     const paymentsList: Payment[] = JSON.parse(localStorage.getItem(payKey) || '[]');
+    const txList: InventoryTransaction[] = JSON.parse(localStorage.getItem(txKey) || '[]');
 
     return this.computeAnalyticsFromLists(
       businessId,
@@ -430,7 +444,8 @@ export const AnalyticsService = {
       productsList,
       expensesList,
       customersList,
-      paymentsList
+      paymentsList,
+      txList
     );
   },
 
@@ -448,7 +463,8 @@ export const AnalyticsService = {
     productsList: Product[],
     expensesList: Expense[],
     customersList: Customer[],
-    paymentsList: Payment[]
+    paymentsList: Payment[],
+    txList: InventoryTransaction[] = []
   ): CompleteBusinessAnalytics {
     const startMs = new Date(window.startDate).getTime();
     const endMs = new Date(window.endDate).getTime();
@@ -479,15 +495,55 @@ export const AnalyticsService = {
 
     const unitsSold = currentItems.reduce((acc, i) => acc + Number(i.quantity || 0), 0);
 
-    // 3. COGS from historical snapshot
-    const cogs = currentItems.reduce(
-      (acc, i) => acc + (Number(i.unit_cost) || 0) * (Number(i.quantity) || 0),
-      0
-    );
-    const priorCogs = priorItems.reduce(
-      (acc, i) => acc + (Number(i.unit_cost) || 0) * (Number(i.quantity) || 0),
-      0
-    );
+    // 3. Authoritative FIFO COGS and Inventory Valuation
+    const activeProducts = productsList.filter((p) => p.is_active);
+    let cogs = 0;
+    let priorCogs = 0;
+    let inventoryValuation = 0;
+    let fifoByItem = new Map<string, number>();
+
+    try {
+      const adapter = createUrsellaAdapter({
+        productCostById: productCostIndex(productsList),
+      });
+      const built = buildInput(adapter, {
+        products: productsList,
+        stockMovements: txList,
+        saleLineItems: itemsList,
+      });
+      const hasInitial = txList.some(
+        (m) => m.transaction_type === 'initial_stock' || m.transaction_type === 'purchase'
+      );
+      const openingEvents = hasInitial ? [] : openingLotsFromProducts(productsList);
+      const ledgerResult = runLedger([...openingEvents, ...built.events]);
+
+      fifoByItem = new Map(ledgerResult.sales.map((s) => [s.saleEventId, s.cogs]));
+
+      cogs = currentItems.reduce(
+        (acc, i) => acc + (fifoByItem.get(i.id) ?? (Number(i.unit_cost || 0) * Number(i.quantity || 0))),
+        0
+      );
+      priorCogs = priorItems.reduce(
+        (acc, i) => acc + (fifoByItem.get(i.id) ?? (Number(i.unit_cost || 0) * Number(i.quantity || 0))),
+        0
+      );
+      inventoryValuation = ledgerResult.totals.inventoryValue > 0
+        ? ledgerResult.totals.inventoryValue
+        : activeProducts.reduce((acc, p) => acc + Number(p.stock_quantity || 0) * Number(p.cost_price || 0), 0);
+    } catch {
+      cogs = currentItems.reduce(
+        (acc, i) => acc + (Number(i.unit_cost) || 0) * (Number(i.quantity) || 0),
+        0
+      );
+      priorCogs = priorItems.reduce(
+        (acc, i) => acc + (Number(i.unit_cost) || 0) * (Number(i.quantity) || 0),
+        0
+      );
+      inventoryValuation = activeProducts.reduce(
+        (acc, p) => acc + Number(p.stock_quantity || 0) * Number(p.cost_price || 0),
+        0
+      );
+    }
 
     const grossProfit = revenue - cogs;
     const priorGrossProfit = priorRevenue - priorCogs;
@@ -545,12 +601,6 @@ export const AnalyticsService = {
     );
 
     // 7. Inventory
-    const activeProducts = productsList.filter((p) => p.is_active);
-    const inventoryValuation = activeProducts.reduce(
-      (acc, p) => acc + Number(p.stock_quantity || 0) * Number(p.cost_price || 0),
-      0
-    );
-
     const lowStockCount = activeProducts.filter(
       (p) => p.stock_quantity > 0 && p.stock_quantity <= (p.minimum_stock_level || 5)
     ).length;
@@ -601,7 +651,8 @@ export const AnalyticsService = {
       activeProducts,
       currentItems,
       currentSales,
-      daysEvaluated
+      daysEvaluated,
+      fifoByItem
     );
 
     // 11. Customer Analytics
@@ -749,7 +800,8 @@ export const AnalyticsService = {
     products: Product[],
     items: SaleItem[],
     sales: Sale[],
-    daysEvaluated: number
+    daysEvaluated: number,
+    itemCostMap?: Map<string, number>
   ): ProductPerformanceItem[] {
     const saleMap = new Map(sales.map((s) => [s.id, s]));
 
@@ -775,9 +827,11 @@ export const AnalyticsService = {
         lastSaleAt: null,
       };
 
+      const itemCogs = itemCostMap?.get(i.id) ?? ((Number(i.unit_cost) || 0) * (Number(i.quantity) || 0));
+
       existing.unitsSold += Number(i.quantity || 0);
       existing.revenue += Number(i.total || 0);
-      existing.cogs += (Number(i.unit_cost) || 0) * (Number(i.quantity) || 0);
+      existing.cogs += itemCogs;
       existing.txCount += 1;
       if (s?.sold_at && (!existing.lastSaleAt || s.sold_at > existing.lastSaleAt)) {
         existing.lastSaleAt = s.sold_at;

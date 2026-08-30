@@ -8,6 +8,7 @@ export type AIIntentCategory =
   | 'calculation'
   | 'daily_brief'
   | 'identity_lookup'
+  | 'fifo_audit'
   | 'general_overview';
 
 export type AIBusinessDomain =
@@ -18,6 +19,7 @@ export type AIBusinessDomain =
   | 'expenses'
   | 'cash_flow'
   | 'profitability'
+  | 'fifo_costing'
   | 'customers'
   | 'store_info'
   | 'multi_domain';
@@ -84,7 +86,29 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 2. Daily Brief / Morning Briefing
+  // 2. FIFO Costing, Inventory Valuation & Cost Drift Audit
+  if (
+    q.includes('fifo') ||
+    q.includes('cost drift') ||
+    q.includes('cost basis') ||
+    q.includes('inventory valuation') ||
+    q.includes('valuation by product') ||
+    q.includes('cost layer') ||
+    q.includes('first in first out') ||
+    q.includes('cost of inventory')
+  ) {
+    return {
+      intent: 'fifo_audit',
+      domain: 'fifo_costing',
+      timePeriod: 'all_time',
+      requiredTools: ['get_fifo_inventory_valuation', 'get_inventory_alerts'],
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.98,
+      primaryGoal: 'Run pure FIFO ledger valuation, layer breakdown, and cost drift audit.',
+    };
+  }
+
+  // 3. Daily Brief / Morning Briefing
   if (
     q.includes('daily brief') ||
     q.includes('morning brief') ||
@@ -106,7 +130,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 3. Receivables, Debtors & Unpaid Customer Balances
+  // 4. Receivables, Debtors & Unpaid Customer Balances
   if (
     q.includes('who owes') ||
     q.includes('debt') ||
@@ -134,7 +158,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 4. Inventory, Stockouts & Low-Stock Alerts
+  // 5. Inventory, Stockouts & Low-Stock Alerts
   if (
     q.includes('low stock') ||
     q.includes('running low') ||
@@ -161,7 +185,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 5. Product Performance, Top Sellers & Product Margins
+  // 6. Product Performance, Top Sellers & Product Margins
   if (
     q.includes('best selling') ||
     q.includes('top product') ||
@@ -187,7 +211,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 6. Expenses & Operating Costs
+  // 7. Expenses & Operating Costs
   if (
     q.includes('expense') ||
     q.includes('spending') ||
@@ -215,7 +239,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 7. Cash Flow & Liquidity
+  // 8. Cash Flow & Liquidity
   if (
     q.includes('cash flow') ||
     q.includes('cash collected') ||
@@ -238,7 +262,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 8. Profitability, COGS & Margins
+  // 9. Profitability, COGS & Margins
   if (
     q.includes('gross margin') ||
     q.includes('net profit') ||
@@ -261,7 +285,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 9. Period Comparisons & Trend Diagnosis
+  // 10. Period Comparisons & Trend Diagnosis
   if (
     q.includes('why are sales') ||
     q.includes('sales down') ||
@@ -287,7 +311,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 10. Specific "Today" queries
+  // 11. Specific "Today" queries
   if (
     q.includes('today') ||
     q.includes('sell today') ||
@@ -311,7 +335,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 11. Yesterday Queries
+  // 12. Yesterday Queries
   if (
     q.includes('yesterday') ||
     q.includes('sales yesterday') ||
@@ -329,7 +353,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 12. Strategic Priorities & Recommendations
+  // 13. Strategic Priorities & Recommendations
   if (
     q.includes('focus on') ||
     q.includes('what should i do') ||
@@ -357,7 +381,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 13. General Sales / Revenue Queries
+  // 14. General Sales / Revenue Queries
   if (
     q.includes('sales') ||
     q.includes('revenue') ||
@@ -378,7 +402,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 14. Customer Intelligence
+  // 15. Customer Intelligence
   if (q.includes('customer') || q.includes('clients') || q.includes('buyer')) {
     return {
       intent: 'analysis',
@@ -391,7 +415,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 15. Default: General Business Overview
+  // 16. Default: General Business Overview
   return {
     intent: 'general_overview',
     domain: 'multi_domain',

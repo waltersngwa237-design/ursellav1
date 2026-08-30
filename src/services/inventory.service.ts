@@ -11,6 +11,7 @@ export interface InventoryMovementParams {
   product_id: string;
   type: InventoryTransactionType;
   quantity: number;
+  unit_cost?: number | null;
   reference_type?: string;
   reference_id?: string | null;
   notes?: string | null;
@@ -108,6 +109,7 @@ export const InventoryService = {
         product_id: params.product_id,
         transaction_type: params.type,
         quantity: params.quantity,
+        unit_cost: params.unit_cost ?? null,
         reference_type: params.reference_type || 'manual',
         reference_id: params.reference_id || null,
         notes: params.notes || null,

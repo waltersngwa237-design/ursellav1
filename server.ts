@@ -162,6 +162,12 @@ app.post('/api/ai/chat', async (req, res) => {
             toolResults[toolName] = res;
           })
         );
+      } else if (toolName === 'get_fifo_inventory_valuation') {
+        toolExecutionPromises.push(
+          BusinessToolsService.getFIFOInventoryValuation(businessId).then((res) => {
+            toolResults[toolName] = res;
+          })
+        );
       }
     }
 

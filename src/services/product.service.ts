@@ -395,6 +395,7 @@ export const ProductService = {
           product_id: newProd.id,
           transaction_type: 'initial_stock',
           quantity: input.stock_quantity,
+          unit_cost: Number(input.cost_price || 0),
           reference_type: 'initialization',
           reference_id: null,
           notes: 'Initial inventory quantity logged at product creation',

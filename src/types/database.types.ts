@@ -303,6 +303,7 @@ export type Database = {
           product_id: string;
           transaction_type: InventoryTransactionType;
           quantity: number;
+          unit_cost: number | null;
           reference_type: string | null;
           reference_id: string | null;
           notes: string | null;
@@ -315,6 +316,7 @@ export type Database = {
           product_id: string;
           transaction_type: InventoryTransactionType;
           quantity: number;
+          unit_cost?: number | null;
           reference_type?: string | null;
           reference_id?: string | null;
           notes?: string | null;
@@ -327,6 +329,7 @@ export type Database = {
           product_id?: string;
           transaction_type?: InventoryTransactionType;
           quantity?: number;
+          unit_cost?: number | null;
           reference_type?: string | null;
           reference_id?: string | null;
           notes?: string | null;

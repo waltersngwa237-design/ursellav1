@@ -44,7 +44,12 @@ import {
   Tag,
   Boxes,
   Truck,
+  FileText,
+  Printer,
+  Download,
+  Eye,
 } from 'lucide-react';
+import { PDFAndPrintService } from '../../services/pdf.service.ts';
 
 export const BusinessPage: React.FC = () => {
   const { activeBusiness, currency } = useBusiness();
@@ -587,20 +592,53 @@ export const BusinessPage: React.FC = () => {
                 <option value="low_stock">Low Stock (≤ Alert level)</option>
                 <option value="out_of_stock">Out of Stock (0)</option>
               </select>
+
+              <button
+                onClick={() => setShowArchivedProducts(!showArchivedProducts)}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap ${
+                  showArchivedProducts
+                    ? 'bg-amber-950/30 text-amber-300 border-amber-500/40'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
+                }`}
+                title="Toggle showing archived products in catalog"
+              >
+                {showArchivedProducts ? 'Archived Included' : 'Show Archived'}
+              </button>
             </div>
 
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                resetProductForm();
-                setIsAddProductModalOpen(true);
-              }}
-              className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Product</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  PDFAndPrintService.exportProductCatalogPDF(
+                    products,
+                    activeBusiness,
+                    currencyConfig,
+                    showArchivedProducts ? 'All Products (Incl. Archived)' : 'Active Products Catalog'
+                  )
+                }
+                disabled={products.length === 0}
+                className="flex items-center justify-center gap-1.5 text-xs font-semibold"
+                title="Export Product Catalog PDF"
+              >
+                <FileText className="w-3.5 h-3.5 text-blue-400" />
+                <span>Export PDF</span>
+              </Button>
+
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  resetProductForm();
+                  setIsAddProductModalOpen(true);
+                }}
+                className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Product</span>
+              </Button>
+            </div>
           </div>
 
           {/* Products Grid */}
@@ -772,22 +810,42 @@ export const BusinessPage: React.FC = () => {
               <History className="w-4 h-4 text-blue-400" /> Stock Audit Ledger
             </h3>
 
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                setAdjustProductId(products[0]?.id || '');
-                setAdjustType('restock');
-                setAdjustQuantity('1');
-                setAdjustReason('');
-                setAdjustNotes('');
-                setIsAdjustStockModalOpen(true);
-              }}
-              className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Record Stock Movement</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  PDFAndPrintService.exportInventoryLedgerPDF(
+                    inventoryLedger,
+                    activeBusiness,
+                    currencyConfig
+                  )
+                }
+                disabled={inventoryLedger.length === 0}
+                className="flex items-center gap-1.5 text-xs font-semibold"
+                title="Export Stock Audit Movements to PDF"
+              >
+                <FileText className="w-3.5 h-3.5 text-blue-400" />
+                <span>Export Ledger PDF</span>
+              </Button>
+
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setAdjustProductId(products[0]?.id || '');
+                  setAdjustType('restock');
+                  setAdjustQuantity('1');
+                  setAdjustReason('');
+                  setAdjustNotes('');
+                  setIsAdjustStockModalOpen(true);
+                }}
+                className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Record Stock Movement</span>
+              </Button>
+            </div>
           </div>
 
           {/* Ledger Table */}
@@ -984,18 +1042,39 @@ export const BusinessPage: React.FC = () => {
               </p>
             </div>
 
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                resetExpenseForm();
-                setIsAddExpenseModalOpen(true);
-              }}
-              className="bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 self-start sm:self-auto"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Record Expense</span>
-            </Button>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  PDFAndPrintService.exportExpenseReportPDF(
+                    expenses,
+                    activeBusiness,
+                    currencyConfig,
+                    expenseCatFilter === 'all' ? 'All Operating Expenses' : `${expenseCatFilter} Expenses`
+                  )
+                }
+                disabled={expenses.length === 0}
+                className="flex items-center gap-1.5 text-xs font-semibold"
+                title="Export Expense Ledger to PDF"
+              >
+                <FileText className="w-3.5 h-3.5 text-amber-400" />
+                <span>Export PDF</span>
+              </Button>
+
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  resetExpenseForm();
+                  setIsAddExpenseModalOpen(true);
+                }}
+                className="bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Record Expense</span>
+              </Button>
+            </div>
           </div>
 
           {/* Filter Bar */}
@@ -1368,6 +1447,51 @@ export const BusinessPage: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Modal Bottom Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-zinc-800">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  PDFAndPrintService.exportProductTracePDF(
+                    selectedProductDetail,
+                    activeBusiness,
+                    currencyConfig
+                  )
+                }
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 text-xs font-semibold"
+              >
+                <FileText className="w-4 h-4 text-blue-400" />
+                <span>Export Product Audit PDF</span>
+              </Button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDetailModalOpen(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    const prod = selectedProductDetail.product;
+                    setIsDetailModalOpen(false);
+                    openEditProduct(prod as any);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Edit Product</span>
+                </Button>
+              </div>
+            </div>
           </div>
         ) : null}
       </Modal>

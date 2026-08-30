@@ -1423,10 +1423,10 @@ export class PDFAndPrintService {
 
       const dateStr = new Date(sale.sold_at).toLocaleString();
       const receiptNo = `#${sale.id.substring(0, 8).toUpperCase()}`;
-      const customerName = sanitizeText(sale.customer?.name || 'Walk-in Customer');
+      const customerName = sanitizeText(sale.customers?.name || 'Walk-in Customer');
       const itemsSummary = sanitizeText(
-        (sale.items || [])
-          .map((i) => `${i.product_name || 'Item'} (x${i.quantity})`)
+        (sale.sale_items || [])
+          .map((i) => `${i.product_name_snapshot || 'Item'} (x${i.quantity})`)
           .join(', ')
       ).substring(0, 48);
 
@@ -1491,8 +1491,8 @@ export class PDFAndPrintService {
       <tr>
         <td>${new Date(s.sold_at).toLocaleString()}</td>
         <td><strong>#${s.id.substring(0, 8).toUpperCase()}</strong></td>
-        <td>${s.customer?.name || 'Walk-in Customer'}</td>
-        <td style="color: #64748b; font-size: 10px;">${(s.items || []).map((i) => `${i.product_name} (x${i.quantity})`).join(', ')}</td>
+        <td>${s.customers?.name || 'Walk-in Customer'}</td>
+        <td style="color: #64748b; font-size: 10px;">${(s.sale_items || []).map((i) => `${i.product_name_snapshot} (x${i.quantity})`).join(', ')}</td>
         <td style="text-align: right; font-weight: bold;">${currencyConfig.format(s.total)}</td>
         <td style="text-align: right; color: #059669;">${currencyConfig.format(s.amount_paid)}</td>
         <td style="text-align: right; color: ${s.amount_due > 0 ? '#dc2626' : '#64748b'};">${currencyConfig.format(s.amount_due)}</td>
@@ -1617,6 +1617,173 @@ export class PDFAndPrintService {
         }
       }, 250);
     };
+  }
+
+  /**
+   * Exports a Customer Directory & Debt Ledger report as a PDF.
+   */
+  public static exportCustomerListPDF(
+    customers: CustomerWithSummary[],
+    business: Business | null,
+    currencyConfig: CurrencyConfig,
+    filterLabel: string = 'Customer Directory & Accounts'
+  ): void {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
+    const pageHeight = doc.internal.pageSize.getHeight(); // 297mm
+    const margin = 12;
+    const contentWidth = pageWidth - margin * 2;
+
+    const totalReceivables = customers.reduce((sum, c) => sum + (c.outstanding_balance || 0), 0);
+    const totalSpent = customers.reduce((sum, c) => sum + (c.total_spent || 0), 0);
+    const debtAccounts = customers.filter((c) => c.outstanding_balance > 0).length;
+    const businessName = sanitizeText(business?.name || 'Ursella Business Operations');
+
+    let y = margin;
+    let pageNumber = 1;
+
+    const drawHeader = (docInstance: jsPDF, isFirstPage: boolean) => {
+      docInstance.setFillColor(15, 23, 42);
+      docInstance.rect(margin, y, contentWidth, isFirstPage ? 18 : 10, 'F');
+
+      docInstance.setTextColor(255, 255, 255);
+      docInstance.setFont('helvetica', 'bold');
+      docInstance.setFontSize(isFirstPage ? 12 : 9);
+      docInstance.text(businessName.toUpperCase(), margin + 5, y + (isFirstPage ? 7 : 6));
+
+      docInstance.setFont('helvetica', 'normal');
+      docInstance.setFontSize(isFirstPage ? 8.5 : 7.5);
+      docInstance.setTextColor(148, 163, 184);
+      docInstance.text(
+        isFirstPage ? `CUSTOMER DIRECTORY & DEBT LEDGER | ${sanitizeText(filterLabel)}` : `CUSTOMER DIRECTORY (Cont.)`,
+        margin + 5,
+        y + (isFirstPage ? 13 : 9)
+      );
+
+      docInstance.setFontSize(7.5);
+      docInstance.text(`Date: ${new Date().toLocaleDateString()}`, pageWidth - margin - 5, y + (isFirstPage ? 7 : 6), {
+        align: 'right',
+      });
+
+      y += isFirstPage ? 22 : 13;
+
+      if (isFirstPage) {
+        // Summary Cards
+        const cardWidth = (contentWidth - 6) / 3;
+        const cardHeight = 13;
+
+        // Card 1
+        docInstance.setFillColor(248, 250, 252);
+        docInstance.roundedRect(margin, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+        docInstance.setFont('helvetica', 'bold');
+        docInstance.setFontSize(7);
+        docInstance.setTextColor(100, 116, 139);
+        docInstance.text('TOTAL CUSTOMERS', margin + 3, y + 4.5);
+        docInstance.setFontSize(10);
+        docInstance.setTextColor(15, 23, 42);
+        docInstance.text(`${customers.length} Accounts (${debtAccounts} with debt)`, margin + 3, y + 10.5);
+
+        // Card 2
+        docInstance.setFillColor(248, 250, 252);
+        docInstance.roundedRect(margin + cardWidth + 3, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+        docInstance.setFont('helvetica', 'bold');
+        docInstance.setFontSize(7);
+        docInstance.setTextColor(100, 116, 139);
+        docInstance.text('LIFETIME REVENUE SPENT', margin + cardWidth + 6, y + 4.5);
+        docInstance.setFontSize(10);
+        docInstance.setTextColor(5, 150, 105);
+        docInstance.text(currencyConfig.format(totalSpent), margin + cardWidth + 6, y + 10.5);
+
+        // Card 3
+        docInstance.setFillColor(248, 250, 252);
+        docInstance.roundedRect(margin + (cardWidth + 3) * 2, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+        docInstance.setFont('helvetica', 'bold');
+        docInstance.setFontSize(7);
+        docInstance.setTextColor(100, 116, 139);
+        docInstance.text('OUTSTANDING RECEIVABLES', margin + (cardWidth + 3) * 2 + 3, y + 4.5);
+        docInstance.setFontSize(10);
+        docInstance.setTextColor(totalReceivables > 0 ? 220 : 100, totalReceivables > 0 ? 38 : 116, totalReceivables > 0 ? 38 : 139);
+        docInstance.text(currencyConfig.format(totalReceivables), margin + (cardWidth + 3) * 2 + 3, y + 10.5);
+
+        y += cardHeight + 4;
+      }
+
+      // Table Header
+      docInstance.setFillColor(241, 245, 249);
+      docInstance.rect(margin, y, contentWidth, 6.5, 'F');
+      docInstance.setDrawColor(203, 213, 225);
+      docInstance.line(margin, y + 6.5, margin + contentWidth, y + 6.5);
+
+      docInstance.setFont('helvetica', 'bold');
+      docInstance.setFontSize(6.5);
+      docInstance.setTextColor(51, 65, 85);
+      docInstance.text('CUSTOMER NAME', margin + 2, y + 4.5);
+      docInstance.text('PHONE / CONTACT', margin + 55, y + 4.5);
+      docInstance.text('LOCATION / CITY', margin + 98, y + 4.5);
+      docInstance.text('ORDERS', margin + 135, y + 4.5, { align: 'right' });
+      docInstance.text('TOTAL SPENT', margin + 158, y + 4.5, { align: 'right' });
+      docInstance.text('DUE BALANCE', margin + 184, y + 4.5, { align: 'right' });
+
+      y += 7.5;
+    };
+
+    drawHeader(doc, true);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+
+    customers.forEach((cust, index) => {
+      if (y > pageHeight - 16) {
+        doc.setFontSize(6.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Page ${pageNumber} | Ursella Customer Directory`, margin, pageHeight - 6);
+        doc.addPage();
+        pageNumber += 1;
+        y = margin;
+        drawHeader(doc, false);
+      }
+
+      if (index % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y - 0.5, contentWidth, 6, 'F');
+      }
+
+      const name = sanitizeText(cust.name);
+      const phone = sanitizeText(cust.phone || '-');
+      const location = sanitizeText(cust.location || '-');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(name.substring(0, 28), margin + 2, y + 3.8);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(phone.substring(0, 18), margin + 55, y + 3.8);
+      doc.text(location.substring(0, 18), margin + 98, y + 3.8);
+
+      doc.setTextColor(15, 23, 42);
+      doc.text(String(cust.purchase_count || 0), margin + 135, y + 3.8, { align: 'right' });
+
+      doc.setTextColor(5, 150, 105);
+      doc.text(currencyConfig.format(cust.total_spent || 0), margin + 158, y + 3.8, { align: 'right' });
+
+      doc.setFont('helvetica', 'bold');
+      if (cust.outstanding_balance > 0) {
+        doc.setTextColor(220, 38, 38);
+      } else {
+        doc.setTextColor(100, 116, 139);
+      }
+      doc.text(currencyConfig.format(cust.outstanding_balance || 0), margin + 184, y + 3.8, { align: 'right' });
+
+      y += 6;
+    });
+
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Page ${pageNumber} | Ursella Customer Directory`, margin, pageHeight - 6);
+    doc.text(`Total ${customers.length} customers listed`, pageWidth - margin, pageHeight - 6, { align: 'right' });
+
+    doc.save(`Customer_Directory_${(business?.name || 'Ursella').replace(/\s+/g, '_')}.pdf`);
   }
 
   /**

@@ -440,7 +440,35 @@ Return a valid JSON object matching the schema:
       };
     }
 
-    // 3. Inventory, Out of Stock, Low Stock
+    // 3. FIFO Costing, Valuation & Cost Drift
+    if (
+      q.includes('fifo') ||
+      q.includes('cost drift') ||
+      q.includes('cost basis') ||
+      q.includes('inventory valuation') ||
+      q.includes('valuation by product') ||
+      q.includes('cost layer')
+    ) {
+      const fifoData = (ctx.toolResults.get_fifo_inventory_valuation || {}) as any;
+      const totals = fifoData.totals || {};
+      const totalVal = Number(totals.inventoryValue || inv.totalInventoryValuation || 0);
+      const unitsOnHand = Number(totals.unitsOnHand || 0);
+      const warnings = fifoData.warnings || [];
+      const costDrift = fifoData.costDrift || { totalDrift: 0, saleLinesCompared: 0 };
+
+      return {
+        answer: `Your authoritative **FIFO Inventory Valuation** is **${currency} ${totalVal.toLocaleString()}** across **${unitsOnHand > 0 ? unitsOnHand : inv.totalActiveSKUs || 0}** ${unitsOnHand > 0 ? 'units on hand' : 'active catalog SKUs'}.\n\n- **Total Historical COGS:** ${currency} ${Number(totals.cogs || 0).toLocaleString()}\n- **Cost Drift vs Snapshots:** ${currency} ${Number(costDrift.totalDrift || 0).toLocaleString()} across ${costDrift.saleLinesCompared} sale lines${warnings.length > 0 ? `\n- ⚠️ **Warnings:** ${warnings.join('; ')}` : ''}`,
+        keyMetrics: [
+          { label: 'FIFO Valuation', value: totalVal, formattedValue: `${currency} ${totalVal.toLocaleString()}`, trend: 'neutral' },
+          { label: 'FIFO COGS', value: Number(totals.cogs || 0), formattedValue: `${currency} ${Number(totals.cogs || 0).toLocaleString()}`, trend: 'neutral' },
+          { label: 'Cost Drift', value: Number(costDrift.totalDrift || 0), formattedValue: `${currency} ${Number(costDrift.totalDrift || 0).toLocaleString()}`, trend: costDrift.totalDrift === 0 ? 'positive' : 'neutral' },
+        ],
+        followUpSuggestions: ['Which products are low on stock?', 'What is my gross profit?'],
+        confidence: 'high_confidence',
+      };
+    }
+
+    // 4. Inventory, Out of Stock, Low Stock
     if (
       q.includes('low stock') ||
       q.includes('running low') ||
