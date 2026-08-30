@@ -423,7 +423,8 @@ export const AnalyticsService = {
     const expKey = `ursella_expenses_${businessId}`;
     const custKey = `ursella_customers_${businessId}`;
     const payKey = `ursella_payments_${businessId}`;
-    const txKey = `ursella_inventory_transactions_${businessId}`;
+    const txKey = `ursella_inventory_txs_${businessId}`;
+    const txKeyAlt = `ursella_inventory_transactions_${businessId}`;
 
     const salesList: Sale[] = JSON.parse(localStorage.getItem(salesKey) || '[]');
     const itemsList: SaleItem[] = JSON.parse(localStorage.getItem(itemsKey) || '[]');
@@ -431,7 +432,9 @@ export const AnalyticsService = {
     const expensesList: Expense[] = JSON.parse(localStorage.getItem(expKey) || '[]');
     const customersList: Customer[] = JSON.parse(localStorage.getItem(custKey) || '[]');
     const paymentsList: Payment[] = JSON.parse(localStorage.getItem(payKey) || '[]');
-    const txList: InventoryTransaction[] = JSON.parse(localStorage.getItem(txKey) || '[]');
+    const txList: InventoryTransaction[] = JSON.parse(
+      localStorage.getItem(txKey) || localStorage.getItem(txKeyAlt) || '[]'
+    );
 
     return this.computeAnalyticsFromLists(
       businessId,

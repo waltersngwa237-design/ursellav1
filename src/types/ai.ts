@@ -52,6 +52,8 @@ export interface AIProposedAction {
   phaseStatus: 'phase4_preview_only' | 'ready_for_execution';
 }
 
+export type AIResponseSource = 'GEMINI_RESPONSE' | 'DETERMINISTIC_FALLBACK';
+
 export interface AIStructuredResponse {
   answer: string;
   intent?: AIIntentType;
@@ -64,6 +66,7 @@ export interface AIStructuredResponse {
   followUpSuggestions?: string[];
   toolsUsed?: string[];
   proposedAction?: AIProposedAction;
+  responseSource?: AIResponseSource;
 }
 
 export interface AIConversationSummary {
@@ -90,6 +93,7 @@ export interface AIChatMessage {
     toolsUsed?: string[];
     latencyMs?: number;
     tokensUsed?: number;
+    responseSource?: AIResponseSource;
     error?: string;
   };
   created_at: string;
@@ -146,4 +150,5 @@ export interface AIChatResponsePayload {
   intent: AIIntentType;
   toolsUsed: string[];
   latencyMs: number;
+  responseSource?: AIResponseSource;
 }

@@ -22,6 +22,70 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
+function isValidUUID(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+}
+
+/**
+ * Validates tenant authorization for API routes.
+ * Ensures caller belongs to the business tenant they are requesting.
+ */
+async function verifyTenantRequest(
+  req: express.Request,
+  businessId: string
+): Promise<{ authorized: boolean; userId?: string; error?: string; status?: number }> {
+  if (!isValidUUID(businessId)) {
+    return { authorized: true };
+  }
+
+  const isServerSupabaseConfigured = Boolean(
+    process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+  ) && !(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').includes('placeholder.supabase.co');
+
+  if (!isServerSupabaseConfigured) {
+    return { authorized: true };
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return {
+      authorized: false,
+      status: 401,
+      error: 'Missing or malformed Authorization header. Please sign in.',
+    };
+  }
+
+  const token = authHeader.replace('Bearer ', '').trim();
+  try {
+    const { data: userData, error: userError } = await serverSupabase.auth.getUser(token);
+    if (userError || !userData?.user) {
+      return {
+        authorized: false,
+        status: 401,
+        error: 'Invalid or expired authentication session. Please sign in again.',
+      };
+    }
+
+    const userId = userData.user.id;
+    const hasAccess = await BusinessToolsService.verifyTenantAccess(userId, businessId);
+    if (!hasAccess) {
+      return {
+        authorized: false,
+        status: 403,
+        error: 'Access denied: You are not authorized to view or analyze data for this business.',
+      };
+    }
+
+    return { authorized: true, userId };
+  } catch (err: any) {
+    return {
+      authorized: false,
+      status: 500,
+      error: err?.message || 'Tenant verification failed.',
+    };
+  }
+}
+
 // Health Check APIs
 app.get('/api/health', async (req, res) => {
   const result = await HealthService.performHealthCheck(false);
@@ -44,6 +108,12 @@ app.post('/api/ai/chat', async (req, res) => {
 
     if (!businessId || !message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Missing required parameters: businessId and message are mandatory.' });
+    }
+
+    // 0. Multi-Tenant Authorization Check
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
     }
 
     // 1. Rate Limiting Check
@@ -211,6 +281,7 @@ app.post('/api/ai/chat', async (req, res) => {
       intent: intentResult.intent,
       toolsUsed: toolsExecuted,
       latencyMs,
+      responseSource: structuredResponse.responseSource,
     };
 
     // Asynchronously log AI token and cost metrics
@@ -248,6 +319,11 @@ app.post('/api/ai/daily-brief', async (req, res) => {
     const { businessId, businessName: inputName, currency: inputCurrency, timezone: inputTz, businessContext } = req.body;
     if (!businessId) {
       return res.status(400).json({ error: 'businessId is required' });
+    }
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
     }
 
     let businessName = businessContext?.businessName || inputName || 'My Business';
@@ -306,6 +382,11 @@ app.post('/api/ai/proactive-insights', async (req, res) => {
   try {
     const { businessId } = req.body;
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     const [health, inv, debtors] = await Promise.all([
       BusinessToolsService.getBusinessHealth(businessId),
@@ -788,6 +869,11 @@ app.get('/api/data/export/:entity', async (req, res) => {
 
     if (!businessId) return res.status(400).json({ error: 'businessId query param required' });
 
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
     const csvData = await DataIOService.exportDataToCSV(businessId, entity);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="ursella_${entity}_${Date.now()}.csv"`);
@@ -810,6 +896,11 @@ app.get('/api/reports/:type', async (req, res) => {
     const endDate = req.query.endDate as string;
 
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     const filterOpts: ReportFilterOptions = {
       period,
@@ -867,6 +958,9 @@ app.post('/api/feedback/submit', async (req, res) => {
   }
 });
 
+export { app };
+export default app;
+
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -887,4 +981,6 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.VERCEL !== '1') {
+  startServer();
+}

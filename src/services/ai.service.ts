@@ -37,11 +37,17 @@ export class AIService {
     }
 
     // 2. Full-stack server proxy fallback
+    const session = isSupabaseConfigured ? (await supabase.auth.getSession()).data?.session : null;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(payload),
     });
 
@@ -102,11 +108,17 @@ export class AIService {
     }
 
     try {
+      const session = isSupabaseConfigured ? (await supabase.auth.getSession()).data?.session : null;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const response = await fetch('/api/ai/daily-brief', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           businessId,
           businessName: businessContext?.businessName,
@@ -159,11 +171,17 @@ export class AIService {
     }>;
   }> {
     try {
+      const session = isSupabaseConfigured ? (await supabase.auth.getSession()).data?.session : null;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const response = await fetch('/api/ai/proactive-insights', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ businessId }),
       });
 

@@ -4,7 +4,7 @@ import {
   type AIDailyBrief,
 } from '../src/types/ai.ts';
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
 
 let geminiClient: GoogleGenAI | null = null;
 
@@ -187,6 +187,7 @@ ${
               'Who owes me money?',
             ],
             proposedAction: parsed.proposedAction,
+            responseSource: 'GEMINI_RESPONSE',
           };
         }
       } catch {
@@ -194,6 +195,7 @@ ${
           answer: responseText,
           confidence: 'moderate_confidence',
           followUpSuggestions: ['What else should I focus on?'],
+          responseSource: 'GEMINI_RESPONSE',
         };
       }
     } catch (err) {
@@ -370,6 +372,7 @@ Return a valid JSON object matching the schema:
         ],
         followUpSuggestions: ['How are my sales today?', 'Who owes me money?', 'Which products are low on stock?'],
         confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
       };
     }
 
@@ -384,6 +387,7 @@ Return a valid JSON object matching the schema:
         keyMetrics: [{ label: 'Operating Currency', value: currency, formattedValue: currency, trend: 'neutral' }],
         followUpSuggestions: ['How are my sales today?', 'What is my total receivables?'],
         confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
       };
     }
 
@@ -412,6 +416,7 @@ Return a valid JSON object matching the schema:
           recommendations: [],
           followUpSuggestions: ['How are my sales today?', 'Do I have any low-stock products?'],
           confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
         };
       }
 
@@ -437,6 +442,7 @@ Return a valid JSON object matching the schema:
         ],
         followUpSuggestions: ['How are my sales today?', 'What is my current cash flow?'],
         confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
       };
     }
 
@@ -465,6 +471,7 @@ Return a valid JSON object matching the schema:
         ],
         followUpSuggestions: ['Which products are low on stock?', 'What is my gross profit?'],
         confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
       };
     }
 
@@ -496,6 +503,7 @@ Return a valid JSON object matching the schema:
           recommendations: [],
           followUpSuggestions: ['What are my top selling products?', 'How are my sales today?'],
           confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
         };
       }
 
@@ -520,10 +528,11 @@ Return a valid JSON object matching the schema:
         ],
         followUpSuggestions: ['Which products make me the most money?', 'How are my sales today?'],
         confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
       };
     }
 
-    // 4. Specific "Today" queries
+    // 5. Specific "Today" queries
     if (
       q.includes('today') ||
       q.includes('sell today') ||
@@ -548,6 +557,7 @@ Return a valid JSON object matching the schema:
           recommendations: [],
           followUpSuggestions: ['Which products are low on stock?', 'Who owes me money?', 'What were my sales this month?'],
           confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
         };
       }
 
@@ -560,10 +570,11 @@ Return a valid JSON object matching the schema:
         ],
         followUpSuggestions: ['Who owes me money?', 'Which products are low on stock?'],
         confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
       };
     }
 
-    // 5. Product Margins & Top Products
+    // 6. Product Margins & Top Products
     if (
       q.includes('best selling') ||
       q.includes('top product') ||
@@ -578,6 +589,7 @@ Return a valid JSON object matching the schema:
           keyMetrics: [],
           followUpSuggestions: ['How are my sales today?', 'Do I have low stock?'],
           confidence: 'insufficient_data',
+          responseSource: 'DETERMINISTIC_FALLBACK',
         };
       }
 
@@ -597,13 +609,14 @@ Return a valid JSON object matching the schema:
         })),
         followUpSuggestions: ['Which products are running low on stock?', 'How are my sales today?'],
         confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
       };
     }
 
-    // 6. Expenses
+    // 7. Expenses
     if (q.includes('expense') || q.includes('spending') || q.includes('costs') || q.includes('bills')) {
       const totalExp = Number(expenses.totalExpenses || 0);
-      const topCats = (expenses.topExpenseCategories || []) as Array<{ category: string; amount: number; percentageOfTotal: number }>;
+      const topCats = (expenses.topExpenseCategories || expenses.expensesByCategory || []) as Array<{ category: string; amount: number; percentageOfTotal?: number; percentage?: number }>;
 
       if (totalExp === 0) {
         return {
@@ -611,11 +624,12 @@ Return a valid JSON object matching the schema:
           keyMetrics: [{ label: 'Total Expenses', value: 0, formattedValue: `${currency} 0`, trend: 'positive' }],
           followUpSuggestions: ['How are my sales today?', 'What is my current cash flow?'],
           confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
         };
       }
 
       const catBreakdown = topCats
-        .map((c) => `- **${c.category}**: ${currency} ${Number(c.amount).toLocaleString()} (${c.percentageOfTotal}% of total)`)
+        .map((c) => `- **${c.category}**: ${currency} ${Number(c.amount).toLocaleString()} (${c.percentageOfTotal ?? c.percentage ?? 0}% of total)`)
         .join('\n');
 
       return {
@@ -626,13 +640,14 @@ Return a valid JSON object matching the schema:
         ],
         followUpSuggestions: ['What is my net profitability?', 'How is my cash flow?'],
         confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
       };
     }
 
-    // 7. Cash Flow
+    // 8. Cash Flow
     if (q.includes('cash flow') || q.includes('cash collected') || q.includes('liquidity') || q.includes('inflow')) {
-      const cashIn = Number(cashFlow.cashInflow || 0);
-      const cashOut = Number(cashFlow.cashOutflow || 0);
+      const cashIn = Number(cashFlow.cashInflow || cashFlow.cashInflows || 0);
+      const cashOut = Number(cashFlow.cashOutflow || cashFlow.cashOutflows || 0);
       const netCash = Number(cashFlow.netCashFlow || 0);
 
       return {
@@ -644,24 +659,51 @@ Return a valid JSON object matching the schema:
         ],
         followUpSuggestions: ['Who owes me money?', 'What are my total expenses?'],
         confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
       };
     }
 
-    // 8. General Overview / Sales History
-    const totalRev = Number(overview.revenue || salesSummary.totalRevenue || 0);
-    const txCount = Number(overview.transaction_count || salesSummary.transactionCount || 0);
-    const grossProfit = Number(overview.gross_profit || 0);
-    const grossMargin = Number(overview.gross_margin || 0);
+    // 9. Explicit Overview or Summary Requests
+    if (
+      q.includes('overview') ||
+      q.includes('summary') ||
+      q.includes('health') ||
+      q.includes('performance') ||
+      q.includes('how is my business') ||
+      q.includes('how are we doing') ||
+      q.includes('status') ||
+      q.includes('report')
+    ) {
+      const totalRev = Number(overview.revenue || salesSummary.totalRevenue || 0);
+      const txCount = Number(overview.transaction_count || salesSummary.transactionCount || 0);
+      const grossProfit = Number(overview.gross_profit || 0);
+      const grossMargin = Number(overview.gross_margin || 0);
 
+      return {
+        answer: `**${ctx.businessName}** has recorded **${currency} ${totalRev.toLocaleString()}** in revenue across **${txCount}** transaction(s) over the last 30 days, achieving a **${grossMargin}%** gross margin (${currency} ${grossProfit.toLocaleString()} gross profit).`,
+        keyMetrics: [
+          { label: 'Revenue (30d)', value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: 'positive' },
+          { label: 'Transactions', value: txCount, formattedValue: `${txCount}`, trend: 'positive' },
+          { label: 'Gross Margin', value: grossMargin, formattedValue: `${grossMargin}%`, trend: grossMargin >= 30 ? 'positive' : 'neutral' },
+        ],
+        followUpSuggestions: ['How are my sales today?', 'Who owes me money?', 'Which products are low on stock?'],
+        confidence: txCount > 0 ? 'high_confidence' : 'insufficient_data',
+        responseSource: 'DETERMINISTIC_FALLBACK',
+      };
+    }
+
+    // 10. Ambiguous or Unrecognized Query: Ask for clarification instead of guessing
     return {
-      answer: `**${ctx.businessName}** has recorded **${currency} ${totalRev.toLocaleString()}** in revenue across **${txCount}** transaction(s) over the last 30 days, achieving a **${grossMargin}%** gross margin (${currency} ${grossProfit.toLocaleString()} gross profit).`,
-      keyMetrics: [
-        { label: 'Revenue (30d)', value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: 'positive' },
-        { label: 'Transactions', value: txCount, formattedValue: `${txCount}`, trend: 'positive' },
-        { label: 'Gross Margin', value: grossMargin, formattedValue: `${grossMargin}%`, trend: grossMargin >= 30 ? 'positive' : 'neutral' },
+      answer: `I could not identify the specific business metric or question you would like me to analyze for **${ctx.businessName}**.\n\nPlease ask a specific question such as checking today's sales, low stock items, customer debts, or operating expenses.`,
+      confidence: 'insufficient_data',
+      dataSufficiencyNote: 'Query was ambiguous or outside standard business metrics.',
+      responseSource: 'DETERMINISTIC_FALLBACK',
+      followUpSuggestions: [
+        'How are my sales today?',
+        'Which products are low on stock?',
+        'Who owes me money?',
+        'What is my FIFO inventory valuation?',
       ],
-      followUpSuggestions: ['How are my sales today?', 'Who owes me money?', 'Which products are low on stock?'],
-      confidence: txCount > 0 ? 'high_confidence' : 'insufficient_data',
     };
   }
 }
