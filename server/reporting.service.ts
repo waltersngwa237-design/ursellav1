@@ -258,4 +258,59 @@ export class ReportingService {
       ],
     };
   }
+
+  /**
+   * Generate Tax & Statutory Compliance Estimation Report
+   */
+  static async generateTaxReport(businessId: string, opts: ReportFilterOptions): Promise<BusinessReportData> {
+    const { daysCount, periodLabel } = this.resolveDateRange(opts);
+    const overview = await BusinessToolsService.getBusinessOverview(businessId, daysCount);
+    const expenses = await BusinessToolsService.getExpenseSummary(businessId, daysCount);
+
+    const revenue = Number(overview.revenue || 0);
+    const totalExpenses = Number(expenses.totalExpenses || 0);
+    const taxableIncome = Math.max(0, revenue - totalExpenses);
+    const estimatedSalesTax = Math.round(revenue * 0.05 * 100) / 100;
+    const estimatedIncomeTax = Math.round(taxableIncome * 0.15 * 100) / 100;
+    const totalTaxLiability = Math.round((estimatedSalesTax + estimatedIncomeTax) * 100) / 100;
+
+    return {
+      reportType: 'tax' as any,
+      businessId,
+      generatedAt: new Date().toISOString(),
+      periodLabel,
+      currency: 'USD',
+      summaryMetrics: {
+        taxableGrossRevenue: revenue,
+        allowableDeductions: totalExpenses,
+        netTaxableIncome: taxableIncome,
+        estimatedSalesTax,
+        estimatedCorporateTax: estimatedIncomeTax,
+        totalEstimatedTaxLiability: totalTaxLiability,
+      },
+      breakdownRows: [
+        {
+          taxCategory: 'Sales & Indirect Tax (Est. 5%)',
+          applicableBase: revenue,
+          rateApplied: '5.0%',
+          estimatedTax: estimatedSalesTax,
+          status: 'ACCRUING',
+        },
+        {
+          taxCategory: 'Corporate Income Tax (Est. 15%)',
+          applicableBase: taxableIncome,
+          rateApplied: '15.0%',
+          estimatedTax: estimatedIncomeTax,
+          status: taxableIncome > 0 ? 'LIABLE' : 'NIL',
+        },
+        {
+          taxCategory: 'Allowable Expense Deductions',
+          applicableBase: totalExpenses,
+          rateApplied: '100.0%',
+          estimatedTax: -totalExpenses,
+          status: 'SHIELDED',
+        },
+      ],
+    };
+  }
 }

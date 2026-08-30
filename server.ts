@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { BusinessToolsService, serverSupabase } from './server/business-tools.service.ts';
 import { classifyBusinessQuery } from './server/intent.service.ts';
 import { GeminiService } from './server/gemini.service.ts';
@@ -921,6 +920,8 @@ app.get('/api/reports/:type', async (req, res) => {
       reportData = await ReportingService.generateReceivablesReport(businessId);
     } else if (type === 'cash_flow') {
       reportData = await ReportingService.generateCashFlowReport(businessId, filterOpts);
+    } else if ((type as string) === 'tax') {
+      reportData = await ReportingService.generateTaxReport(businessId, filterOpts);
     } else {
       return res.status(400).json({ error: `Unknown report type: ${type}` });
     }
@@ -963,6 +964,7 @@ export default app;
 
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true, host: '0.0.0.0', port: PORT },
       appType: 'spa',

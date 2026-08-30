@@ -243,7 +243,7 @@ export interface BusinessSubscription {
 }
 
 export interface BusinessReportData {
-  reportType: 'sales' | 'profitability' | 'inventory' | 'expenses' | 'receivables' | 'cash_flow';
+  reportType: 'sales' | 'profitability' | 'inventory' | 'expenses' | 'receivables' | 'cash_flow' | 'tax';
   businessId: string;
   generatedAt: string;
   periodLabel: string;
@@ -251,6 +251,86 @@ export interface BusinessReportData {
   summaryMetrics: Record<string, number | string>;
   breakdownRows: Array<Record<string, any>>;
 }
+
+export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
+  {
+    id: 'plan_free',
+    name: 'Starter Free',
+    tier: 'free',
+    description: 'Essential POS, inventory and deterministic analytics for single-operator stores.',
+    monthly_price: 0,
+    annual_price: 0,
+    currency: 'USD',
+    features_json: [
+      'Core POS Sales & Digital Receipts',
+      'Deterministic Financial Metrics',
+      '1 Team Member / Operator',
+      '100 AI Queries / Month',
+      'Standard Inventory Tracking',
+      'Basic Sales & Expense Reports',
+    ],
+    max_members: 1,
+    ai_monthly_quota: 100,
+    max_products: 100,
+    allows_csv_import: true,
+    allows_export: true,
+    allows_advanced_reports: false,
+    allows_push_notifications: false,
+    is_active: true,
+  },
+  {
+    id: 'plan_pro',
+    name: 'Ursella Pro',
+    tier: 'pro',
+    description: 'Proactive AI anomaly detection, team roles, WhatsApp reminders, and multi-device access.',
+    monthly_price: 15,
+    annual_price: 150,
+    currency: 'USD',
+    features_json: [
+      'All Starter Free Capabilities',
+      'Continuous Proactive Anomaly Alerts',
+      'Up to 5 Team Members with RBAC',
+      '1,000 AI Queries / Month',
+      'Full Financial Statement Reports & PDF',
+      'CSV Data Import & Bulk Migration',
+      'Customer WhatsApp Debt Reminders',
+    ],
+    max_members: 5,
+    ai_monthly_quota: 1000,
+    max_products: 2500,
+    allows_csv_import: true,
+    allows_export: true,
+    allows_advanced_reports: true,
+    allows_push_notifications: true,
+    is_active: true,
+  },
+  {
+    id: 'plan_business',
+    name: 'Ursella Scale',
+    tier: 'business',
+    description: 'High-velocity shops, wholesale distributors, and multi-branch commercial operations.',
+    monthly_price: 45,
+    annual_price: 450,
+    currency: 'USD',
+    features_json: [
+      'All Ursella Pro Capabilities',
+      'Unlimited Team Members & Roles',
+      '10,000 AI Queries / Month',
+      'Automated Action Authorizations',
+      'Priority MoMo & Card Webhooks',
+      'Full Audit Trail & Export API',
+      'Dedicated Account Support',
+    ],
+    max_members: 50,
+    ai_monthly_quota: 10000,
+    max_products: 100000,
+    allows_csv_import: true,
+    allows_export: true,
+    allows_advanced_reports: true,
+    allows_push_notifications: true,
+    is_active: true,
+  },
+];
 
 export interface ImportPreviewRow {
   rowNumber: number;

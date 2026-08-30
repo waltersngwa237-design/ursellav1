@@ -16,14 +16,14 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { ClientSubscriptionService } from '../../services/subscription.service.ts';
-import type { SubscriptionPlan, BusinessSubscription } from '../../types/index.ts';
+import { DEFAULT_SUBSCRIPTION_PLANS, type SubscriptionPlan, type BusinessSubscription } from '../../types/index.ts';
 
 interface BillingPageProps {
   businessId: string;
 }
 
 export const BillingPage: React.FC<BillingPageProps> = ({ businessId }) => {
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>(DEFAULT_SUBSCRIPTION_PLANS);
   const [subscription, setSubscription] = useState<BusinessSubscription | null>(null);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState<boolean>(true);

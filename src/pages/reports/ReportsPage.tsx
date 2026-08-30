@@ -13,9 +13,10 @@ import {
   PieChart as PieChartIcon,
   ShieldCheck,
   FileSpreadsheet,
+  Landmark,
+  AlertCircle,
 } from 'lucide-react';
 import { ClientReportingService } from '../../services/reporting.service.ts';
-import { ClientDataIOService } from '../../services/data-io.service.ts';
 import { PDFAndPrintService } from '../../services/pdf.service.ts';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
 import { CURRENCY_MAP, type BusinessReportData } from '../../types/index.ts';
@@ -24,7 +25,7 @@ interface ReportsPageProps {
   businessId: string;
 }
 
-type ReportType = 'sales' | 'profitability' | 'inventory' | 'expenses' | 'receivables' | 'cash_flow';
+type ReportType = 'sales' | 'profitability' | 'inventory' | 'expenses' | 'receivables' | 'cash_flow' | 'tax';
 type PeriodOption = 'today' | '7d' | '30d' | 'this_month' | 'last_month' | 'this_year';
 
 export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
@@ -65,6 +66,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
     { id: 'expenses', label: 'Expense Analysis', icon: PieChartIcon },
     { id: 'receivables', label: 'Customer Receivables', icon: CreditCard },
     { id: 'cash_flow', label: 'Cash Flow Statement', icon: ArrowDownRight },
+    { id: 'tax', label: 'Tax & Compliance', icon: Landmark },
   ];
 
   const periodOptions: Array<{ id: PeriodOption; label: string }> = [
@@ -93,19 +95,31 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
     }
   };
 
-  const getExportEntityForReport = (type: ReportType): 'sales' | 'products' | 'expenses' | 'customers' => {
-    switch (type) {
-      case 'sales':
-      case 'profitability':
-      case 'cash_flow':
-        return 'sales';
-      case 'inventory':
-        return 'products';
-      case 'expenses':
-        return 'expenses';
-      case 'receivables':
-        return 'customers';
-    }
+  const handleExportCSV = () => {
+    if (!reportData || reportData.breakdownRows.length === 0) return;
+    const rows = reportData.breakdownRows;
+    const headers = Object.keys(rows[0]);
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((r) =>
+        headers
+          .map((h) => {
+            const val = r[h];
+            const str = typeof val === 'object' ? JSON.stringify(val) : String(val ?? '');
+            return `"${str.replace(/"/g, '""')}"`;
+          })
+          .join(',')
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${activeBusiness?.name || 'Business'}-${activeReport}-report.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -115,11 +129,11 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
         <div>
           <div className="flex items-center gap-2 text-emerald-400 mb-1">
             <FileText className="w-5 h-5" />
-            <span className="text-xs font-bold uppercase tracking-wider">Deterministic Reports</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Financial & Tax Intelligence</span>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Business Financial Reports</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Business Financial & Tax Reports</h1>
           <p className="text-xs text-zinc-400 mt-1">
-            Auditable, GAAP-aligned financial statements and operational breakdowns.
+            Auditable, GAAP-aligned financial statements, tax estimates, and operational breakdowns.
           </p>
         </div>
 
@@ -127,7 +141,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
           <button
             onClick={handlePrint}
             disabled={!reportData || loading}
-            className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5 text-zinc-400" />
             <span>Print</span>
@@ -135,19 +149,19 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
           <button
             onClick={handleDownloadPDF}
             disabled={!reportData || loading || isExportingPDF}
-            className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-emerald-400" />
             <span>{isExportingPDF ? 'Exporting...' : 'Export PDF'}</span>
           </button>
-          <a
-            href={ClientDataIOService.getExportUrl(businessId, getExportEntityForReport(activeReport))}
-            download
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+          <button
+            onClick={handleExportCSV}
+            disabled={!reportData || loading}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>Export CSV</span>
-          </a>
+          </button>
         </div>
       </div>
 
@@ -160,7 +174,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
             <button
               key={tab.id}
               onClick={() => setActiveReport(tab.id)}
-              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 isActive
                   ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                   : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
@@ -184,7 +198,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
             <button
               key={p.id}
               onClick={() => setSelectedPeriod(p.id)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 selectedPeriod === p.id
                   ? 'bg-zinc-800 text-emerald-400 font-bold'
                   : 'text-zinc-400 hover:text-zinc-200'
@@ -203,9 +217,20 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
           <p className="text-sm text-zinc-400">Compiling financial metrics from database ledger...</p>
         </div>
       ) : error ? (
-        <div className="p-6 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-rose-300 text-sm">
-          <p className="font-bold mb-1">Failed to generate report</p>
-          <p>{error}</p>
+        <div className="p-6 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-rose-300 text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-6 h-6 text-rose-400 flex-shrink-0" />
+            <div>
+              <p className="font-bold">Unable to load report</p>
+              <p className="text-xs text-rose-300/80 mt-0.5">{error}</p>
+            </div>
+          </div>
+          <button
+            onClick={loadReport}
+            className="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 font-semibold text-xs rounded-xl border border-rose-500/30 transition-colors cursor-pointer"
+          >
+            Retry Report
+          </button>
         </div>
       ) : reportData ? (
         <div className="space-y-6">
@@ -219,7 +244,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
                   ? value.toLocaleString()
                   : key.toLowerCase().includes('percent')
                   ? `${value}%`
-                  : `$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : `${currencyConfig.symbol}${Number(value).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
                 : String(value);
 
               return (
