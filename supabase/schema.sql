@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS public.businesses (
     currency VARCHAR(10) NOT NULL DEFAULT 'USD',
     timezone TEXT NOT NULL DEFAULT 'UTC',
     logo_url TEXT,
-    created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+    created_by UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
 );
@@ -222,7 +222,7 @@ CREATE TRIGGER tr_products_updated_at
 CREATE TABLE IF NOT EXISTS public.inventory_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id UUID NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
-    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
+    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     transaction_type inventory_transaction_type NOT NULL,
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     reference_type TEXT,
