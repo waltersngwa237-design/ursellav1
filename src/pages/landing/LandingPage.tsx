@@ -13,6 +13,7 @@ import {
   Smartphone,
   BarChart3,
   CheckCircle2,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 
@@ -37,9 +38,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col selection:bg-emerald-500/20 selection:text-emerald-300">
+    <div className="relative min-h-screen bg-zinc-950 text-zinc-100 flex flex-col selection:bg-emerald-500/20 selection:text-emerald-300 overflow-x-hidden">
+      {/* Background Graphic Asset for Shared Links & Visitors */}
+      <div 
+        className="absolute inset-0 z-0 opacity-25 pointer-events-none bg-cover bg-center bg-no-repeat fixed"
+        style={{ backgroundImage: `url('/shared_link_bg.jpg')` }}
+      />
+      <div className="absolute inset-0 z-0 bg-gradient-to-b from-zinc-950/80 via-zinc-950/95 to-zinc-950 pointer-events-none" />
+
       {/* Top Navigation */}
-      <header className="sticky top-0 z-30 w-full border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md">
+      <header className="relative z-30 sticky top-0 w-full border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <UrsellaLogo size="md" />
 
@@ -73,11 +81,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </header>
 
       {/* Hero Section */}
-      <main className="flex-1">
+      <main className="relative z-10 flex-1">
         <section className="max-w-4xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-16 text-center">
           {/* Subtle Tag */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 mb-6 animate-in fade-in duration-500">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900/90 border border-emerald-500/30 text-xs text-zinc-300 mb-6 backdrop-blur-md shadow-lg shadow-emerald-950/30 animate-in fade-in duration-500">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-medium">Modern Operating Co-pilot for Local Businesses</span>
           </div>
 
@@ -132,70 +140,70 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
         {/* Product Snapshot / Visual Bento */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-20">
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 sm:p-6 shadow-2xl">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 sm:p-6 shadow-2xl backdrop-blur-xl">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Card 1: Fast POS */}
-              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950 p-4 sm:p-5 flex flex-col justify-between">
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/80 p-4 sm:p-5 flex flex-col justify-between">
                 <div>
                   <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-3">
                     <ShoppingCart className="w-5 h-5" />
                   </div>
-                  <h2 className="text-sm font-bold text-white mb-1">Instant Checkout & POS</h2>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    Ring up products in seconds with barcode lookup, instant receipt sharing, and tender support for Cash, Mobile Money, and Customer Credit.
+                  <h3 className="text-sm font-bold text-white">Rapid POS & Mobile Money</h3>
+                  <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
+                    Designed for fast counter checkout, partial split payments, barcode scanner input, and instant WhatsApp receipts.
                   </p>
                 </div>
-                <div className="mt-4 pt-3 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-400">
-                  <span>Fast cart checkout</span>
-                  <span className="text-emerald-400 font-semibold">Ready in 1-tap</span>
+                <div className="mt-4 pt-3 border-t border-zinc-900 text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                  <span>Record sales in &lt; 3 seconds</span>
+                  <ArrowRight className="w-3 h-3" />
                 </div>
               </div>
 
-              {/* Card 2: FIFO Stock */}
-              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950 p-4 sm:p-5 flex flex-col justify-between">
+              {/* Card 2: Inventory & FIFO */}
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/80 p-4 sm:p-5 flex flex-col justify-between">
                 <div>
-                  <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mb-3">
                     <Boxes className="w-5 h-5" />
                   </div>
-                  <h2 className="text-sm font-bold text-white mb-1">Stock & FIFO Ledger</h2>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    Track every single item increment and decrement. Know your true cost of goods sold (COGS) and get alerted before shelves run dry.
+                  <h3 className="text-sm font-bold text-white">Automated Stock & Margins</h3>
+                  <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
+                    Tracks true cost of goods sold with FIFO layer calculations, low-stock threshold alerts, and expiry warnings.
                   </p>
                 </div>
-                <div className="mt-4 pt-3 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-400">
-                  <span>Audit trail logs</span>
-                  <span className="text-blue-400 font-semibold">Zero guesswork</span>
+                <div className="mt-4 pt-3 border-t border-zinc-900 text-[11px] text-indigo-400 font-semibold flex items-center gap-1">
+                  <span>Zero manual stock reconciliations</span>
+                  <ArrowRight className="w-3 h-3" />
                 </div>
               </div>
 
-              {/* Card 3: Debt & Co-pilot */}
-              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950 p-4 sm:p-5 flex flex-col justify-between">
+              {/* Card 3: Real-Time Cash Flow */}
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/80 p-4 sm:p-5 flex flex-col justify-between">
                 <div>
-                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-3">
-                    <Users className="w-5 h-5" />
+                  <div className="w-9 h-9 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center mb-3">
+                    <BarChart3 className="w-5 h-5" />
                   </div>
-                  <h2 className="text-sm font-bold text-white mb-1">Customer Credit & Debts</h2>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    Maintain clean customer balances, record partial payments, and send friendly WhatsApp payment notices to recover receivables.
+                  <h3 className="text-sm font-bold text-white">Daily Financial Clarity</h3>
+                  <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
+                    Instant cash position, debtors ledger, operational expense tracking, and deterministic net profit margins.
                   </p>
                 </div>
-                <div className="mt-4 pt-3 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-400">
-                  <span>Debt tracking</span>
-                  <span className="text-amber-400 font-semibold">Faster payouts</span>
+                <div className="mt-4 pt-3 border-t border-zinc-900 text-[11px] text-teal-400 font-semibold flex items-center gap-1">
+                  <span>Real-time profit & loss</span>
+                  <ArrowRight className="w-3 h-3" />
                 </div>
               </div>
             </div>
 
-            {/* Bottom highlight: Ursella Co-pilot */}
-            <div className="mt-4 rounded-xl border border-zinc-800/80 bg-zinc-950 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start sm:items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
+            {/* AI Advisor Preview Ribbon */}
+            <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0">
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-white">
-                    Ursella Co-pilot: Daily Briefings & Business Answers
-                  </h2>
+                  <h4 className="text-xs sm:text-sm font-bold text-white">
+                    Built-in AI Financial Co-pilot
+                  </h4>
                   <p className="text-xs text-zinc-400 mt-0.5">
                     Ask questions like <em>"What were my top sellers today?"</em> or get automated alerts when margins fluctuate.
                   </p>
@@ -226,7 +234,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur-md">
               <Receipt className="w-5 h-5 text-emerald-400 mb-2" />
               <h3 className="text-xs font-bold text-white">Digital Receipts</h3>
               <p className="text-xs text-zinc-400 mt-1">
@@ -234,7 +242,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </p>
             </div>
 
-            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur-md">
               <Smartphone className="w-5 h-5 text-indigo-400 mb-2" />
               <h3 className="text-xs font-bold text-white">Mobile Money & Cash</h3>
               <p className="text-xs text-zinc-400 mt-1">
@@ -242,7 +250,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </p>
             </div>
 
-            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur-md">
               <BarChart3 className="text-xs w-5 h-5 text-teal-400 mb-2" />
               <h3 className="text-xs font-bold text-white">Profit & Loss Reports</h3>
               <p className="text-xs text-zinc-400 mt-1">
@@ -250,7 +258,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </p>
             </div>
 
-            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur-md">
               <ShieldCheck className="w-5 h-5 text-emerald-400 mb-2" />
               <h3 className="text-xs font-bold text-white">Multi-Tenant Isolation</h3>
               <p className="text-xs text-zinc-400 mt-1">
@@ -258,7 +266,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </p>
             </div>
 
-            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur-md">
               <Zap className="w-5 h-5 text-amber-400 mb-2" />
               <h3 className="text-xs font-bold text-white">Proactive Health Checks</h3>
               <p className="text-xs text-zinc-400 mt-1">
@@ -266,7 +274,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </p>
             </div>
 
-            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur-md">
               <Users className="w-5 h-5 text-rose-400 mb-2" />
               <h3 className="text-xs font-bold text-white">Team & Role Access</h3>
               <p className="text-xs text-zinc-400 mt-1">
@@ -278,7 +286,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-800/80 bg-zinc-950 py-8 px-4 sm:px-6">
+      <footer className="relative z-10 border-t border-zinc-800/80 bg-zinc-950/90 py-8 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
           <div className="flex items-center gap-2">
             <UrsellaLogo size="sm" />

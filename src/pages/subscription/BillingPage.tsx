@@ -22,10 +22,14 @@ import {
   Smartphone,
   ExternalLink,
   Package,
+  Layers,
+  Database,
 } from 'lucide-react';
 import { ClientSubscriptionService } from '../../services/subscription.service.ts';
 import { DEFAULT_SUBSCRIPTION_PLANS, type SubscriptionPlan, type BusinessSubscription } from '../../types/index.ts';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
+import { ProductService } from '../../services/product.service.ts';
+import { isSupabaseConfigured } from '../../lib/supabase/client.ts';
 
 interface BillingPageProps {
   businessId?: string;
@@ -97,6 +101,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<SubscriptionPlan | null>(null);
+  const [totalProductsCount, setTotalProductsCount] = useState<number>(0);
 
   // Checkout modal state
   const [paymentProvider, setPaymentProvider] = useState<'momo' | 'stripe' | 'flutterwave'>('momo');
@@ -111,12 +116,14 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
   const loadSubscriptionData = async () => {
     setLoading(true);
     try {
-      const [fetchedPlans, fetchedSub] = await Promise.all([
+      const [fetchedPlans, fetchedSub, fetchedProducts] = await Promise.all([
         ClientSubscriptionService.getPlans(),
         ClientSubscriptionService.getBusinessSubscription(businessId),
+        ProductService.getProducts(businessId).catch(() => []),
       ]);
       setPlans(fetchedPlans);
       setSubscription(fetchedSub);
+      setTotalProductsCount(Array.isArray(fetchedProducts) ? fetchedProducts.length : 0);
     } catch (e) {
       console.error('Error loading billing info:', e);
     } finally {
@@ -143,7 +150,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
     setCheckoutLoading(true);
     setCheckoutMessage(null);
     try {
-      const res = await ClientSubscriptionService.initiateCheckout({
+      await ClientSubscriptionService.initiateCheckout({
         businessId,
         planId: selectedPlanForCheckout.id,
         billingCycle,
@@ -153,10 +160,9 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
       });
 
       if (paymentProvider === 'momo') {
-        // Switch to the simulated USSD push stage for testing while awaiting MoMo API
+        // Switch to simulated USSD push stage for testing while awaiting MoMo API production approval
         setCheckoutStep('simulated_prompt');
       } else {
-        // Direct or card
         const updated = await ClientSubscriptionService.activatePlan(
           businessId,
           selectedPlanForCheckout.id,
@@ -253,14 +259,43 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
             }`}
           >
             <span>Annual</span>
-            <span className="px-1.5 py-0.2 bg-emerald-400/20 text-emerald-300 text-[10px] rounded-full uppercase">
+            <span className="px-1.5 py-0.2 bg-emerald-400/20 text-emerald-300 text-[10px] rounded-full uppercase font-bold">
               Save ~17%
             </span>
           </button>
         </div>
       </div>
 
-      {/* MoMo Gateway Status Banner (Awaiting MoMo Production Keys) */}
+      {/* Database / Supabase Sync Status Indicator */}
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5">
+          <div className={`p-2 rounded-xl ${isSupabaseConfigured ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-800 text-zinc-400'}`}>
+            <Database className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-white">Database Synchronization</span>
+              <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${isSupabaseConfigured ? 'bg-emerald-500/20 text-emerald-300' : 'bg-zinc-800 text-zinc-400'}`}>
+                {isSupabaseConfigured ? 'Supabase Connected & RLS Enforced' : 'Local Sandbox Storage'}
+              </span>
+            </div>
+            <p className="text-zinc-400 text-[11px] mt-0.5">
+              Plan changes and usage limits persist across sessions and synchronize with tenant quotas.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={loadSubscriptionData}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl text-xs font-semibold transition-colors shrink-0"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
+          <span>Sync Quota</span>
+        </button>
+      </div>
+
+      {/* MoMo Gateway Status Banner */}
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-start sm:items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0">
@@ -332,7 +367,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
                   <span>Ursella AI Monthly Queries</span>
                 </span>
                 <span className="font-mono text-zinc-200 font-bold">
-                  {subscription.usage?.ai_queries_used || 0} / {subscription.usage?.ai_monthly_quota || activePlan.ai_monthly_quota}
+                  {subscription.usage?.ai_queries_used || 0} / {(subscription.usage?.ai_monthly_quota || activePlan.ai_monthly_quota).toLocaleString()}
                 </span>
               </div>
               <div className="h-2.5 w-full bg-zinc-950 rounded-full overflow-hidden border border-zinc-800">
@@ -347,7 +382,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
                 />
               </div>
               <p className="text-[11px] text-zinc-500">
-                {(subscription.usage?.ai_monthly_quota || activePlan.ai_monthly_quota) - (subscription.usage?.ai_queries_used || 0)} queries remaining this cycle
+                {Math.max(0, (subscription.usage?.ai_monthly_quota || activePlan.ai_monthly_quota) - (subscription.usage?.ai_queries_used || 0)).toLocaleString()} queries remaining this cycle
               </p>
             </div>
 
@@ -383,14 +418,22 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-400 flex items-center gap-1.5">
                   <Package className="w-4 h-4 text-amber-400" />
-                  <span>Catalog SKU Limit</span>
+                  <span>Catalog Products ({totalProductsCount})</span>
                 </span>
                 <span className="font-mono text-zinc-200 font-bold">
-                  {activePlan.max_products.toLocaleString()} SKUs
+                  {totalProductsCount} / {activePlan.max_products.toLocaleString()} SKUs
                 </span>
               </div>
               <div className="h-2.5 w-full bg-zinc-950 rounded-full overflow-hidden border border-zinc-800">
-                <div className="h-full bg-amber-500 rounded-full w-full opacity-80" />
+                <div
+                  className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (totalProductsCount / (activePlan.max_products || 100)) * 100
+                    )}%`,
+                  }}
+                />
               </div>
               <p className="text-[11px] text-zinc-500">
                 FIFO stock auditing & batch barcode tracking
@@ -481,7 +524,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
                   </button>
                 )}
 
-                {/* Instant Sandbox Switch Button for Quick Review / Demo Testing */}
+                {/* Instant Sandbox Switch Button for Quick Review / Testing */}
                 {!isCurrent && (
                   <button
                     type="button"

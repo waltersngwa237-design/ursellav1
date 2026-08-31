@@ -697,6 +697,144 @@ export type Database = {
           read_at?: string | null;
         };
       };
+      subscription_plans: {
+        Row: {
+          id: string;
+          name: string;
+          tier: string;
+          description: string;
+          monthly_price: number;
+          annual_price: number;
+          currency: string;
+          features_json: Json;
+          max_members: number;
+          ai_monthly_quota: number;
+          max_products: number;
+          allows_csv_import: boolean;
+          allows_export: boolean;
+          allows_advanced_reports: boolean;
+          allows_push_notifications: boolean;
+          is_active: boolean;
+          created_at?: string;
+        };
+        Insert: {
+          id: string;
+          name: string;
+          tier: string;
+          description: string;
+          monthly_price: number;
+          annual_price: number;
+          currency?: string;
+          features_json: Json;
+          max_members?: number;
+          ai_monthly_quota?: number;
+          max_products?: number;
+          allows_csv_import?: boolean;
+          allows_export?: boolean;
+          allows_advanced_reports?: boolean;
+          allows_push_notifications?: boolean;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          tier?: string;
+          description?: string;
+          monthly_price?: number;
+          annual_price?: number;
+          currency?: string;
+          features_json?: Json;
+          max_members?: number;
+          ai_monthly_quota?: number;
+          max_products?: number;
+          allows_csv_import?: boolean;
+          allows_export?: boolean;
+          allows_advanced_reports?: boolean;
+          allows_push_notifications?: boolean;
+          is_active?: boolean;
+          created_at?: string;
+        };
+      };
+      business_subscriptions: {
+        Row: {
+          id: string;
+          business_id: string;
+          plan_id: string;
+          status: string;
+          provider: string;
+          provider_subscription_id: string | null;
+          current_period_start: string;
+          current_period_end: string;
+          cancel_at_period_end: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Insert: {
+          id?: string;
+          business_id: string;
+          plan_id: string;
+          status?: string;
+          provider?: string;
+          provider_subscription_id?: string | null;
+          current_period_start?: string;
+          current_period_end?: string;
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          business_id?: string;
+          plan_id?: string;
+          status?: string;
+          provider?: string;
+          provider_subscription_id?: string | null;
+          current_period_start?: string;
+          current_period_end?: string;
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      ai_usage_logs: {
+        Row: {
+          id: string;
+          business_id: string;
+          request_type: string;
+          model: string;
+          latency_ms: number;
+          tokens_in?: number;
+          tokens_out?: number;
+          success: boolean;
+          error_message?: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          business_id: string;
+          request_type: string;
+          model?: string;
+          latency_ms?: number;
+          tokens_in?: number;
+          tokens_out?: number;
+          success?: boolean;
+          error_message?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          business_id?: string;
+          request_type?: string;
+          model?: string;
+          latency_ms?: number;
+          tokens_in?: number;
+          tokens_out?: number;
+          success?: boolean;
+          error_message?: string | null;
+          created_at?: string;
+        };
+      };
     };
     Views: {
       [_ in never]: never;

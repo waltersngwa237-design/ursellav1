@@ -1096,6 +1096,142 @@ CREATE POLICY "notifications_update" ON public.notifications FOR UPDATE USING (u
 CREATE POLICY "notifications_delete" ON public.notifications FOR DELETE USING (user_id = auth.uid() AND public.user_has_business_access(business_id));
 
 -- ============================================================================
+-- 18. SUBSCRIPTION PLANS & COMMERCIAL TIERS
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.subscription_plans (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    tier TEXT NOT NULL CHECK (tier IN ('free', 'pro', 'business', 'enterprise')),
+    description TEXT NOT NULL,
+    monthly_price NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    annual_price NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+    features_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    max_members INT NOT NULL DEFAULT 1,
+    ai_monthly_quota INT NOT NULL DEFAULT 100,
+    max_products INT NOT NULL DEFAULT 100,
+    allows_csv_import BOOLEAN NOT NULL DEFAULT true,
+    allows_export BOOLEAN NOT NULL DEFAULT true,
+    allows_advanced_reports BOOLEAN NOT NULL DEFAULT false,
+    allows_push_notifications BOOLEAN NOT NULL DEFAULT false,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+);
+
+-- Enable RLS
+ALTER TABLE public.subscription_plans ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "subscription_plans_read_all" ON public.subscription_plans FOR SELECT USING (true);
+
+-- Seed Default Plans
+INSERT INTO public.subscription_plans (
+    id, name, tier, description, monthly_price, annual_price, currency, features_json, max_members, ai_monthly_quota, max_products, allows_csv_import, allows_export, allows_advanced_reports, allows_push_notifications, is_active
+) VALUES 
+(
+    'plan_free',
+    'Starter Free',
+    'free',
+    'Essential POS, inventory and deterministic analytics for single-operator stores.',
+    0,
+    0,
+    'USD',
+    '["Core POS Sales & Digital Receipts", "Deterministic Financial Metrics", "1 Team Member / Operator", "100 AI Queries / Month", "Standard Inventory Tracking", "Basic Sales & Expense Reports"]'::jsonb,
+    1,
+    100,
+    100,
+    true,
+    true,
+    false,
+    false,
+    true
+),
+(
+    'plan_pro',
+    'Ursella Pro',
+    'pro',
+    'Proactive AI anomaly detection, team roles, WhatsApp reminders, and multi-device access.',
+    15,
+    150,
+    'USD',
+    '["All Starter Free Capabilities", "Continuous Proactive Anomaly Alerts", "Up to 5 Team Members with RBAC", "1,000 AI Queries / Month", "Full Financial Statement Reports & PDF", "CSV Data Import & Bulk Migration", "Customer WhatsApp Debt Reminders"]'::jsonb,
+    5,
+    1000,
+    2500,
+    true,
+    true,
+    true,
+    true,
+    true
+),
+(
+    'plan_business',
+    'Ursella Scale',
+    'business',
+    'High-velocity shops, wholesale distributors, and multi-branch commercial operations.',
+    45,
+    450,
+    'USD',
+    '["All Ursella Pro Capabilities", "Unlimited Team Members & Roles", "10,000 AI Queries / Month", "Automated Action Authorizations", "Priority MoMo & Card Webhooks", "Full Audit Trail & Export API", "Dedicated Account Support"]'::jsonb,
+    50,
+    10000,
+    100000,
+    true,
+    true,
+    true,
+    true,
+    true
+)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    monthly_price = EXCLUDED.monthly_price,
+    annual_price = EXCLUDED.annual_price,
+    features_json = EXCLUDED.features_json,
+    max_members = EXCLUDED.max_members,
+    ai_monthly_quota = EXCLUDED.ai_monthly_quota,
+    max_products = EXCLUDED.max_products,
+    allows_advanced_reports = EXCLUDED.allows_advanced_reports,
+    allows_push_notifications = EXCLUDED.allows_push_notifications;
+
+-- 19. Business Subscriptions Table
+CREATE TABLE IF NOT EXISTS public.business_subscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    business_id UUID NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+    plan_id TEXT NOT NULL REFERENCES public.subscription_plans(id) ON DELETE RESTRICT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('trialing', 'active', 'past_due', 'cancelled', 'expired', 'incomplete')),
+    provider TEXT NOT NULL DEFAULT 'manual' CHECK (provider IN ('momo', 'stripe', 'flutterwave', 'paystack', 'manual')),
+    provider_subscription_id TEXT,
+    current_period_start TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    current_period_end TIMESTAMPTZ NOT NULL DEFAULT (clock_timestamp() + interval '30 days'),
+    cancel_at_period_end BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    CONSTRAINT uq_business_subscriptions_business UNIQUE (business_id)
+);
+
+ALTER TABLE public.business_subscriptions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "business_subscriptions_select" ON public.business_subscriptions FOR SELECT USING (public.user_has_business_access(business_id));
+CREATE POLICY "business_subscriptions_insert" ON public.business_subscriptions FOR INSERT WITH CHECK (public.user_has_business_access(business_id, ARRAY['owner'::member_role, 'admin'::member_role]));
+CREATE POLICY "business_subscriptions_update" ON public.business_subscriptions FOR UPDATE USING (public.user_has_business_access(business_id, ARRAY['owner'::member_role, 'admin'::member_role])) WITH CHECK (public.user_has_business_access(business_id, ARRAY['owner'::member_role, 'admin'::member_role]));
+
+-- 20. AI Usage Logs Table
+CREATE TABLE IF NOT EXISTS public.ai_usage_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    business_id UUID NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+    request_type TEXT NOT NULL,
+    model TEXT NOT NULL,
+    latency_ms INT NOT NULL DEFAULT 0,
+    tokens_in INT NOT NULL DEFAULT 0,
+    tokens_out INT NOT NULL DEFAULT 0,
+    success BOOLEAN NOT NULL DEFAULT true,
+    error_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+);
+
+ALTER TABLE public.ai_usage_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "ai_usage_logs_select" ON public.ai_usage_logs FOR SELECT USING (public.user_has_business_access(business_id));
+CREATE POLICY "ai_usage_logs_insert" ON public.ai_usage_logs FOR INSERT WITH CHECK (public.user_has_business_access(business_id));
+
+-- ============================================================================
 -- SCHEMA & TABLE PERMISSIONS (GRANTS)
 -- Critical for Supabase: Grants Postgres access permissions to anon, authenticated,
 -- and service_role so RLS policies can evaluate queries without 42501 permission errors.
@@ -1122,7 +1258,10 @@ GRANT ALL PRIVILEGES ON TABLE
     public.ai_conversations,
     public.ai_messages,
     public.ai_insights,
-    public.notifications
+    public.notifications,
+    public.subscription_plans,
+    public.business_subscriptions,
+    public.ai_usage_logs
 TO anon, authenticated, service_role;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
