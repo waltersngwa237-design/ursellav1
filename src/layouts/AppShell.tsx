@@ -204,7 +204,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       }`}>
         {/* Mobile Top Bar */}
         <header className="md:hidden sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
               className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 active:scale-95 transition-all"
@@ -213,10 +213,27 @@ export const AppShell: React.FC<AppShellProps> = ({
             >
               <Menu className="w-5 h-5 text-zinc-300" />
             </button>
-            <UrsellaLogo size="sm" showBetaBadge={true} />
+            {currentRoute === 'ai' ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0">
+                  <Sparkles className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5 leading-tight truncate">
+                    <span>AI Advisor</span>
+                    <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono font-semibold">Gemini</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-400 leading-tight truncate">
+                    {activeBusiness?.name || 'Active Store'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <UrsellaLogo size="sm" showBetaBadge={true} />
+            )}
           </div>
           
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => setIsFeedbackModalOpen(true)}
               className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"

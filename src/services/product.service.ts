@@ -497,6 +497,68 @@ export const ProductService = {
     return this.updateProduct(businessId, productId, { is_active: isActive });
   },
 
+  /**
+   * Delete a product permanently from the catalog.
+   */
+  async deleteProduct(businessId: string, productId: string): Promise<boolean> {
+    if (!businessId || !productId) return false;
+
+    if (isSupabaseConfigured && isValidUUID(businessId) && isValidUUID(productId)) {
+      try {
+        // Attempt deletion from Supabase
+        const { error } = await (supabase as any)
+          .from('products')
+          .delete()
+          .eq('id', productId)
+          .eq('business_id', businessId);
+
+        if (error) {
+          // If foreign key constraint prevents hard delete, soft-archive with inactive status
+          if (error.message.includes('foreign key') || error.code === '23503') {
+            await (supabase as any)
+              .from('products')
+              .update({ is_active: false, updated_at: new Date().toISOString() })
+              .eq('id', productId)
+              .eq('business_id', businessId);
+            return true;
+          }
+          throw new Error(error.message);
+        }
+        return true;
+      } catch (err: any) {
+        console.warn('Supabase product delete failed, updating local state:', err);
+        // If error was not thrown from above
+        if (err.message && !err.message.includes('foreign key')) {
+          throw err;
+        }
+      }
+    }
+
+    // Local Storage deletion
+    const key = `${LOCAL_PRODUCTS_PREFIX}${businessId}`;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const list: Product[] = JSON.parse(stored);
+      const filtered = list.filter((p) => p.id !== productId);
+      localStorage.setItem(key, JSON.stringify(filtered));
+    }
+
+    // Clean up local inventory transactions associated with this product
+    try {
+      const invKey = `${LOCAL_INVENTORY_PREFIX}${businessId}`;
+      const invStored = localStorage.getItem(invKey);
+      if (invStored) {
+        const invList: InventoryTransaction[] = JSON.parse(invStored);
+        const filteredInv = invList.filter((tx) => tx.product_id !== productId);
+        localStorage.setItem(invKey, JSON.stringify(filteredInv));
+      }
+    } catch {
+      // ignore
+    }
+
+    return true;
+  },
+
   // ===========================================================================
   // PRODUCT CATEGORIES
   // ===========================================================================

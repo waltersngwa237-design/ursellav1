@@ -90,6 +90,11 @@ export const BusinessPage: React.FC = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  // Product Delete Modal
+  const [productToDelete, setProductToDelete] = useState<ProductWithCategory | null>(null);
+  const [isDeleteProductModalOpen, setIsDeleteProductModalOpen] = useState(false);
+  const [deletingProduct, setDeletingProduct] = useState(false);
+
   // ==========================================
   // STATE: INVENTORY MOVEMENTS & ADJUSTMENTS
   // ==========================================
@@ -319,6 +324,30 @@ export const BusinessPage: React.FC = () => {
       }
     } catch (err: any) {
       alert(err?.message || 'Failed to update product status');
+    }
+  };
+
+  const confirmDeleteProduct = (prod: ProductWithCategory) => {
+    setProductToDelete(prod);
+    setIsDeleteProductModalOpen(true);
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!activeBusiness?.id || !productToDelete) return;
+    setDeletingProduct(true);
+    try {
+      await ProductService.deleteProduct(activeBusiness.id, productToDelete.id);
+      setIsDeleteProductModalOpen(false);
+      setProductToDelete(null);
+      if (selectedProductDetail && selectedProductDetail.product.id === productToDelete.id) {
+        setIsDetailModalOpen(false);
+        setSelectedProductDetail(null);
+      }
+      loadProducts();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to delete product');
+    } finally {
+      setDeletingProduct(false);
     }
   };
 
@@ -758,6 +787,13 @@ export const BusinessPage: React.FC = () => {
                             className="p-1 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-amber-950/20"
                           >
                             <Archive className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => confirmDeleteProduct(product)}
+                            title="Delete Product"
+                            className="p-1 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
@@ -1478,6 +1514,19 @@ export const BusinessPage: React.FC = () => {
                 </Button>
                 <Button
                   type="button"
+                  variant="danger"
+                  size="sm"
+                  onClick={() => {
+                    const prod = selectedProductDetail.product;
+                    confirmDeleteProduct(prod);
+                  }}
+                  className="flex items-center gap-1.5 text-xs"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Product</span>
+                </Button>
+                <Button
+                  type="button"
                   variant="primary"
                   size="sm"
                   onClick={() => {
@@ -1494,6 +1543,62 @@ export const BusinessPage: React.FC = () => {
             </div>
           </div>
         ) : null}
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODALS: Product Delete Confirmation Modal                                 */}
+      {/* ========================================================================= */}
+      <Modal
+        isOpen={isDeleteProductModalOpen}
+        onClose={() => {
+          if (!deletingProduct) {
+            setIsDeleteProductModalOpen(false);
+            setProductToDelete(null);
+          }
+        }}
+        title="Delete Product"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-rose-950/30 border border-rose-900/50">
+            <div className="p-2 rounded-lg bg-rose-900/40 text-rose-300 shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="space-y-1 text-xs">
+              <p className="font-semibold text-rose-200">Permanent Product Removal</p>
+              <p className="text-zinc-300 leading-relaxed">
+                Are you sure you want to delete <strong className="text-white font-bold">{productToDelete?.name}</strong>?
+                This will permanently remove the product from your active catalog.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={deletingProduct}
+              onClick={() => {
+                setIsDeleteProductModalOpen(false);
+                setProductToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              isLoading={deletingProduct}
+              disabled={deletingProduct}
+              onClick={handleDeleteProduct}
+              className="flex items-center gap-1.5"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Yes, Delete Product</span>
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* ========================================================================= */}

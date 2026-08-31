@@ -47,6 +47,8 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
   const [isDailyBriefOpen, setIsDailyBriefOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const activeConv = conversations.find((c) => c.id === activeConversationId);
+
   // Chat Management States
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
@@ -102,13 +104,32 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
       return;
     }
     AIService.getMessages(activeConversationId).then((msgs) => {
-      setMessages(msgs);
+      const seen = new Set<string>();
+      const deduplicated = msgs.filter((m) => {
+        if (!m.id || seen.has(m.id)) return false;
+        seen.add(m.id);
+        return true;
+      });
+      setMessages(deduplicated);
     });
   }, [activeConversationId]);
 
+  // Safe message appender that prevents duplicate IDs or duplicate rapid-fire contents
+  const appendUniqueMessage = (newMsg: AIChatMessage) => {
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === newMsg.id)) {
+        return prev;
+      }
+      return [...prev, newMsg];
+    });
+  };
+
   // Handle Initial Prompt (e.g. from Home page or quick action)
+  const processedPromptRef = useRef<string | null>(null);
   useEffect(() => {
     if (initialPrompt && initialPrompt.trim().length > 0 && activeBusiness?.id) {
+      if (processedPromptRef.current === initialPrompt) return;
+      processedPromptRef.current = initialPrompt;
       handleSendMessage(initialPrompt);
     }
   }, [initialPrompt, activeBusiness?.id]);
@@ -150,7 +171,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
     };
 
     // Optimistically update message state
-    setMessages((prev) => [...prev, userMsg]);
+    appendUniqueMessage(userMsg);
     await AIService.saveMessage(userMsg);
 
     setLoading(true);
@@ -194,7 +215,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
         created_at: new Date().toISOString(),
       };
 
-      setMessages((prev) => [...prev, assistantMsg]);
+      appendUniqueMessage(assistantMsg);
       await AIService.saveMessage(assistantMsg);
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Failed to obtain AI response.';
@@ -211,7 +232,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
         },
         created_at: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, errorAssistantMsg]);
+      appendUniqueMessage(errorAssistantMsg);
     } finally {
       setLoading(false);
     }
@@ -571,11 +592,17 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
                 <Sparkles className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-zinc-100 truncate leading-none">
-                  Ursella AI
+                <h2 className="text-xs sm:text-sm font-semibold text-zinc-100 truncate leading-tight flex items-center gap-2">
+                  <span>{activeConv?.title || 'Operational Intelligence'}</span>
+                  <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Gemini 2.5 Flash
+                  </span>
                 </h2>
-                <div className="text-[11px] text-zinc-400 truncate mt-0.5">
-                  {activeBusiness.name}
+                <div className="text-[11px] text-zinc-400 truncate mt-0.5 flex items-center gap-1.5">
+                  <span>{activeBusiness.name}</span>
+                  <span className="text-zinc-600">•</span>
+                  <span>{messages.length} message{messages.length === 1 ? '' : 's'}</span>
                 </div>
               </div>
             </div>
@@ -645,7 +672,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
         </div>
 
         {/* Message Container Area - ONLY this section scrolls */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 sm:px-8 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 md:px-8 py-4 sm:py-6 space-y-4 touch-pan-y scroll-smooth">
           {/* Welcome Screen when Chat is empty */}
           {messages.length === 0 && (
             <div className="max-w-4xl lg:max-w-5xl mx-auto py-8 sm:py-14 space-y-8">
@@ -690,14 +717,14 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
             {/* Chatbot Typing Indicator */}
             {loading && (
               <div className="flex items-start gap-3 my-3 sm:my-5">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500/20 to-amber-400/30 border border-amber-500/40 flex items-center justify-center shrink-0 text-amber-300">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500/20 to-amber-400/30 border border-amber-500/40 flex items-center justify-center shrink-0 text-amber-300 shadow-sm">
                   <Sparkles className="w-4 h-4 animate-spin" />
                 </div>
-                <div className="rounded-2xl rounded-tl-xs bg-zinc-900 border border-zinc-800 px-4 py-3 text-xs text-zinc-300 flex items-center gap-1.5 shadow-sm">
+                <div className="rounded-2xl rounded-tl-xs bg-zinc-900 border border-zinc-800 px-4 py-3 text-xs text-zinc-300 flex items-center gap-2 shadow-sm">
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                  <span className="text-zinc-400 text-xs ml-1 font-medium">Ursella is thinking...</span>
+                  <span className="text-zinc-400 text-xs ml-1 font-medium">Analyzing business telemetry with Gemini...</span>
                 </div>
               </div>
             )}

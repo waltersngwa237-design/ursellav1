@@ -163,7 +163,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
           {/* Message Bottom Utility Bar */}
           <div className="pt-2 border-t border-zinc-800/40 flex items-center justify-between text-xs text-zinc-400">
             <span className="text-[10px] text-zinc-400 font-mono">
-              Ursella • {formattedTime}
+              AI Advisor • {formattedTime}
             </span>
 
             <div className="flex items-center gap-2">

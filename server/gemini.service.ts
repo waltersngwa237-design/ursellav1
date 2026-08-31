@@ -51,50 +51,41 @@ export class GeminiService {
    * Builds the strict Ursella AI system instruction enforcing the 9-step reasoning workflow.
    */
   private static buildSystemInstruction(ctx: ChatReasoningContext): string {
-    return `You are Ursella AI, the intelligent, mathematically grounded business operating co-pilot inside Ursella Business OS.
-You are assisting the owner/operator of "${ctx.businessName}" (${ctx.businessType}).
+    return `You are Ursella AI, the elite executive business operating co-pilot inside Ursella Business OS.
+You are providing high-level operational intelligence, financial diagnostics, and strategic advisory to the business owner of "${ctx.businessName}" (${ctx.businessType}).
 
-PLATFORM FACTS:
-- Active Business: "${ctx.businessName}" (DO NOT say "Welcome to ${ctx.businessName}" as if it is your AI name; you are Ursella AI assisting ${ctx.businessName}).
-- Operating Currency: "${ctx.currency}". Always format money with "${ctx.currency}".
-- Timezone: "${ctx.timezone}". Reference date: ${ctx.currentDateIso.split('T')[0]}.
+PLATFORM CONTEXT & GROUND TRUTH:
+- Active Enterprise: "${ctx.businessName}" (${ctx.businessType})
+- Operating Currency: "${ctx.currency}". Always format every financial figure with "${ctx.currency}".
+- Timezone: "${ctx.timezone}". Reference Date: ${ctx.currentDateIso.split('T')[0]}.
 
-CRITICAL REASONING DIRECTIVES:
-1. USER QUESTION IS YOUR SUPREME DIRECTIVE:
-   The user's question must strictly determine what you analyze and return.
-   - If the user asks about a specific product, product margins, or best-selling items, answer strictly at the product level using the product records and unit margins.
-   - Do NOT substitute product-level questions with store-wide aggregate revenue, store expenses, or overall business profit.
+RESPONSE STYLE: FLAGSHIP GEMINI EXECUTIVE INTELLIGENCE
+You provide thorough, comprehensive, deeply analytical, and actionable responses. DO NOT give ultra-short or single-line answers.
 
-2. RELEVANCE TAKES ABSOLUTE PRIORITY OVER COMPLETENESS:
-   - Provide ONLY information directly relevant to answering the question.
-   - DO NOT automatically output an unrequested complete business report.
-   - DO NOT mention revenue, profit, expenses, inventory, customers, or debtors unless they are directly relevant to the question.
-   - For a debtor question: focus exclusively on customer debts and balances.
-   - For an inventory question: focus exclusively on stock levels and replenishment.
-   - For a product/margin question: focus on product unit cost, selling price, unit margin %, and FIFO valuation.
-   - For today's sales: focus strictly on today's performance.
+STRUCTURE EVERY RESPONSE WITH THE FOLLOWING SECTIONS:
+1. ### Executive Summary
+   - State the authoritative, verified factual figures directly in the opening sentence.
+   - Summarize the immediate status of the requested topic clearly and concisely.
 
-3. ANSWER DIRECTLY FIRST:
-   - The very first sentence of your response MUST answer the user's question directly with the exact verified numbers (or clearly state that 0 records exist).
-   - DO NOT start with generic greetings, robotic pleasantries, or preamble.
+2. ### Analytical Diagnostics & Data Breakdown
+   - Break down the underlying drivers (e.g. breakdown by SKU, customer debtor balances, cash collection velocity, margin percentages, or stock replenishment lead times).
+   - Use bullet points, bold key figures, and concise comparison metrics.
 
-4. SEPARATE INTERNALLY BETWEEN:
-   - FACT: Authoritative data verified directly in the context.
-   - INTERPRETATION: Business context, comparison, or operational meaning.
-   - RECOMMENDATION: Concrete next step or business advice (only when helpful or asked).
+3. ### Operational Observations & Risk Assessment
+   - Highlight potential bottlenecks, cash flow leakage, stockout vulnerabilities, margin compression, or overdue credit exposure based on the real data.
 
-5. PROPORTIONATE RESPONSE DEPTH:
-   - Simple question (e.g. "Who owes me the most?", "What is my currency?", "How many items are low on stock?") -> Crisp, direct answer (1-3 sentences with key metrics).
-   - Complex analysis or diagnosis question -> Structured markdown breakdown with context, diagnosis, and action.
+4. ### Strategic Recommendations & Tactical Playbook
+   - Provide 2 to 3 concrete, high-leverage action items the merchant can execute immediately in their store or system.
 
-6. GROUNDING & MATHEMATICAL INTEGRITY:
-   - Base all figures strictly on the provided verified business context. NEVER invent numbers.
-   - If no records exist for the requested scope/timeframe, state it clearly and neutrally.
+CRITICAL INTEGRITY RULES:
+- STRICT MATHEMATICAL GROUNDING: Base all figures strictly on the verified facts in the context JSON. NEVER hallucinate or invent numbers.
+- If data is empty or zero, explain clearly what that implies and guide the user on what activity to record.
+- NEVER substitute store-wide aggregate reports when asked about a specific product, customer, or category.
 
 OUTPUT FORMAT:
 Respond with a JSON object strictly adhering to this schema:
 {
-  "answer": "A markdown-formatted answer answering the question directly in the first sentence.",
+  "answer": "A comprehensive, beautifully formatted Markdown response with clear headers (### Executive Summary, ### Analytical Breakdown, ### Strategic Playbook), bullet points, bold figures, and actionable business depth.",
   "keyMetrics": [
     { "label": "Metric Name", "value": 12000, "formattedValue": "${ctx.currency} 12,000", "trend": "positive" | "negative" | "neutral" }
   ],
@@ -102,15 +93,16 @@ Respond with a JSON object strictly adhering to this schema:
     {
       "id": "rec-1",
       "title": "Action Title",
-      "reasoning": "Why this matters",
-      "actionSuggestion": "Actionable next step",
+      "reasoning": "Detailed rationale explaining why this action is critical",
+      "actionSuggestion": "Step-by-step actionable instruction",
       "priority": "high" | "medium" | "low"
     }
   ],
   "confidence": "high_confidence" | "moderate_confidence" | "insufficient_data",
   "followUpSuggestions": [
-    "Relevant follow-up 1",
-    "Relevant follow-up 2"
+    "Contextual follow-up question 1",
+    "Contextual follow-up question 2",
+    "Contextual follow-up question 3"
   ]
 }`;
   }
@@ -429,10 +421,22 @@ Return a valid JSON object matching the schema:
         .join('\n');
 
       return {
-        answer: `You have **${debtorCount} customer(s)** with outstanding debts totaling **${currency} ${totalDebt.toLocaleString()}**.\n\n${topDebtor ? `The largest outstanding balance is from **${topDebtor.name}** at **${currency} ${Number(topDebtor.debtAmount).toLocaleString()}**.\n\n**Debtor Breakdown:**\n${debtorBreakdown}` : ''}`,
+        answer: `### Executive Summary\nYou currently have **${debtorCount} customer account(s)** with outstanding credit balances totaling **${currency} ${totalDebt.toLocaleString()}**.
+
+### Debtor Portfolio Breakdown
+${debtorBreakdown}
+
+### Receivables Risk Analysis
+- **Top Concentration:** The single largest outstanding credit belongs to **${topDebtor?.name || 'Top Debtor'}** at **${currency} ${Number(topDebtor?.debtAmount || 0).toLocaleString()}** (${totalDebt > 0 ? Math.round((Number(topDebtor?.debtAmount || 0) / totalDebt) * 100) : 0}% of total receivables).
+- **Working Capital Impact:** Uncollected debts directly constrains your purchasing power for fast-moving inventory.
+
+### Strategic Playbook
+1. **Immediate Phone Follow-Up:** Dispatch payment reminders or payment links via WhatsApp/SMS to the top 3 debtor accounts.
+2. **Implement Credit Limits:** Place a temporary freeze on new credit purchases for accounts with overdue balances older than 14 days.`,
         keyMetrics: [
           { label: 'Total Outstanding Debt', value: totalDebt, formattedValue: `${currency} ${totalDebt.toLocaleString()}`, trend: 'negative' },
           { label: 'Debtor Accounts', value: debtorCount, formattedValue: `${debtorCount}`, trend: 'neutral' },
+          { label: 'Top Debtor Exposure', value: Number(topDebtor?.debtAmount || 0), formattedValue: `${currency} ${Number(topDebtor?.debtAmount || 0).toLocaleString()}`, trend: 'negative' },
         ],
         recommendations: [
           {
@@ -466,7 +470,16 @@ Return a valid JSON object matching the schema:
       const costDrift = fifoData.costDrift || { totalDrift: 0, saleLinesCompared: 0 };
 
       return {
-        answer: `Your authoritative **FIFO Inventory Valuation** is **${currency} ${totalVal.toLocaleString()}** across **${unitsOnHand > 0 ? unitsOnHand : inv.totalActiveSKUs || 0}** ${unitsOnHand > 0 ? 'units on hand' : 'active catalog SKUs'}.\n\n- **Total Historical COGS:** ${currency} ${Number(totals.cogs || 0).toLocaleString()}\n- **Cost Drift vs Snapshots:** ${currency} ${Number(costDrift.totalDrift || 0).toLocaleString()} across ${costDrift.saleLinesCompared} sale lines${warnings.length > 0 ? `\n- ⚠️ **Warnings:** ${warnings.join('; ')}` : ''}`,
+        answer: `### Executive Summary
+Your authoritative **FIFO Inventory Asset Valuation** is **${currency} ${totalVal.toLocaleString()}** representing **${unitsOnHand > 0 ? unitsOnHand : inv.totalActiveSKUs || 0}** ${unitsOnHand > 0 ? 'units on hand' : 'active catalog SKUs'}.
+
+### Costing & COGS Diagnostics
+- **Historical FIFO COGS:** ${currency} ${Number(totals.cogs || 0).toLocaleString()}
+- **Cost Drift Variance:** ${currency} ${Number(costDrift.totalDrift || 0).toLocaleString()} across ${costDrift.saleLinesCompared} audited transaction lines
+${warnings.length > 0 ? `- **Audit Notes:** ${warnings.join('; ')}` : '- **Audit Status:** Zero cost discrepancy detected across recorded stock batches.'}
+
+### Inventory Capital Optimization
+- Ensure purchasing batches reflect seasonal supplier price renegotiations to preserve gross margin integrity.`,
         keyMetrics: [
           { label: 'FIFO Valuation', value: totalVal, formattedValue: `${currency} ${totalVal.toLocaleString()}`, trend: 'neutral' },
           { label: 'FIFO COGS', value: Number(totals.cogs || 0), formattedValue: `${currency} ${Number(totals.cogs || 0).toLocaleString()}`, trend: 'neutral' },
@@ -497,7 +510,15 @@ Return a valid JSON object matching the schema:
 
       if (outCount === 0 && lowCount === 0) {
         return {
-          answer: `All **${totalSKUs} active product SKUs** are adequately stocked with zero low-stock or out-of-stock items.${valuation > 0 ? ` (Total inventory valuation at cost: **${currency} ${valuation.toLocaleString()}**).` : ''}`,
+          answer: `### Executive Summary
+All **${totalSKUs} active product SKUs** in your catalog are fully stocked with zero critical stockouts or low-inventory alerts.
+
+### Stock Health Overview
+- **Total Stock Asset Value (at cost):** ${currency} ${valuation.toLocaleString()}
+- **Stock Depletion Risk:** Minimal. All catalog items are maintained comfortably above their designated safety stock thresholds.
+
+### Next Operational Steps
+- Maintain current replenishment schedules and monitor sales velocity across weekend peak hours.`,
           keyMetrics: [
             { label: 'Out of Stock SKUs', value: 0, formattedValue: '0', trend: 'positive' },
             { label: 'Low Stock SKUs', value: 0, formattedValue: '0', trend: 'positive' },
@@ -511,11 +532,23 @@ Return a valid JSON object matching the schema:
       }
 
       const itemsList = criticalItems
-        .map((item) => `- **${item.name}**: ${item.currentStock} in stock (${item.status === 'OUT_OF_STOCK' ? '🔴 Depleted' : `⚠️ Min: ${item.minimumStockLevel}`})`)
+        .map((item) => `- **${item.name}**: ${item.currentStock} units remaining (${item.status === 'OUT_OF_STOCK' ? '🔴 Depleted / Out of Stock' : `⚠️ Below safety minimum: ${item.minimumStockLevel}`})`)
         .join('\n');
 
       return {
-        answer: `You have **${outCount} item(s) completely out of stock** and **${lowCount} item(s) running low** below minimum reorder thresholds.\n\n**Items Requiring Restock:**\n${itemsList}`,
+        answer: `### Executive Summary
+Inventory alert: You have **${outCount} item(s) completely depleted (0 stock)** and **${lowCount} item(s) operating below minimum reorder thresholds**.
+
+### Critical Stockout & Low Stock Items
+${itemsList}
+
+### Revenue Impact & Stockout Risks
+- **Immediate Sales Forfeiture:** Depleted SKUs are actively causing walk-outs and unfulfilled customer requests at checkout.
+- **Supplier Lead Time:** If supplier replenishment takes 2–4 days, current low-stock SKUs will hit zero inventory before next delivery.
+
+### Strategic Restocking Playbook
+1. **Trigger Purchase Orders:** Open the Stock Management module to record replenishment batches for depleted lines immediately.
+2. **Prioritize High-Velocity Lines:** Focus available working capital on top-selling items to protect daily gross profit.`,
         keyMetrics: [
           { label: 'Out of Stock', value: outCount, formattedValue: `${outCount}`, trend: outCount > 0 ? 'negative' : 'neutral' },
           { label: 'Low Stock', value: lowCount, formattedValue: `${lowCount}`, trend: lowCount > 0 ? 'negative' : 'neutral' },
@@ -552,7 +585,12 @@ Return a valid JSON object matching the schema:
 
       if (txToday === 0) {
         return {
-          answer: `You have recorded **${currency} 0** in sales today (0 transactions completed so far today).`,
+          answer: `### Executive Summary
+No transactions have been logged yet today for **${ctx.businessName}** (${currency} 0 revenue across 0 orders).
+
+### Today's Readiness Checklist
+- Verify that cashiers and POS registers are active in the **Sell / POS** module.
+- Check that opening cash float has been counted and catalog prices are up to date.`,
           keyMetrics: [
             { label: "Today's Revenue", value: 0, formattedValue: `${currency} 0`, trend: 'neutral' },
             { label: "Today's Orders", value: 0, formattedValue: '0', trend: 'neutral' },
@@ -565,7 +603,16 @@ Return a valid JSON object matching the schema:
       }
 
       return {
-        answer: `Today, **${ctx.businessName}** has generated **${currency} ${revToday.toLocaleString()}** in revenue across **${txToday}** transaction${txToday > 1 ? 's' : ''}.\n\n- **Gross Profit:** ${currency} ${gpToday.toLocaleString()} (Gross Margin: **${marginPct}%**)\n- **Cash Collected:** ${currency} ${cashToday.toLocaleString()}`,
+        answer: `### Executive Summary
+Today, **${ctx.businessName}** has generated **${currency} ${revToday.toLocaleString()}** across **${txToday}** customer transaction${txToday > 1 ? 's' : ''}.
+
+### Performance Diagnostics
+- **Gross Profit Generated:** ${currency} ${gpToday.toLocaleString()} (Operating Gross Margin: **${marginPct}%**)
+- **Direct Cash Inflow:** ${currency} ${cashToday.toLocaleString()}
+- **Average Basket Value:** ${currency} ${txToday > 0 ? Math.round(revToday / txToday).toLocaleString() : '0'} per transaction
+
+### Tactical Observations
+- Momentum is active. Ensure front-line sales staff offer complementary items at checkout to increase average basket size.`,
         keyMetrics: [
           { label: "Today's Revenue", value: revToday, formattedValue: `${currency} ${revToday.toLocaleString()}`, trend: 'positive' },
           { label: "Today's Orders", value: txToday, formattedValue: `${txToday}`, trend: 'positive' },
@@ -612,11 +659,22 @@ Return a valid JSON object matching the schema:
         const stock = exactMatch.stockQuantity ?? 0;
 
         return {
-          answer: `For **${exactMatch.name}**:\n- **Selling Price:** ${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}\n- **Cost Price (FIFO Avg):** ${currency} ${Number(fifoCost).toLocaleString()}\n- **Catalog Unit Margin:** **${uMargin}%**\n- **Current Stock:** ${stock} units on hand\n- **Units Sold (Period):** ${unitsSold} units (Revenue: ${currency} ${Number(exactMatch.revenue || 0).toLocaleString()})`,
+          answer: `### Executive Summary
+Performance analysis for **${exactMatch.name}**: Selling at **${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}** with a **${uMargin}% unit gross margin** (${currency} ${(Number(exactMatch.sellingPrice) - Number(fifoCost)).toLocaleString()} unit profit).
+
+### Product Unit Economics
+- **Selling Price (RRP):** ${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}
+- **Unit Cost (FIFO Base):** ${currency} ${Number(fifoCost).toLocaleString()}
+- **Gross Profit per Unit:** ${currency} ${(Number(exactMatch.sellingPrice) - Number(fifoCost)).toLocaleString()} (**${uMargin}%**)
+- **Current Inventory On Hand:** ${stock} unit(s) ${stock <= 5 ? '⚠️ *(Low safety stock)*' : '✅ *(Adequately stocked)*'}
+- **Sales Velocity:** ${unitsSold} unit(s) sold in current period (Generated ${currency} ${Number(exactMatch.revenue || 0).toLocaleString()} revenue)
+
+### Strategic Merchandising Guidance
+${stock <= 5 ? '- 🔴 **Restock Action:** Current inventory is critical. Issue a replenishment order to prevent stockout during high-traffic hours.' : '- 📈 **Growth Action:** Given healthy margin and stock, feature this item as a recommended cross-sell at checkout.'}`,
           keyMetrics: [
             { label: `${exactMatch.name} Price`, value: exactMatch.sellingPrice, formattedValue: `${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}`, trend: 'neutral' },
             { label: 'Unit Margin', value: uMargin, formattedValue: `${uMargin}%`, trend: uMargin >= 30 ? 'positive' : 'neutral' },
-            { label: 'Stock On Hand', value: stock, formattedValue: `${stock}`, trend: stock > 0 ? 'positive' : 'negative' },
+            { label: 'Stock On Hand', value: stock, formattedValue: `${stock}`, trend: stock > 5 ? 'positive' : 'negative' },
           ],
           followUpSuggestions: ['Which products have higher margin?', 'How are my sales today?'],
           confidence: 'high_confidence',
@@ -626,13 +684,21 @@ Return a valid JSON object matching the schema:
 
       const productList = products
         .slice(0, 10)
-        .map((p, i) => `${i + 1}. **${p.name}**: Price ${currency} ${Number(p.sellingPrice).toLocaleString()} (Margin: **${p.marginPct}%**, Stock: ${p.stockQuantity})`)
+        .map((p, i) => `${i + 1}. **${p.name}**: Selling at ${currency} ${Number(p.sellingPrice).toLocaleString()} (Gross Margin: **${p.marginPct}%**, Stock: ${p.stockQuantity})`)
         .join('\n');
 
       const topProduct = products[0];
 
       return {
-        answer: `Your top product by unit margin is **${topProduct.name}** with a **${topProduct.marginPct}%** gross unit margin.\n\n**Product Margin Highlights:**\n${productList}`,
+        answer: `### Executive Summary
+Your catalog leader by unit profitability is **${topProduct.name}** delivering an exceptional **${topProduct.marginPct}% gross margin**.
+
+### Top High-Margin Product Highlights
+${productList}
+
+### Portfolio Strategy
+- **Protect Top Margin Contributors:** Ensure items with margins above 35% maintain consistent inventory availability.
+- **Bundle Strategy:** Pair high-margin accessories with staple items to increase average ticket value without discounting.`,
         keyMetrics: products.slice(0, 3).map((p) => ({
           label: p.name,
           value: p.marginPct,
@@ -652,7 +718,11 @@ Return a valid JSON object matching the schema:
 
       if (totalExp === 0) {
         return {
-          answer: `You have recorded **${currency} 0** in operating expenses for this period.`,
+          answer: `### Executive Summary
+Zero operating expenses (**${currency} 0**) have been recorded for **${ctx.businessName}** in the active period.
+
+### Operational Advice
+- To ensure accurate Net Profit calculations in Ursella, record utility bills, rent, and supplier delivery costs in the **Expenses** module.`,
           keyMetrics: [{ label: 'Total Expenses', value: 0, formattedValue: `${currency} 0`, trend: 'positive' }],
           followUpSuggestions: ['How are my sales today?', 'What is my current cash flow?'],
           confidence: 'high_confidence',
@@ -661,14 +731,21 @@ Return a valid JSON object matching the schema:
       }
 
       const catBreakdown = topCats
-        .map((c) => `- **${c.category}**: ${currency} ${Number(c.amount).toLocaleString()} (${c.percentageOfTotal ?? c.percentage ?? 0}% of total)`)
+        .map((c) => `- **${c.category}**: ${currency} ${Number(c.amount).toLocaleString()} (${c.percentageOfTotal ?? c.percentage ?? 0}% of total spend)`)
         .join('\n');
 
       return {
-        answer: `Your total operating expenses for the period are **${currency} ${totalExp.toLocaleString()}**.\n\n**Expense Category Breakdown:**\n${catBreakdown}`,
+        answer: `### Executive Summary
+Total operating expenditure for the period is **${currency} ${totalExp.toLocaleString()}**.
+
+### Expense Distribution by Category
+${catBreakdown}
+
+### Cost Control Opportunities
+- Review high-percentage cost categories for recurring subscription audits or supplier bulk terms.`,
         keyMetrics: [
           { label: 'Total Expenses', value: totalExp, formattedValue: `${currency} ${totalExp.toLocaleString()}`, trend: 'neutral' },
-          { label: 'Top Expense Category', value: topCats[0]?.category || 'N/A', formattedValue: `${topCats[0]?.category || 'N/A'} (${currency} ${Number(topCats[0]?.amount || 0).toLocaleString()})`, trend: 'neutral' },
+          { label: 'Top Category', value: topCats[0]?.category || 'N/A', formattedValue: `${topCats[0]?.category || 'N/A'} (${currency} ${Number(topCats[0]?.amount || 0).toLocaleString()})`, trend: 'neutral' },
         ],
         followUpSuggestions: ['What is my net profitability?', 'How is my cash flow?'],
         confidence: 'high_confidence',
@@ -683,7 +760,16 @@ Return a valid JSON object matching the schema:
       const netCash = Number(cashFlow.netCashFlow || 0);
 
       return {
-        answer: `Your net cash flow for the trailing 30 days is **${netCash >= 0 ? '+' : ''}${currency} ${netCash.toLocaleString()}** (Cash Inflows: **${currency} ${cashIn.toLocaleString()}**, Outflows: **${currency} ${cashOut.toLocaleString()}**).`,
+        answer: `### Executive Summary
+Net cash flow for the trailing 30 days is **${netCash >= 0 ? '+' : ''}${currency} ${netCash.toLocaleString()}**.
+
+### Cash Liquidity Analysis
+- **Cash Inflows (Collections & Cash Sales):** ${currency} ${cashIn.toLocaleString()}
+- **Cash Outflows (Operating Spend & Stock Purchases):** ${currency} ${cashOut.toLocaleString()}
+- **Net Liquidity Movement:** **${netCash >= 0 ? '+' : ''}${currency} ${netCash.toLocaleString()}** (${netCash >= 0 ? '🟢 Positive Cash Accretion' : '🔴 Negative Cash Drain'})
+
+### Liquidity Safeguards
+- Accelerate debtor collections to bolster reserve buffers before upcoming supplier payables.`,
         keyMetrics: [
           { label: 'Net Cash Flow', value: netCash, formattedValue: `${currency} ${netCash.toLocaleString()}`, trend: netCash >= 0 ? 'positive' : 'negative' },
           { label: 'Cash Inflow', value: cashIn, formattedValue: `${currency} ${cashIn.toLocaleString()}`, trend: 'positive' },
@@ -712,7 +798,17 @@ Return a valid JSON object matching the schema:
       const grossMargin = Number(overview.gross_margin || 0);
 
       return {
-        answer: `**${ctx.businessName}** has recorded **${currency} ${totalRev.toLocaleString()}** in revenue across **${txCount}** transaction(s) over the last 30 days, achieving a **${grossMargin}%** gross margin (${currency} ${grossProfit.toLocaleString()} gross profit).`,
+        answer: `### Executive Summary
+**${ctx.businessName}** has generated **${currency} ${totalRev.toLocaleString()}** in revenue across **${txCount}** completed transaction(s) over the last 30 days, achieving a **${grossMargin}% gross margin** (${currency} ${grossProfit.toLocaleString()} gross profit).
+
+### Operational Diagnostics & Performance Pillars
+- **Revenue Throughput:** ${currency} ${totalRev.toLocaleString()} across ${txCount} customer checkouts
+- **Gross Profit Margin:** **${grossMargin}%** (${grossMargin >= 30 ? 'Strong margin performance' : 'Monitor unit pricing to protect margins'})
+- **Average Ticket Size:** ${currency} ${txCount > 0 ? Math.round(totalRev / txCount).toLocaleString() : '0'}
+
+### Key Growth Actions
+1. **Focus on Inventory Continuity:** Review safety stock levels for top sellers to eliminate stockout losses.
+2. **Collect Open Receivables:** Monitor customer credit limits to keep operating cash conversion swift.`,
         keyMetrics: [
           { label: 'Revenue (30d)', value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: 'positive' },
           { label: 'Transactions', value: txCount, formattedValue: `${txCount}`, trend: 'positive' },

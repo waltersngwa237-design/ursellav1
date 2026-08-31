@@ -311,7 +311,13 @@ export class AIService {
     try {
       const raw = localStorage.getItem(`${LOCAL_STORAGE_MESSAGES_KEY}_${conversationId}`);
       if (raw) {
-        return JSON.parse(raw);
+        const parsed: AIChatMessage[] = JSON.parse(raw);
+        const seenIds = new Set<string>();
+        return parsed.filter((m) => {
+          if (!m.id || seenIds.has(m.id)) return false;
+          seenIds.add(m.id);
+          return true;
+        });
       }
     } catch {
       // ignore
