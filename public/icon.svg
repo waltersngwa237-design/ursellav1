@@ -1,9 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="128" fill="#09090b" />
-  <rect x="24" y="24" width="464" height="464" rx="104" stroke="#059669" stroke-width="8" stroke-opacity="0.3" />
-  <path d="M140 180C140 240 180 320 256 320C332 320 372 240 372 180" stroke="#10b981" stroke-width="44" stroke-linecap="round" />
-  <circle cx="256" cy="190" r="32" fill="#34d399" />
-  <path d="M220 370L256 406L292 370" stroke="#10b981" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" />
-  <circle cx="160" cy="140" r="14" fill="#6ee7b7" />
-  <circle cx="352" cy="140" r="14" fill="#6ee7b7" />
+  <!-- Ursella Dark Canvas Surface Container -->
+  <rect width="512" height="512" rx="128" fill="#09090B" />
+  <rect x="16" y="16" width="480" height="480" rx="112" stroke="#10B981" stroke-width="4" stroke-opacity="0.2" />
+
+  <!-- Background Subtle Architectural Ambient Radial -->
+  <circle cx="256" cy="256" r="160" fill="url(#ambient_glow)" opacity="0.45" />
+
+  <!-- Definitions -->
+  <defs>
+    <radialGradient id="ambient_glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#059669" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#059669" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="ursella_emerald_primary" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="50%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="ursella_core_diamond" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6EE7B7" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+    <filter id="subtle_drop" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#047857" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Ursella Architectural Nexus Mark (U-Vessel + Intelligence Diamond Core) -->
+  <g filter="url(#subtle_drop)">
+    <!-- Primary U Vessel -->
+    <path
+      d="M144 140 C144 122.3 158.3 108 176 108 C193.7 108 208 122.3 208 140 L208 240 C208 266.5 229.5 288 256 288 C282.5 288 304 266.5 304 240 L304 140 C304 122.3 318.3 108 336 108 C353.7 108 368 122.3 368 140 L368 248 C368 314.3 317.9 368 256 368 C194.1 368 144 314.3 144 248 Z"
+      fill="url(#ursella_emerald_primary)"
+    />
+
+    <!-- Center Intelligence Nexus Diamond (Apex Node) -->
+    <path
+      d="M256 128 L296 168 L256 208 L216 168 Z"
+      fill="url(#ursella_core_diamond)"
+    />
+
+    <!-- Secondary Precision Flow Anchors -->
+    <circle cx="256" cy="168" r="8" fill="#FFFFFF" opacity="0.9" />
+  </g>
 </svg>

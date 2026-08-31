@@ -69,7 +69,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, b
           <div className="py-8 text-center flex flex-col items-center">
             <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-3" />
             <h3 className="text-lg font-bold text-white">Thank You!</h3>
-            <p className="text-sm text-zinc-400 mt-1">Your feedback directly shapes the future of ursella.</p>
+            <p className="text-sm text-zinc-400 mt-1">Your feedback directly shapes the future of Ursella.</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
@@ -79,7 +79,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, b
             </div>
             <h3 className="text-xl font-bold text-white">Share Your Experience</h3>
             <p className="text-xs text-zinc-400 mt-1 mb-4">
-              Help us polish ursella. Let us know what worked, what broke, or what you'd like to see.
+              Help us polish Ursella. Let us know what worked, what broke, or what you'd like to see.
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">

@@ -44,6 +44,8 @@ export interface IntentClassificationResult {
   suggestedTimeHorizonDays: number;
   confidence: number;
   primaryGoal: string;
+  isEntitySpecific?: boolean;
+  entityHint?: string;
 }
 
 /**
@@ -101,14 +103,51 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
       intent: 'fifo_audit',
       domain: 'fifo_costing',
       timePeriod: 'all_time',
-      requiredTools: ['get_fifo_inventory_valuation', 'get_inventory_alerts'],
+      requiredTools: ['get_fifo_inventory_valuation', 'get_inventory_alerts', 'get_product_performance'],
       suggestedTimeHorizonDays: 30,
       confidence: 0.98,
       primaryGoal: 'Run pure FIFO ledger valuation, layer breakdown, and cost drift audit.',
     };
   }
 
-  // 3. Daily Brief / Morning Briefing
+  // 3. Product-Specific or Catalog-Level Queries (Takes precedence over general macro profit if product keywords or specific items are targeted)
+  const isProductLevel =
+    q.includes('best selling') ||
+    q.includes('top product') ||
+    q.includes('top selling') ||
+    q.includes('fastest selling') ||
+    q.includes('best seller') ||
+    q.includes('highest margin product') ||
+    q.includes('most profitable product') ||
+    q.includes('margin on product') ||
+    q.includes('product margin') ||
+    q.includes('product-level') ||
+    q.includes('by product') ||
+    q.includes('per product') ||
+    q.includes('slow moving') ||
+    q.includes('product sales') ||
+    q.includes('product performance') ||
+    q.includes('which product') ||
+    q.includes('what product') ||
+    q.includes('margin on') ||
+    q.includes('profit on') ||
+    q.includes('cost of') ||
+    q.includes('price of');
+
+  if (isProductLevel) {
+    return {
+      intent: 'analysis',
+      domain: 'products',
+      timePeriod: 'last_30_days',
+      requiredTools: ['get_product_performance', 'get_inventory_alerts'],
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.95,
+      isEntitySpecific: true,
+      primaryGoal: 'Analyze product catalog unit economics, unit margin %, FIFO COGS, velocity, and stock levels.',
+    };
+  }
+
+  // 4. Daily Brief / Morning Briefing
   if (
     q.includes('daily brief') ||
     q.includes('morning brief') ||
@@ -130,7 +169,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 4. Receivables, Debtors & Unpaid Customer Balances
+  // 5. Receivables, Debtors & Unpaid Customer Balances
   if (
     q.includes('who owes') ||
     q.includes('debt') ||
@@ -158,7 +197,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 5. Inventory, Stockouts & Low-Stock Alerts
+  // 6. Inventory, Stockouts & Low-Stock Alerts
   if (
     q.includes('low stock') ||
     q.includes('running low') ||
@@ -182,32 +221,6 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
       suggestedTimeHorizonDays: 30,
       confidence: 0.94,
       primaryGoal: 'Check stock quantities, identify out-of-stock and low-stock SKUs, and evaluate replenishment urgency.',
-    };
-  }
-
-  // 6. Product Performance, Top Sellers & Product Margins
-  if (
-    q.includes('best selling') ||
-    q.includes('top product') ||
-    q.includes('fastest selling') ||
-    q.includes('best seller') ||
-    q.includes('highest margin product') ||
-    q.includes('most profitable product') ||
-    q.includes('margin on product') ||
-    q.includes('slow moving') ||
-    q.includes('top selling') ||
-    q.includes('product sales') ||
-    q.includes('product performance') ||
-    q.includes('which product')
-  ) {
-    return {
-      intent: 'analysis',
-      domain: 'products',
-      timePeriod: 'last_30_days',
-      requiredTools: ['get_product_performance', 'get_inventory_alerts'],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.92,
-      primaryGoal: 'Analyze product revenue, unit gross margins, velocity, and catalog performance.',
     };
   }
 
@@ -262,7 +275,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     };
   }
 
-  // 9. Profitability, COGS & Margins
+  // 9. Macro Profitability, COGS & Margins (Store-wide)
   if (
     q.includes('gross margin') ||
     q.includes('net profit') ||
@@ -281,7 +294,7 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
       requiredTools: ['get_business_overview', 'get_today_sales_summary', 'get_product_performance'],
       suggestedTimeHorizonDays: 30,
       confidence: 0.91,
-      primaryGoal: 'Examine gross margin percentage, cost of goods sold, and bottom-line operational profit.',
+      primaryGoal: 'Examine business-wide gross margin percentage, total cost of goods sold, and operating net profit.',
     };
   }
 

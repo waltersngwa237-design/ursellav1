@@ -304,7 +304,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
     const transcript = messages
       .map(
         (m) =>
-          `[${m.role === 'user' ? 'Merchant' : 'ursella ai'}] (${new Date(
+          `[${m.role === 'user' ? 'Merchant' : 'Ursella AI'}] (${new Date(
             m.created_at
           ).toLocaleTimeString()}):\n${m.content}\n`
       )
@@ -572,7 +572,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
               </div>
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-zinc-100 truncate leading-none">
-                  ursella ai
+                  Ursella AI
                 </h2>
                 <div className="text-[11px] text-zinc-400 truncate mt-0.5">
                   {activeBusiness.name}
@@ -697,7 +697,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                  <span className="text-zinc-400 text-xs ml-1 font-medium">ursella is thinking...</span>
+                  <span className="text-zinc-400 text-xs ml-1 font-medium">Ursella is thinking...</span>
                 </div>
               </div>
             )}

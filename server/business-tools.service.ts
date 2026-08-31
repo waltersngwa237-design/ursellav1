@@ -293,27 +293,54 @@ export class BusinessToolsService {
 
   /**
    * 4. Tool: get_product_performance
+   * Returns comprehensive product performance, unit economics, catalog margins, and FIFO valuation.
    */
-  public static async getProductPerformance(businessId: string, limit = 10) {
+  public static async getProductPerformance(businessId: string, limit = 50, searchQuery?: string) {
     try {
       const fifo = await this.runFIFOLedger(businessId);
       const fifoByItem = new Map(fifo.ledgerResult.sales.map((s) => [s.saleEventId, s]));
+      const valuationRecord = fifo.ledgerResult.valuationByProduct || {};
 
       const productStats = new Map<
         string,
-        { name: string; sku?: string | null; sellingPrice: number; costPrice: number; unitsSold: number; revenue: number; cogs: number; stockQuantity: number }
+        {
+          id: string;
+          name: string;
+          sku?: string | null;
+          sellingPrice: number;
+          costPrice: number;
+          unitsSold: number;
+          revenue: number;
+          cogs: number;
+          stockQuantity: number;
+          fifoInventoryValue: number;
+          fifoUnitsOnHand: number;
+          fifoUnitCostAverage: number;
+        }
       >();
 
       for (const p of fifo.productRows) {
+        const fifoVal = valuationRecord[p.id];
+        const costP = Number(p.cost_price || 0);
+        const sellP = Number(p.selling_price || 0);
+        const stockQty = Number(p.stock_quantity || 0);
+        const fifoUnits = fifoVal ? fifoVal.quantityOnHand : stockQty;
+        const fifoValuation = fifoVal ? fifoVal.inventoryValue : stockQty * costP;
+        const fifoUnitCostAvg = fifoUnits > 0 ? Number((fifoValuation / fifoUnits).toFixed(2)) : (fifoVal?.averageUnitCost || costP);
+
         productStats.set(p.id, {
+          id: p.id,
           name: p.name,
           sku: p.sku,
-          sellingPrice: Number(p.selling_price || 0),
-          costPrice: Number(p.cost_price || 0),
+          sellingPrice: sellP,
+          costPrice: costP,
           unitsSold: 0,
           revenue: 0,
           cogs: 0,
-          stockQuantity: Number(p.stock_quantity || 0),
+          stockQuantity: stockQty,
+          fifoInventoryValue: fifoValuation,
+          fifoUnitsOnHand: fifoUnits,
+          fifoUnitCostAverage: fifoUnitCostAvg,
         });
       }
 
@@ -331,46 +358,95 @@ export class BusinessToolsService {
         entry.cogs += cogs;
       }
 
-      const results = Array.from(productStats.values())
-        .map((p) => {
-          const grossProfit = p.revenue - p.cogs;
-          const marginPct = p.revenue > 0 ? Number(((grossProfit / p.revenue) * 100).toFixed(1)) : 0;
-          return {
-            name: p.name,
-            sku: p.sku,
-            unitsSold: p.unitsSold,
-            revenue: p.revenue,
-            cogs: p.cogs,
-            grossProfit,
-            marginPct,
-            sellingPrice: p.sellingPrice,
-            costPrice: p.costPrice,
-            stockQuantity: p.stockQuantity,
-          };
-        })
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, limit);
+      const cleanQuery = (searchQuery || '').toLowerCase().trim();
 
-      return results;
+      let results = Array.from(productStats.values()).map((p) => {
+        const grossProfit = p.revenue - p.cogs;
+        // Realized margin from historical sales
+        const realizedMarginPct = p.revenue > 0 ? Number(((grossProfit / p.revenue) * 100).toFixed(1)) : null;
+        // Catalog unit margin based on selling price and cost price: ((SP - CP) / SP) * 100
+        const catalogUnitMarginPct =
+          p.sellingPrice > 0
+            ? Number((((p.sellingPrice - p.costPrice) / p.sellingPrice) * 100).toFixed(1))
+            : 0;
+        // Unit margin based on FIFO average unit cost
+        const fifoUnitMarginPct =
+          p.sellingPrice > 0
+            ? Number((((p.sellingPrice - p.fifoUnitCostAverage) / p.sellingPrice) * 100).toFixed(1))
+            : 0;
+
+        return {
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          sellingPrice: p.sellingPrice,
+          costPrice: p.costPrice,
+          stockQuantity: p.stockQuantity,
+          fifoUnitsOnHand: p.fifoUnitsOnHand,
+          fifoUnitCostAverage: p.fifoUnitCostAverage,
+          fifoInventoryValue: p.fifoInventoryValue,
+          unitsSold: p.unitsSold,
+          revenue: p.revenue,
+          cogs: p.cogs,
+          grossProfit,
+          // Primary margin: uses realized margin if sold, else catalog unit margin
+          marginPct: realizedMarginPct !== null ? realizedMarginPct : catalogUnitMarginPct,
+          realizedMarginPct,
+          catalogUnitMarginPct,
+          fifoUnitMarginPct,
+        };
+      });
+
+      // Filter by search query if specified
+      if (cleanQuery.length > 0) {
+        const matched = results.filter(
+          (r) => r.name.toLowerCase().includes(cleanQuery) || (r.sku && r.sku.toLowerCase().includes(cleanQuery))
+        );
+        if (matched.length > 0) {
+          results = matched;
+        }
+      }
+
+      // Sort with highest revenue or margin first
+      return results
+        .sort((a, b) => {
+          if (b.revenue !== a.revenue) return b.revenue - a.revenue;
+          return b.marginPct - a.marginPct;
+        })
+        .slice(0, limit);
     } catch {
       const { data: products } = await serverSupabase
         .from('products')
-        .select('name, sku, selling_price, cost_price, stock_quantity')
+        .select('id, name, sku, selling_price, cost_price, stock_quantity')
         .eq('business_id', businessId)
         .limit(limit);
 
-      return (products || []).map((p) => ({
-        name: p.name,
-        sku: p.sku,
-        unitsSold: 0,
-        revenue: 0,
-        cogs: 0,
-        grossProfit: 0,
-        marginPct: 0,
-        sellingPrice: Number(p.selling_price || 0),
-        costPrice: Number(p.cost_price || 0),
-        stockQuantity: Number(p.stock_quantity || 0),
-      }));
+      return (products || []).map((p) => {
+        const sellP = Number(p.selling_price || 0);
+        const costP = Number(p.cost_price || 0);
+        const stockQty = Number(p.stock_quantity || 0);
+        const catalogMargin = sellP > 0 ? Number((((sellP - costP) / sellP) * 100).toFixed(1)) : 0;
+
+        return {
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          sellingPrice: sellP,
+          costPrice: costP,
+          stockQuantity: stockQty,
+          fifoUnitsOnHand: stockQty,
+          fifoUnitCostAverage: costP,
+          fifoInventoryValue: stockQty * costP,
+          unitsSold: 0,
+          revenue: 0,
+          cogs: 0,
+          grossProfit: 0,
+          marginPct: catalogMargin,
+          realizedMarginPct: null,
+          catalogUnitMarginPct: catalogMargin,
+          fifoUnitMarginPct: catalogMargin,
+        };
+      });
     }
   }
 

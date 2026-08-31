@@ -136,7 +136,7 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({
                 onClick={onNavigateLanding}
                 className="text-zinc-400 hover:text-zinc-300 transition-colors"
               >
-                ← Back to ursella home
+                ← Back to Ursella home
               </button>
             </p>
           )}

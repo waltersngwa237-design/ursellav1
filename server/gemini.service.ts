@@ -62,6 +62,8 @@ PLATFORM FACTS:
 CRITICAL REASONING DIRECTIVES:
 1. USER QUESTION IS YOUR SUPREME DIRECTIVE:
    The user's question must strictly determine what you analyze and return.
+   - If the user asks about a specific product, product margins, or best-selling items, answer strictly at the product level using the product records and unit margins.
+   - Do NOT substitute product-level questions with store-wide aggregate revenue, store expenses, or overall business profit.
 
 2. RELEVANCE TAKES ABSOLUTE PRIORITY OVER COMPLETENESS:
    - Provide ONLY information directly relevant to answering the question.
@@ -69,6 +71,7 @@ CRITICAL REASONING DIRECTIVES:
    - DO NOT mention revenue, profit, expenses, inventory, customers, or debtors unless they are directly relevant to the question.
    - For a debtor question: focus exclusively on customer debts and balances.
    - For an inventory question: focus exclusively on stock levels and replenishment.
+   - For a product/margin question: focus on product unit cost, selling price, unit margin %, and FIFO valuation.
    - For today's sales: focus strictly on today's performance.
 
 3. ANSWER DIRECTLY FIRST:
@@ -574,18 +577,22 @@ Return a valid JSON object matching the schema:
       };
     }
 
-    // 6. Product Margins & Top Products
+    // 6. Product Margins & Specific Product Queries
     if (
       q.includes('best selling') ||
       q.includes('top product') ||
       q.includes('margin on product') ||
       q.includes('highest margin') ||
       q.includes('most profitable product') ||
-      q.includes('product')
+      q.includes('product') ||
+      q.includes('margin on') ||
+      q.includes('cost of') ||
+      q.includes('price of') ||
+      (products && products.some((p) => q.includes(p.name.toLowerCase()) || (p.sku && q.includes(p.sku.toLowerCase()))))
     ) {
       if (!products || products.length === 0) {
         return {
-          answer: `No product performance sales data is available yet for the current catalog.`,
+          answer: `No matching product performance data is available in the catalog.`,
           keyMetrics: [],
           followUpSuggestions: ['How are my sales today?', 'Do I have low stock?'],
           confidence: 'insufficient_data',
@@ -593,14 +600,39 @@ Return a valid JSON object matching the schema:
         };
       }
 
+      // Check if user specifically asked about a single product
+      const exactMatch = products.find(
+        (p) => q.includes(p.name.toLowerCase()) || (p.sku && q.includes(p.sku.toLowerCase()))
+      );
+
+      if (exactMatch) {
+        const uMargin = exactMatch.catalogUnitMarginPct ?? exactMatch.marginPct;
+        const fifoCost = exactMatch.fifoUnitCostAverage ?? exactMatch.costPrice;
+        const unitsSold = exactMatch.unitsSold ?? 0;
+        const stock = exactMatch.stockQuantity ?? 0;
+
+        return {
+          answer: `For **${exactMatch.name}**:\n- **Selling Price:** ${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}\n- **Cost Price (FIFO Avg):** ${currency} ${Number(fifoCost).toLocaleString()}\n- **Catalog Unit Margin:** **${uMargin}%**\n- **Current Stock:** ${stock} units on hand\n- **Units Sold (Period):** ${unitsSold} units (Revenue: ${currency} ${Number(exactMatch.revenue || 0).toLocaleString()})`,
+          keyMetrics: [
+            { label: `${exactMatch.name} Price`, value: exactMatch.sellingPrice, formattedValue: `${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}`, trend: 'neutral' },
+            { label: 'Unit Margin', value: uMargin, formattedValue: `${uMargin}%`, trend: uMargin >= 30 ? 'positive' : 'neutral' },
+            { label: 'Stock On Hand', value: stock, formattedValue: `${stock}`, trend: stock > 0 ? 'positive' : 'negative' },
+          ],
+          followUpSuggestions: ['Which products have higher margin?', 'How are my sales today?'],
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+        };
+      }
+
       const productList = products
-        .map((p, i) => `${i + 1}. **${p.name}**: Selling Price ${currency} ${Number(p.sellingPrice).toLocaleString()} (Margin: **${p.marginPct}%**, Stock: ${p.stockQuantity})`)
+        .slice(0, 10)
+        .map((p, i) => `${i + 1}. **${p.name}**: Price ${currency} ${Number(p.sellingPrice).toLocaleString()} (Margin: **${p.marginPct}%**, Stock: ${p.stockQuantity})`)
         .join('\n');
 
       const topProduct = products[0];
 
       return {
-        answer: `Your top performing product by catalog margin is **${topProduct.name}** with a **${topProduct.marginPct}%** gross unit margin.\n\n**Product Margin Highlights:**\n${productList}`,
+        answer: `Your top product by unit margin is **${topProduct.name}** with a **${topProduct.marginPct}%** gross unit margin.\n\n**Product Margin Highlights:**\n${productList}`,
         keyMetrics: products.slice(0, 3).map((p) => ({
           label: p.name,
           value: p.marginPct,

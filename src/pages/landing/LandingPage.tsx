@@ -88,7 +88,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           {/* Subtitle */}
           <p className="mt-5 text-sm sm:text-base text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-            <strong className="text-zinc-200 font-semibold">ursella</strong> unites rapid POS checkout, FIFO stock audits, customer credit reminders, and daily financial intelligence in one focused workspace.
+            <strong className="text-zinc-200 font-semibold">Ursella</strong> unites rapid POS checkout, FIFO stock audits, customer credit reminders, and daily financial intelligence in one focused workspace.
           </p>
 
           {/* Action CTAs */}
@@ -186,7 +186,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
             </div>
 
-            {/* Bottom highlight: ursella co-pilot */}
+            {/* Bottom highlight: Ursella Co-pilot */}
             <div className="mt-4 rounded-xl border border-zinc-800/80 bg-zinc-950 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-start sm:items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
@@ -194,7 +194,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
                 <div>
                   <h2 className="text-sm font-bold text-white">
-                    ursella co-pilot: Daily Briefings & Business Answers
+                    Ursella Co-pilot: Daily Briefings & Business Answers
                   </h2>
                   <p className="text-xs text-zinc-400 mt-0.5">
                     Ask questions like <em>"What were my top sellers today?"</em> or get automated alerts when margins fluctuate.
@@ -208,7 +208,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 onClick={onNavigateSignIn}
                 className="text-xs whitespace-nowrap self-end sm:self-auto"
               >
-                Sign In to ursella
+                Sign In to Ursella
               </Button>
             </div>
           </div>
@@ -282,7 +282,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
           <div className="flex items-center gap-2">
             <UrsellaLogo size="sm" />
-            <span>— Simple Operating OS</span>
+            <span>— Operating Intelligence Platform for Modern Commerce</span>
           </div>
 
           <div className="flex items-center gap-4">

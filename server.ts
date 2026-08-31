@@ -185,7 +185,7 @@ app.post('/api/ai/chat', async (req, res) => {
         );
       } else if (toolName === 'get_product_performance') {
         toolExecutionPromises.push(
-          BusinessToolsService.getProductPerformance(businessId, 5).then((res) => {
+          BusinessToolsService.getProductPerformance(businessId, 50, message).then((res) => {
             toolResults[toolName] = res;
           })
         );

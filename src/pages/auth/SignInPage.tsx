@@ -163,7 +163,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
         {/* Footer Navigation */}
         <div className="text-center space-y-2 text-xs text-zinc-400">
           <p>
-            Don't have an ursella account?{' '}
+            Don't have an Ursella account?{' '}
             <button
               onClick={onNavigateSignUp}
               className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
@@ -177,7 +177,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
                 onClick={onNavigateLanding}
                 className="text-zinc-400 hover:text-zinc-300 transition-colors"
               >
-                ← Back to ursella home
+                ← Back to Ursella home
               </button>
             </p>
           )}

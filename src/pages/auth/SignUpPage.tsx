@@ -167,7 +167,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
                 onClick={onNavigateLanding}
                 className="text-zinc-400 hover:text-zinc-300 transition-colors"
               >
-                ← Back to ursella home
+                ← Back to Ursella home
               </button>
             </p>
           )}

@@ -77,7 +77,7 @@ const MainRouter: React.FC = () => {
           <UrsellaLogo size="xl" />
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
             <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-            <span>Initializing ursella engine...</span>
+            <span>Initializing Ursella engine...</span>
           </div>
         </div>
       </div>
