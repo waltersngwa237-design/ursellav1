@@ -202,91 +202,87 @@ export const AppShell: React.FC<AppShellProps> = ({
           ? 'h-[100dvh] md:h-screen overflow-hidden pb-16 md:pb-0' 
           : 'pb-20 md:pb-8'
       }`}>
-        {/* Mobile Top Bar */}
-        <header className="md:hidden sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <button
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 active:scale-95 transition-all"
-              title="Open Navigation Menu"
-              aria-label="Open Navigation Menu"
-            >
-              <Menu className="w-5 h-5 text-zinc-300" />
-            </button>
-            {currentRoute === 'ai' ? (
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0">
-                  <Sparkles className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5 leading-tight truncate">
-                    <span>AI Advisor</span>
-                    <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono font-semibold">Gemini</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-400 leading-tight truncate">
-                    {activeBusiness?.name || 'Active Store'}
-                  </p>
-                </div>
-              </div>
-            ) : (
+        {/* Mobile Top Bar - Only shown for non-AI routes; AI route has its own integrated top-to-bottom header */}
+        {currentRoute !== 'ai' && (
+          <header className="md:hidden sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 active:scale-95 transition-all"
+                title="Open Navigation Menu"
+                aria-label="Open Navigation Menu"
+              >
+                <Menu className="w-5 h-5 text-zinc-300" />
+              </button>
               <UrsellaLogo size="sm" showBetaBadge={true} />
-            )}
-          </div>
-          
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => setIsFeedbackModalOpen(true)}
-              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
-              title="Beta Feedback"
-            >
-              <MessageSquare className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setIsNotificationDrawerOpen(true)}
-              className="relative p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              {unreadNotifCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-zinc-950" />
-              )}
-            </button>
-          </div>
-        </header>
+            </div>
+            
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => setIsFeedbackModalOpen(true)}
+                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                title="Beta Feedback"
+              >
+                <MessageSquare className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setIsNotificationDrawerOpen(true)}
+                className="relative p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                title="Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadNotifCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-zinc-950" />
+                )}
+              </button>
+            </div>
+          </header>
+        )}
 
-        {/* Desktop Top Header Bar for Notifications & Feedback */}
-        <div className="hidden md:flex items-center justify-end px-8 py-3 border-b border-zinc-800/60 bg-zinc-950/40 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => setIsFeedbackModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors border border-zinc-800"
-              title="Beta Feedback"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Feedback</span>
-            </button>
-            <button
-              onClick={() => setIsNotificationDrawerOpen(true)}
-              className="relative p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors border border-zinc-800"
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              {unreadNotifCount > 0 && (
-                <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[10px] font-bold">
-                  {unreadNotifCount}
-                </span>
-              )}
-            </button>
+        {/* Desktop Top Header Bar for Notifications & Feedback - Hidden on AI route for full vertical canvas */}
+        {currentRoute !== 'ai' && (
+          <div className="hidden md:flex items-center justify-end px-8 py-3 border-b border-zinc-800/60 bg-zinc-950/40 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => setIsFeedbackModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors border border-zinc-800"
+                title="Beta Feedback"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Feedback</span>
+              </button>
+              <button
+                onClick={() => setIsNotificationDrawerOpen(true)}
+                className="relative p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors border border-zinc-800"
+                title="Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadNotifCount > 0 && (
+                  <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[10px] font-bold">
+                    {unreadNotifCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Page Body */}
         <main className={`flex-1 w-full min-h-0 ${
           currentRoute === 'ai' 
-            ? 'p-0 max-w-none flex flex-col overflow-hidden' 
+            ? 'p-0 max-w-none flex flex-col overflow-hidden h-full' 
             : 'p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto'
         }`}>
-          {children}
+          {React.Children.map(children, (child) => {
+            if (React.isValidElement(child)) {
+              return React.cloneElement(child as React.ReactElement<any>, {
+                onOpenMobileMenu: () => setIsMobileMenuOpen(true),
+                onOpenNotifications: () => setIsNotificationDrawerOpen(true),
+                onOpenFeedback: () => setIsFeedbackModalOpen(true),
+              });
+            }
+            return child;
+          })}
         </main>
       </div>
 

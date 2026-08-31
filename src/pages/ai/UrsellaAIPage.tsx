@@ -26,13 +26,22 @@ import {
   Check,
   Copy,
   CheckCheck,
+  Menu,
+  MoreVertical,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface UrsellaAIPageProps {
   initialPrompt?: string;
+  onOpenMobileMenu?: () => void;
+  onOpenNotifications?: () => void;
+  onOpenFeedback?: () => void;
 }
 
-export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) => {
+export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
+  initialPrompt,
+  onOpenMobileMenu,
+}) => {
   const { user } = useAuth();
   const { activeBusiness, currency } = useBusiness();
 
@@ -47,18 +56,31 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
   const [isDailyBriefOpen, setIsDailyBriefOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const activeConv = conversations.find((c) => c.id === activeConversationId);
-
   // Chat Management States
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
   const [copiedTranscript, setCopiedTranscript] = useState<boolean>(false);
-  const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
-  const [showClearActiveConfirm, setShowClearActiveConfirm] = useState<boolean>(false);
+  const [deleteConfirmConv, setDeleteConfirmConv] = useState<AIConversationSummary | null>(null);
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState<boolean>(false);
+  const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const optionsMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const activeConv = conversations.find((c) => c.id === activeConversationId);
+
+  // Close options menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (optionsMenuRef.current && !optionsMenuRef.current.contains(event.target as Node)) {
+        setShowOptionsMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Auto-scroll to bottom of chat
   const scrollToBottom = () => {
@@ -77,7 +99,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
       setConversations(list);
 
       if (list.length > 0) {
-        setActiveConversationId((prev) => prev || list[0].id);
+        setActiveConversationId((prev) => (prev && list.some((c) => c.id === prev) ? prev : list[0].id));
       } else {
         // Create initial default conversation
         const newConv = await AIService.createConversation(
@@ -114,7 +136,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
     });
   }, [activeConversationId]);
 
-  // Safe message appender that prevents duplicate IDs or duplicate rapid-fire contents
+  // Safe message appender that prevents duplicate IDs
   const appendUniqueMessage = (newMsg: AIChatMessage) => {
     setMessages((prev) => {
       if (prev.some((m) => m.id === newMsg.id)) {
@@ -124,7 +146,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
     });
   };
 
-  // Handle Initial Prompt (e.g. from Home page or quick action)
+  // Handle Initial Prompt
   const processedPromptRef = useRef<string | null>(null);
   useEffect(() => {
     if (initialPrompt && initialPrompt.trim().length > 0 && activeBusiness?.id) {
@@ -251,25 +273,37 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
       setActiveConversationId(newConv.id);
       setMessages([]);
       setIsSidebarOpen(false);
+      setShowOptionsMenu(false);
     } catch (e) {
-      console.warn(e);
+      console.warn('Failed to create new conversation:', e);
     }
   };
 
-  // Delete single conversation
-  const handleDeleteConversation = async (convId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Delete single conversation with clean state update
+  const executeDeleteConversation = async (convId: string) => {
     if (!activeBusiness?.id) return;
 
+    // Remove from database and storage
     await AIService.deleteConversation(activeBusiness.id, convId);
-    setConversations((prev) => prev.filter((c) => c.id !== convId));
+
+    const remaining = conversations.filter((c) => c.id !== convId);
+    setConversations(remaining);
+    setDeleteConfirmConv(null);
+    setShowOptionsMenu(false);
 
     if (activeConversationId === convId) {
-      const remaining = conversations.filter((c) => c.id !== convId);
       if (remaining.length > 0) {
         setActiveConversationId(remaining[0].id);
       } else {
-        handleNewConversation();
+        // Create a fresh new chat session
+        const newConv = await AIService.createConversation(
+          activeBusiness.id,
+          user?.id || 'demo-user',
+          'Business Advisory'
+        );
+        setConversations([newConv]);
+        setActiveConversationId(newConv.id);
+        setMessages([]);
       }
     }
   };
@@ -308,15 +342,25 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
     if (!activeBusiness?.id || !activeConversationId) return;
     await AIService.clearMessagesInConversation(activeBusiness.id, activeConversationId);
     setMessages([]);
-    setShowClearActiveConfirm(false);
+    setShowOptionsMenu(false);
   };
 
   // Clear all conversations
   const handleClearAllConversations = async () => {
     if (!activeBusiness?.id) return;
     await AIService.clearAllConversations(activeBusiness.id);
-    setShowClearConfirm(false);
-    handleNewConversation();
+    setShowClearAllConfirm(false);
+    setShowOptionsMenu(false);
+    
+    // Start fresh
+    const newConv = await AIService.createConversation(
+      activeBusiness.id,
+      user?.id || 'demo-user',
+      'Business Advisory'
+    );
+    setConversations([newConv]);
+    setActiveConversationId(newConv.id);
+    setMessages([]);
   };
 
   // Copy full chat transcript to clipboard
@@ -333,6 +377,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
     navigator.clipboard.writeText(transcript);
     setCopiedTranscript(true);
     setTimeout(() => setCopiedTranscript(false), 2000);
+    setShowOptionsMenu(false);
   };
 
   // Handle textarea enter key
@@ -371,17 +416,15 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
         className={`fixed md:relative inset-y-0 left-0 z-40 bg-zinc-900 border-r border-zinc-800 flex flex-col h-full shrink-0 transition-all duration-300 ease-in-out ${
           isSidebarOpen ? 'translate-x-0 w-72 sm:w-80' : '-translate-x-full md:translate-x-0'
         } ${
-          isDesktopSidebarCollapsed ? 'md:hidden' : 'md:w-72 lg:w-80'
+          isDesktopSidebarCollapsed ? 'md:hidden' : 'md:w-64 lg:w-72'
         }`}
       >
         {/* Sidebar Header */}
-        <div className="p-3.5 border-b border-zinc-800 flex items-center justify-between shrink-0">
+        <div className="p-3 border-b border-zinc-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center">
-              <History className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-bold text-zinc-200">
-              Chats
+            <History className="w-4 h-4 text-amber-400" />
+            <span className="text-xs font-semibold text-zinc-200">
+              Chat History
             </span>
           </div>
 
@@ -396,29 +439,27 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
             <button
               onClick={() => setIsSidebarOpen(false)}
               className="md:hidden p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200"
+              title="Close sidebar"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Conversation Search Bar */}
+        {/* Search Input */}
         {conversations.length > 2 && (
-          <div className="px-2.5 pt-2.5 shrink-0">
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800 text-xs text-zinc-400">
-              <Search className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
+          <div className="px-2.5 pt-2 shrink-0">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-950/80 border border-zinc-800 text-xs text-zinc-400">
+              <Search className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
               <input
                 type="text"
-                placeholder="Search chats..."
+                placeholder="Search history..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-transparent border-0 focus:outline-hidden text-xs text-zinc-200 placeholder-zinc-400"
+                className="w-full bg-transparent border-0 focus:outline-hidden text-xs text-zinc-200 placeholder-zinc-500"
               />
               {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="text-zinc-400 hover:text-zinc-300"
-                >
+                <button onClick={() => setSearchQuery('')} className="text-zinc-500 hover:text-zinc-300">
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -429,8 +470,8 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
         {/* Conversation List */}
         <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
           {filteredConversations.length === 0 ? (
-            <div className="py-8 text-center text-zinc-400 text-xs">
-              No conversations found.
+            <div className="py-8 text-center text-zinc-500 text-xs">
+              No chats found.
             </div>
           ) : (
             filteredConversations.map((conv) => {
@@ -446,10 +487,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
                       setIsSidebarOpen(false);
                     }
                   }}
-                  className={`group flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all text-xs ${
+                  className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all text-xs ${
                     isActive
-                      ? 'bg-amber-500/15 border border-amber-500/30 text-amber-200 font-semibold shadow-xs'
-                      : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
+                      ? 'bg-zinc-800 text-zinc-100 font-medium'
+                      : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
                   }`}
                 >
                   {isEditing ? (
@@ -486,24 +527,27 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
                   ) : (
                     <>
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                        <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-60" />
                         <span className="truncate">{conv.title}</span>
                       </div>
 
                       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <button
                           onClick={(e) => handleStartRename(conv, e)}
-                          className="p-1 rounded hover:text-amber-300 transition-colors"
-                          title="Rename chat"
+                          className="p-1 rounded hover:text-zinc-200 transition-colors"
+                          title="Rename"
                         >
                           <Edit2 className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={(e) => handleDeleteConversation(conv.id, e)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirmConv(conv);
+                          }}
                           className="p-1 rounded hover:text-rose-400 transition-colors"
                           title="Delete chat"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
                     </>
@@ -514,38 +558,16 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
           )}
         </div>
 
-        {/* Sidebar Footer: Manage All Chats */}
+        {/* Sidebar Footer: Clear All Chats */}
         {conversations.length > 0 && (
-          <div className="p-2.5 border-t border-zinc-800 shrink-0">
-            {showClearConfirm ? (
-              <div className="p-2 rounded-xl bg-rose-950/40 border border-rose-900/60 space-y-1.5">
-                <p className="text-[11px] text-rose-200 font-medium leading-tight">
-                  Clear all chat history?
-                </p>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={handleClearAllConversations}
-                    className="flex-1 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold"
-                  >
-                    Yes, Clear All
-                  </button>
-                  <button
-                    onClick={() => setShowClearConfirm(false)}
-                    className="flex-1 py-1 rounded bg-zinc-800 text-zinc-300 text-[10px] font-medium"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowClearConfirm(true)}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-zinc-800/60 text-[11px] font-medium transition-colors"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span>Clear All Chats</span>
-              </button>
-            )}
+          <div className="p-2 border-t border-zinc-800 shrink-0">
+            <button
+              onClick={() => setShowClearAllConfirm(true)}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-zinc-800/60 text-[11px] font-medium transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>Clear All Chats</span>
+            </button>
           </div>
         )}
       </div>
@@ -559,16 +581,28 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
       )}
 
       {/* ========================================================================= */}
-      {/* 2. MAIN CHAT WORKSPACE                                                    */}
+      {/* 2. MAIN CHAT WORKSPACE (Edge-to-Edge Full Height)                         */}
       {/* ========================================================================= */}
       <div className="flex-1 flex flex-col bg-zinc-950 min-w-0 h-full overflow-hidden">
-        {/* Top Workspace Header */}
-        <div className="h-14 px-4 sm:px-6 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-900/40 backdrop-blur-xs shrink-0">
+        {/* Full-Length Top Header (Reaches absolute top of viewport) */}
+        <div className="h-14 px-3 sm:px-6 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/90 backdrop-blur-md shrink-0">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Mobile App Menu Trigger */}
+            {onOpenMobileMenu && (
+              <button
+                onClick={onOpenMobileMenu}
+                className="md:hidden p-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors shrink-0"
+                title="Open Navigation"
+                aria-label="Open Navigation"
+              >
+                <Menu className="w-5 h-5 text-zinc-300" />
+              </button>
+            )}
+
             {/* Mobile Sidebar Toggle */}
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden p-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 transition-colors"
+              className="md:hidden p-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors shrink-0"
               title="Chat History"
             >
               <History className="w-4 h-4" />
@@ -577,8 +611,8 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
             {/* Desktop Sidebar Toggle */}
             <button
               onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
-              className="hidden md:flex p-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 transition-colors"
-              title={isDesktopSidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}
+              className="hidden md:flex p-2 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors shrink-0"
+              title={isDesktopSidebarCollapsed ? 'Show History' : 'Hide History'}
             >
               {isDesktopSidebarCollapsed ? (
                 <PanelLeftOpen className="w-4 h-4" />
@@ -587,75 +621,27 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
               )}
             </button>
 
+            {/* Active Chat Title & Store */}
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0 shadow-xs">
-                <Sparkles className="w-4 h-4" />
+              <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 shrink-0">
+                <Sparkles className="w-3.5 h-3.5" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-xs sm:text-sm font-semibold text-zinc-100 truncate leading-tight flex items-center gap-2">
-                  <span>{activeConv?.title || 'Operational Intelligence'}</span>
-                  <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Gemini 2.5 Flash
-                  </span>
-                </h2>
-                <div className="text-[11px] text-zinc-400 truncate mt-0.5 flex items-center gap-1.5">
-                  <span>{activeBusiness.name}</span>
-                  <span className="text-zinc-600">•</span>
-                  <span>{messages.length} message{messages.length === 1 ? '' : 's'}</span>
-                </div>
+                <h1 className="text-xs sm:text-sm font-semibold text-zinc-100 truncate leading-tight">
+                  {activeConv?.title || 'Business Advisory'}
+                </h1>
+                <p className="text-[10px] sm:text-[11px] text-zinc-500 truncate mt-0.5">
+                  {activeBusiness.name}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Copy Transcript Button */}
-            {messages.length > 0 && (
-              <button
-                onClick={handleCopyTranscript}
-                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 transition-colors"
-                title="Copy chat transcript"
-              >
-                {copiedTranscript ? (
-                  <CheckCheck className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
-              </button>
-            )}
-
-            {/* Clear Current Chat Button */}
-            {messages.length > 0 && (
-              showClearActiveConfirm ? (
-                <div className="flex items-center gap-1 bg-rose-950/40 border border-rose-500/30 rounded-xl px-2 py-1">
-                  <span className="text-[11px] text-rose-300">Clear chat?</span>
-                  <button
-                    onClick={handleClearActiveConversation}
-                    className="px-1.5 py-0.5 text-[11px] font-bold text-rose-300 hover:bg-rose-500/20 rounded"
-                  >
-                    Yes
-                  </button>
-                  <button
-                    onClick={() => setShowClearActiveConfirm(false)}
-                    className="px-1.5 py-0.5 text-[11px] text-zinc-400 hover:text-zinc-200"
-                  >
-                    No
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowClearActiveConfirm(true)}
-                  className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-zinc-800/80 transition-colors"
-                  title="Clear current chat messages"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )
-            )}
-
+          {/* Header Action Buttons */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={() => setIsDailyBriefOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/60 hover:border-amber-500/40 text-zinc-300 hover:text-amber-300 text-xs font-medium transition-all shadow-xs"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-amber-300 text-xs font-medium transition-colors"
             >
               <Sun className="w-3.5 h-3.5 text-amber-400" />
               <span className="hidden sm:inline">Daily Brief</span>
@@ -663,27 +649,79 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
 
             <button
               onClick={handleNewConversation}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold transition-all shadow-xs"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-semibold transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">New Chat</span>
             </button>
+
+            {/* Chat Options Dropdown */}
+            <div className="relative" ref={optionsMenuRef}>
+              <button
+                onClick={() => setShowOptionsMenu(!showOptionsMenu)}
+                className="p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                title="Chat Options"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              {showOptionsMenu && (
+                <div className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-zinc-900 border border-zinc-800 py-1 shadow-xl z-50 animate-in fade-in-50 zoom-in-95">
+                  {messages.length > 0 && (
+                    <button
+                      onClick={handleCopyTranscript}
+                      className="w-full px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-800 flex items-center gap-2"
+                    >
+                      {copiedTranscript ? (
+                        <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5 text-zinc-400" />
+                      )}
+                      <span>{copiedTranscript ? 'Copied' : 'Copy Transcript'}</span>
+                    </button>
+                  )}
+
+                  {messages.length > 0 && (
+                    <button
+                      onClick={handleClearActiveConversation}
+                      className="w-full px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-800 flex items-center gap-2"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-zinc-400" />
+                      <span>Clear Messages</span>
+                    </button>
+                  )}
+
+                  {activeConv && (
+                    <button
+                      onClick={() => {
+                        setShowOptionsMenu(false);
+                        setDeleteConfirmConv(activeConv);
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs text-rose-400 hover:bg-rose-500/10 flex items-center gap-2"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Delete Chat</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Message Container Area - ONLY this section scrolls */}
+        {/* Message Container Area - Smooth vertical scrolling */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 md:px-8 py-4 sm:py-6 space-y-4 touch-pan-y scroll-smooth">
           {/* Welcome Screen when Chat is empty */}
           {messages.length === 0 && (
-            <div className="max-w-4xl lg:max-w-5xl mx-auto py-8 sm:py-14 space-y-8">
-              <div className="text-center space-y-3">
-                <div className="inline-flex p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-sm">
-                  <Sparkles className="w-7 h-7" />
+            <div className="max-w-3xl mx-auto py-8 sm:py-16 space-y-6">
+              <div className="text-center space-y-2">
+                <div className="inline-flex p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 shadow-xs mb-2">
+                  <Sparkles className="w-6 h-6" />
                 </div>
-                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                   How can I help your business today?
-                </h1>
-                <p className="text-xs sm:text-sm text-zinc-400 max-w-lg mx-auto leading-relaxed">
+                </h2>
+                <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto leading-relaxed">
                   Ask questions about sales trends, inventory stockouts, unpaid customer debts, and profit margins.
                 </p>
               </div>
@@ -699,7 +737,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
           )}
 
           {/* Active Message History */}
-          <div className="max-w-4xl lg:max-w-5xl mx-auto space-y-4">
+          <div className="max-w-3xl lg:max-w-4xl mx-auto space-y-4">
             {messages.map((msg) => (
               <AIMessageCard
                 key={msg.id}
@@ -716,15 +754,15 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
 
             {/* Chatbot Typing Indicator */}
             {loading && (
-              <div className="flex items-start gap-3 my-3 sm:my-5">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500/20 to-amber-400/30 border border-amber-500/40 flex items-center justify-center shrink-0 text-amber-300 shadow-sm">
-                  <Sparkles className="w-4 h-4 animate-spin" />
+              <div className="flex items-start gap-2.5 sm:gap-3.5 my-3 sm:my-5">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center shrink-0 text-amber-300 shadow-xs mt-0.5">
+                  <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
                 </div>
-                <div className="rounded-2xl rounded-tl-xs bg-zinc-900 border border-zinc-800 px-4 py-3 text-xs text-zinc-300 flex items-center gap-2 shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                  <span className="text-zinc-400 text-xs ml-1 font-medium">Analyzing business telemetry with Gemini...</span>
+                <div className="rounded-2xl rounded-tl-xs bg-zinc-900 border border-zinc-800 px-4 py-3 text-xs text-zinc-300 flex items-center gap-2 shadow-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <span className="text-zinc-400 text-xs ml-1 font-medium">Analyzing records...</span>
                 </div>
               </div>
             )}
@@ -736,9 +774,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
         {/* ========================================================================= */}
         {/* 3. INPUT BAR - Fixed at bottom of chat workspace                          */}
         {/* ========================================================================= */}
-        <div className="p-3.5 sm:p-5 border-t border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md shrink-0">
-          <div className="max-w-4xl lg:max-w-5xl mx-auto">
-            <div className="relative flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700/80 rounded-2xl p-1.5 sm:p-2 focus-within:border-amber-500/60 focus-within:ring-1 focus-within:ring-amber-500/30 transition-all shadow-md">
+        <div className="p-3 sm:p-4 border-t border-zinc-800/80 bg-zinc-950 shrink-0">
+          <div className="max-w-3xl lg:max-w-4xl mx-auto">
+            <div className="relative flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-1.5 focus-within:border-amber-500/60 transition-all">
               <textarea
                 ref={textareaRef}
                 value={inputText}
@@ -747,13 +785,13 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
                 placeholder={`Ask anything about ${activeBusiness.name}...`}
                 rows={1}
                 disabled={loading}
-                className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-hidden resize-none py-2 px-3 max-h-36 min-h-[2.5rem] leading-relaxed disabled:opacity-50"
+                className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-hidden resize-none py-1.5 px-2.5 max-h-32 min-h-[2.25rem] leading-relaxed disabled:opacity-50"
               />
 
               <button
                 onClick={() => handleSendMessage()}
                 disabled={!inputText.trim() || loading}
-                className="p-2.5 sm:p-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-xs"
+                className="p-2 sm:p-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-xs"
                 title="Send query"
               >
                 <Send className="w-4 h-4" />
@@ -762,6 +800,82 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
           </div>
         </div>
       </div>
+
+      {/* Delete Conversation Confirmation Modal */}
+      {deleteConfirmConv && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-800 p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                <Trash2 className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-bold text-zinc-100">Delete Conversation?</h3>
+                <p className="text-xs text-zinc-400 truncate mt-0.5">
+                  &quot;{deleteConfirmConv.title}&quot;
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-300 leading-relaxed">
+              This will permanently delete this conversation and its messages from your history.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={() => setDeleteConfirmConv(null)}
+                className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => executeDeleteConversation(deleteConfirmConv.id)}
+                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors"
+              >
+                Delete Chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear All Chats Confirmation Modal */}
+      {showClearAllConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-800 p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-zinc-100">Clear All Chat History?</h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-300 leading-relaxed">
+              All stored conversation transcripts and advisory sessions for <strong className="text-zinc-100">{activeBusiness.name}</strong> will be permanently wiped.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowClearAllConfirm(false)}
+                className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearAllConversations}
+                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors"
+              >
+                Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Daily Brief Modal */}
       <DailyBriefModal
@@ -775,4 +889,3 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({ initialPrompt }) =
     </div>
   );
 };
-
