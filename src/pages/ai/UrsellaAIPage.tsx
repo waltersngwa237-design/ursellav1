@@ -29,6 +29,7 @@ import {
   Menu,
   MoreVertical,
   AlertTriangle,
+  ChevronDown,
 } from 'lucide-react';
 
 interface UrsellaAIPageProps {
@@ -66,8 +67,11 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const optionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
+  const [hasNewUnseenMessage, setHasNewUnseenMessage] = useState<boolean>(false);
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
 
@@ -82,14 +86,31 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Auto-scroll to bottom of chat
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  // Handle container scroll to check if user is near bottom
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const nearBottom = distanceFromBottom < 120;
+    setIsAtBottom(nearBottom);
+    if (nearBottom) {
+      setHasNewUnseenMessage(false);
+    }
+  }, []);
+
+  // Auto-scroll to bottom of chat only if user is near bottom
+  const scrollToBottom = useCallback((force = false) => {
+    if (force || isAtBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setHasNewUnseenMessage(false);
+    } else {
+      setHasNewUnseenMessage(true);
+    }
+  }, [isAtBottom]);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, loading]);
+  }, [messages, loading, scrollToBottom]);
 
   // Load conversations when active business changes
   const loadConversations = useCallback(async () => {
@@ -380,8 +401,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     setShowOptionsMenu(false);
   };
 
-  // Handle textarea enter key
+  // Handle textarea enter key with IME composition protection
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -710,10 +732,14 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         </div>
 
         {/* Message Container Area - Smooth vertical scrolling */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 md:px-8 py-4 sm:py-6 space-y-4 touch-pan-y scroll-smooth">
+        <div 
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 md:px-8 py-4 sm:py-6 space-y-4 touch-pan-y scroll-smooth"
+        >
           {/* Welcome Screen when Chat is empty */}
           {messages.length === 0 && (
-            <div className="max-w-3xl mx-auto py-8 sm:py-16 space-y-6">
+            <div className="max-w-3xl mx-auto py-6 sm:py-14 space-y-6">
               <div className="text-center space-y-2">
                 <div className="inline-flex p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 shadow-xs mb-2">
                   <Sparkles className="w-6 h-6" />
@@ -771,12 +797,25 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Floating Jump to Latest Button (when user scrolls up) */}
+        {(!isAtBottom || hasNewUnseenMessage) && messages.length > 2 && (
+          <div className="absolute bottom-20 sm:bottom-24 left-1/2 -translate-x-1/2 z-20 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <button
+              onClick={() => scrollToBottom(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-zinc-900/95 hover:bg-zinc-800 text-zinc-200 border border-amber-500/40 text-xs font-semibold shadow-lg shadow-black/40 backdrop-blur-xs transition-all active:scale-95 group"
+            >
+              <span>{hasNewUnseenMessage ? 'New response received' : 'Scroll to bottom'}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-amber-400 group-hover:translate-y-0.5 transition-transform" />
+            </button>
+          </div>
+        )}
+
         {/* ========================================================================= */}
         {/* 3. INPUT BAR - Fixed at bottom of chat workspace                          */}
         {/* ========================================================================= */}
         <div className="p-3 sm:p-4 border-t border-zinc-800/80 bg-zinc-950 shrink-0">
           <div className="max-w-3xl lg:max-w-4xl mx-auto">
-            <div className="relative flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-1.5 focus-within:border-amber-500/60 transition-all">
+            <div className="relative flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-1.5 focus-within:border-amber-500/60 transition-all shadow-xs">
               <textarea
                 ref={textareaRef}
                 value={inputText}
@@ -785,14 +824,17 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                 placeholder={`Ask anything about ${activeBusiness.name}...`}
                 rows={1}
                 disabled={loading}
-                className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-hidden resize-none py-1.5 px-2.5 max-h-32 min-h-[2.25rem] leading-relaxed disabled:opacity-50"
+                inputMode="text"
+                enterKeyHint="send"
+                className="flex-1 bg-transparent border-0 text-base sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-hidden resize-none py-2 px-3 max-h-36 min-h-[2.5rem] leading-relaxed disabled:opacity-50"
               />
 
               <button
                 onClick={() => handleSendMessage()}
                 disabled={!inputText.trim() || loading}
-                className="p-2 sm:p-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-xs"
+                className="p-2.5 sm:p-2.5 min-w-[40px] min-h-[40px] rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-xs flex items-center justify-center active:scale-95"
                 title="Send query"
+                aria-label="Send query"
               >
                 <Send className="w-4 h-4" />
               </button>

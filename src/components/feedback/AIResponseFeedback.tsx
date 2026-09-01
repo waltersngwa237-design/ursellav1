@@ -28,30 +28,33 @@ export const AIResponseFeedback: React.FC<AIResponseFeedbackProps> = ({
 
   if (rated) {
     return (
-      <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 mt-2">
-        <Check className="w-3.5 h-3.5 text-emerald-400" />
-        <span>Thank you for your feedback!</span>
+      <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
+        <Check className="w-3.5 h-3.5" />
+        <span className="font-medium">Thanks for feedback!</span>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 text-[11px] text-zinc-500 mt-2">
-      <span className="text-zinc-500">Was this insight helpful?</span>
+    <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+      <span className="hidden xs:inline text-zinc-500">Helpful?</span>
       <button
         onClick={() => handleRate('helpful')}
-        className="p-1 hover:text-emerald-400 hover:bg-zinc-800 rounded transition-colors"
+        className="p-1.5 min-w-[28px] min-h-[28px] flex items-center justify-center hover:text-emerald-400 hover:bg-zinc-800 rounded-lg transition-colors active:scale-95"
         title="Helpful insight"
+        aria-label="Mark insight as helpful"
       >
         <ThumbsUp className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={() => handleRate('unhelpful')}
-        className="p-1 hover:text-rose-400 hover:bg-zinc-800 rounded transition-colors"
+        className="p-1.5 min-w-[28px] min-h-[28px] flex items-center justify-center hover:text-rose-400 hover:bg-zinc-800 rounded-lg transition-colors active:scale-95"
         title="Not helpful"
+        aria-label="Mark insight as not helpful"
       >
         <ThumbsDown className="w-3.5 h-3.5" />
       </button>
     </div>
   );
 };
+

@@ -13,6 +13,8 @@ import {
   AlertTriangle,
   ArrowRight,
   Trash2,
+  Database,
+  Cpu,
 } from 'lucide-react';
 import { AIResponseFeedback } from '../feedback/AIResponseFeedback.tsx';
 
@@ -34,6 +36,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
   const isUser = message.role === 'user';
   const structured = message.metadata?.structured;
   const isError = Boolean(message.metadata?.error);
+  const responseSource = structured?.responseSource || message.metadata?.responseSource;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
@@ -50,16 +53,17 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
   if (isUser) {
     return (
       <div className="group flex justify-end my-3 sm:my-4">
-        <div className="max-w-[88%] sm:max-w-[75%] space-y-1">
-          <div className="rounded-2xl rounded-tr-xs bg-zinc-800 border border-zinc-700/80 px-4 py-3 text-zinc-100 text-[13.5px] sm:text-sm leading-relaxed shadow-xs relative">
+        <div className="max-w-[92%] sm:max-w-[80%] md:max-w-[75%] space-y-1">
+          <div className="rounded-2xl rounded-tr-xs bg-zinc-800 border border-zinc-700/80 px-4 py-3 text-zinc-100 text-[13.5px] sm:text-sm leading-relaxed shadow-xs relative select-text break-words">
             <p className="whitespace-pre-wrap">{message.content}</p>
           </div>
           <div className="flex items-center justify-end gap-2 text-[10px] text-zinc-500 font-mono pr-1">
             {onDeleteMessage && (
               <button
                 onClick={() => onDeleteMessage(message.id)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-zinc-500 hover:text-rose-400 rounded"
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-zinc-500 hover:text-rose-400 rounded min-w-[24px] min-h-[24px] flex items-center justify-center"
                 title="Delete message"
+                aria-label="Delete message"
               >
                 <Trash2 className="w-3 h-3" />
               </button>
@@ -81,9 +85,9 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
 
       <div className="flex-1 min-w-0 space-y-2.5">
         {/* Main Chat Bubble */}
-        <div className="rounded-2xl rounded-tl-xs bg-zinc-900/90 border border-zinc-800 p-4 sm:p-5 text-zinc-100 text-sm shadow-xs space-y-3.5">
+        <div className="rounded-2xl rounded-tl-xs bg-zinc-900/95 border border-zinc-800 p-3.5 sm:p-5 text-zinc-100 text-sm shadow-xs space-y-3.5">
           {/* Conversational Markdown Body */}
-          <div className="ai-chat-markdown text-zinc-200 text-sm leading-relaxed space-y-2">
+          <div className="ai-chat-markdown text-zinc-200 text-sm leading-relaxed space-y-2 select-text break-words">
             <ReactMarkdown
               components={{
                 p: ({ children }) => <p className="mb-2 last:mb-0 text-[13.5px] sm:text-sm leading-relaxed text-zinc-200">{children}</p>,
@@ -93,13 +97,50 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
                 li: ({ children }) => <li className="leading-relaxed">{children}</li>,
                 h3: ({ children }) => <h3 className="font-bold text-sm text-zinc-100 mt-3 mb-1.5 pb-1 border-b border-zinc-800/60 first:mt-0">{children}</h3>,
                 h4: ({ children }) => <h4 className="font-semibold text-xs text-zinc-200 mt-2 mb-1">{children}</h4>,
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-2 border-amber-500/60 pl-3 my-2 text-xs text-zinc-400 italic bg-amber-500/5 py-1 rounded-r">
+                    {children}
+                  </blockquote>
+                ),
+                code: ({ children }) => (
+                  <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-amber-300">
+                    {children}
+                  </code>
+                ),
+                table: ({ children }) => (
+                  <div className="overflow-x-auto my-3 -mx-1 sm:mx-0 rounded-xl border border-zinc-800 bg-zinc-950/60">
+                    <table className="min-w-full divide-y divide-zinc-800 text-xs text-left">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                thead: ({ children }) => (
+                  <thead className="bg-zinc-900/90 font-semibold text-zinc-200 text-xs">
+                    {children}
+                  </thead>
+                ),
+                tbody: ({ children }) => (
+                  <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
+                    {children}
+                  </tbody>
+                ),
+                th: ({ children }) => (
+                  <th className="px-3 py-2 text-xs font-semibold text-zinc-300 tracking-wider">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="px-3 py-2 text-xs text-zinc-200 whitespace-nowrap">
+                    {children}
+                  </td>
+                ),
               }}
             >
               {message.content}
             </ReactMarkdown>
           </div>
 
-          {/* Compact Metric Highlights (Clean, non-cluttered pills) */}
+          {/* Compact Metric Highlights */}
           {structured?.keyMetrics && structured.keyMetrics.length > 0 && (
             <div className="flex flex-wrap gap-2 pt-2 border-t border-zinc-800/60">
               {structured.keyMetrics.map((metric, idx) => (
@@ -127,7 +168,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
             </div>
           )}
 
-          {/* Actionable Tip if provided */}
+          {/* Actionable Recommendations */}
           {structured?.recommendations && structured.recommendations.length > 0 && (
             <div className="p-3 rounded-xl bg-amber-500/5 border-l-2 border-l-amber-500 border-y border-r border-zinc-800/80 text-xs space-y-1">
               <div className="font-semibold text-amber-300 text-xs">
@@ -149,7 +190,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
               {onRetry && (
                 <button
                   onClick={onRetry}
-                  className="px-2.5 py-1 text-xs rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 transition-colors"
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 transition-colors active:scale-95"
                 >
                   Retry
                 </button>
@@ -158,25 +199,41 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
           )}
 
           {/* Message Bottom Utility Bar */}
-          <div className="pt-2 border-t border-zinc-800/40 flex items-center justify-between text-xs text-zinc-500">
-            <span className="text-[10px] text-zinc-500 font-mono">
-              {formattedTime}
-            </span>
+          <div className="pt-2 border-t border-zinc-800/50 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-zinc-500 font-mono">
+                {formattedTime}
+              </span>
+
+              {/* Provenance Tag */}
+              {responseSource === 'GEMINI_RESPONSE' ? (
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <Cpu className="w-2.5 h-2.5" />
+                  <span>Gemini AI</span>
+                </span>
+              ) : responseSource === 'DETERMINISTIC_FALLBACK' ? (
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                  <Database className="w-2.5 h-2.5" />
+                  <span>Ledger Telemetry</span>
+                </span>
+              ) : null}
+            </div>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCopy}
-                className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors px-2 py-1 rounded-lg hover:bg-zinc-800 min-h-[28px] active:scale-95"
                 title="Copy response"
+                aria-label="Copy response"
               >
                 {copied ? (
                   <>
-                    <Check className="w-3 h-3 text-emerald-400" />
-                    <span className="text-emerald-400 text-[10px]">Copied</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-400 text-[10px] font-medium">Copied</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3 h-3" />
+                    <Copy className="w-3.5 h-3.5" />
                     <span className="text-[10px]">Copy</span>
                   </>
                 )}
@@ -185,10 +242,11 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
               {onDeleteMessage && (
                 <button
                   onClick={() => onDeleteMessage(message.id)}
-                  className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-rose-400 transition-colors px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                  className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-rose-400 transition-colors px-2 py-1 rounded-lg hover:bg-zinc-800 min-h-[28px] active:scale-95"
                   title="Delete message"
+                  aria-label="Delete message"
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               )}
 
@@ -210,10 +268,10 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
               <button
                 key={idx}
                 onClick={() => onSelectPrompt(suggestion)}
-                className="text-left text-xs px-3 py-1.5 rounded-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-amber-500/40 text-zinc-300 hover:text-white transition-all shadow-xs flex items-center gap-1.5 group cursor-pointer"
+                className="text-left text-xs px-3 py-1.5 rounded-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-amber-500/40 text-zinc-300 hover:text-white transition-all shadow-xs flex items-center gap-1.5 group cursor-pointer active:scale-98"
               >
                 <span>{suggestion}</span>
-                <ArrowRight className="w-3 h-3 text-zinc-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
+                <ArrowRight className="w-3 h-3 text-zinc-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
               </button>
             ))}
           </div>
