@@ -136,8 +136,8 @@ export const AppShell: React.FC<AppShellProps> = ({
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
-          <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 px-3">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2.5 px-3">
             Core Modules
           </div>
           {navItems.map((item) => {
@@ -146,15 +146,15 @@ export const AppShell: React.FC<AppShellProps> = ({
               <button
                 key={item.route}
                 onClick={() => onNavigate(item.route)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group relative ${
                   isActive
-                    ? 'bg-emerald-600/15 text-emerald-300 border border-emerald-500/30 shadow-sm shadow-emerald-950/20'
-                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60'
+                    ? 'bg-gradient-to-r from-emerald-600/20 via-emerald-600/10 to-transparent text-emerald-300 border-l-2 border-l-emerald-400 border-y border-r border-emerald-500/20 shadow-xs'
+                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 border border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className={`${
+                    className={`transition-colors ${
                       isActive ? 'text-emerald-400' : 'text-zinc-400 group-hover:text-zinc-200'
                     }`}
                   >
@@ -162,6 +162,9 @@ export const AppShell: React.FC<AppShellProps> = ({
                   </div>
                   <span>{item.label}</span>
                 </div>
+                {isActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/80" />
+                )}
               </button>
             );
           })}

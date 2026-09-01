@@ -43,27 +43,35 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     <div className={`relative min-h-screen flex flex-col selection:bg-emerald-500/20 selection:text-emerald-500 overflow-x-hidden transition-colors ${
       isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-slate-50 text-slate-900'
     }`}>
-      {/* Background Graphic Asset with clean, non-distorting layer */}
+      {/* Background Atmospheric Photography Asset */}
       <div 
-        className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center bg-no-repeat transition-opacity duration-300 ${
-          isDark ? 'opacity-10' : 'opacity-[0.03]'
+        className={`fixed inset-0 z-0 pointer-events-none bg-cover bg-center bg-no-repeat transition-opacity duration-700 ${
+          isDark ? 'opacity-30' : 'opacity-20 mix-blend-multiply'
         }`}
         style={{ backgroundImage: `url('/shared_link_bg.jpg')` }}
       />
-      {/* Solid contrast wash gradient to ensure all text stays 100% crisp and readable */}
+      {/* Multi-layered cinematic gradient overlays for pristine readability + visual depth */}
       <div 
-        className={`absolute inset-0 z-0 pointer-events-none transition-colors ${
+        className={`fixed inset-0 z-0 pointer-events-none transition-colors duration-500 ${
           isDark 
-            ? 'bg-gradient-to-b from-zinc-950/95 via-zinc-950/98 to-zinc-950' 
-            : 'bg-gradient-to-b from-slate-50/95 via-slate-50/98 to-slate-50'
+            ? 'bg-gradient-to-b from-zinc-950/75 via-zinc-950/90 to-zinc-950' 
+            : 'bg-gradient-to-b from-slate-50/80 via-slate-50/92 to-slate-50'
+        }`} 
+      />
+      {/* Subtle radial emerald spotlight glow */}
+      <div 
+        className={`fixed inset-0 z-0 pointer-events-none ${
+          isDark 
+            ? 'bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(16,185,129,0.14),transparent_70%)]' 
+            : 'bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(16,185,129,0.08),transparent_70%)]'
         }`} 
       />
 
       {/* Top Navigation */}
-      <header className={`relative z-30 sticky top-0 w-full border-b transition-colors ${
+      <header className={`relative z-30 sticky top-0 w-full border-b backdrop-blur-md transition-colors ${
         isDark 
-          ? 'border-zinc-800/80 bg-zinc-950/95' 
-          : 'border-slate-200 bg-white/95'
+          ? 'border-zinc-800/80 bg-zinc-950/85 shadow-sm' 
+          : 'border-slate-200/80 bg-white/85 shadow-xs'
       }`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <UrsellaLogo size="md" />
@@ -179,103 +187,103 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
         {/* Product Snapshot / Visual Bento */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-16">
-          <div className={`rounded-2xl border p-4 sm:p-6 shadow-xl transition-colors ${
+          <div className={`rounded-2xl border p-4 sm:p-6 shadow-2xl backdrop-blur-md transition-all ${
             isDark 
-              ? 'border-zinc-800 bg-zinc-900' 
-              : 'border-slate-200 bg-white'
+              ? 'border-zinc-800/80 bg-zinc-900/80 shadow-black/40' 
+              : 'border-slate-200/80 bg-white/90 shadow-slate-200/60'
           }`}>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Card 1: Fast POS */}
-              <div className={`rounded-xl border p-4 sm:p-5 flex flex-col justify-between transition-colors ${
+              <div className={`rounded-xl border p-4 sm:p-5 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 group ${
                 isDark 
-                  ? 'border-zinc-800/90 bg-zinc-950' 
-                  : 'border-slate-200 bg-slate-50'
+                  ? 'border-zinc-800/80 bg-zinc-950/70 hover:border-emerald-500/40 hover:bg-zinc-950/90' 
+                  : 'border-slate-200/80 bg-slate-50/80 hover:border-emerald-400 hover:bg-white'
               }`}>
                 <div>
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
-                    isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3.5 transition-transform group-hover:scale-105 ${
+                    isDark ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                   }`}>
                     <ShoppingCart className="w-5 h-5" />
                   </div>
-                  <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  <h3 className={`text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                     Rapid POS & Mobile Money
                   </h3>
                   <p className={`text-xs mt-2 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
                     Designed for fast counter checkout, partial split payments, barcode scanner input, and instant WhatsApp receipts.
                   </p>
                 </div>
-                <div className={`mt-4 pt-3 border-t text-xs font-semibold flex items-center gap-1 ${
-                  isDark ? 'border-zinc-900 text-emerald-400' : 'border-slate-200 text-emerald-700'
+                <div className={`mt-4 pt-3 border-t text-xs font-semibold flex items-center justify-between ${
+                  isDark ? 'border-zinc-900/90 text-emerald-400' : 'border-slate-200/90 text-emerald-700'
                 }`}>
-                  <span>Record sales in &lt; 3 seconds</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <span>Record sales in &lt; 3s</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
 
               {/* Card 2: Inventory & FIFO */}
-              <div className={`rounded-xl border p-4 sm:p-5 flex flex-col justify-between transition-colors ${
+              <div className={`rounded-xl border p-4 sm:p-5 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 group ${
                 isDark 
-                  ? 'border-zinc-800/90 bg-zinc-950' 
-                  : 'border-slate-200 bg-slate-50'
+                  ? 'border-zinc-800/80 bg-zinc-950/70 hover:border-indigo-500/40 hover:bg-zinc-950/90' 
+                  : 'border-slate-200/80 bg-slate-50/80 hover:border-indigo-400 hover:bg-white'
               }`}>
                 <div>
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
-                    isDark ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-100 text-indigo-700'
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3.5 transition-transform group-hover:scale-105 ${
+                    isDark ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20' : 'bg-indigo-100 text-indigo-700 border border-indigo-200'
                   }`}>
                     <Boxes className="w-5 h-5" />
                   </div>
-                  <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  <h3 className={`text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                     Automated Stock & Margins
                   </h3>
                   <p className={`text-xs mt-2 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
                     Tracks true cost of goods sold with FIFO layer calculations, low-stock threshold alerts, and expiry warnings.
                   </p>
                 </div>
-                <div className={`mt-4 pt-3 border-t text-xs font-semibold flex items-center gap-1 ${
-                  isDark ? 'border-zinc-900 text-indigo-400' : 'border-slate-200 text-indigo-700'
+                <div className={`mt-4 pt-3 border-t text-xs font-semibold flex items-center justify-between ${
+                  isDark ? 'border-zinc-900/90 text-indigo-400' : 'border-slate-200/90 text-indigo-700'
                 }`}>
-                  <span>Zero manual stock reconciliations</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <span>Automated reconciliations</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
 
               {/* Card 3: Real-Time Cash Flow */}
-              <div className={`rounded-xl border p-4 sm:p-5 flex flex-col justify-between transition-colors ${
+              <div className={`rounded-xl border p-4 sm:p-5 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 group ${
                 isDark 
-                  ? 'border-zinc-800/90 bg-zinc-950' 
-                  : 'border-slate-200 bg-slate-50'
+                  ? 'border-zinc-800/80 bg-zinc-950/70 hover:border-teal-500/40 hover:bg-zinc-950/90' 
+                  : 'border-slate-200/80 bg-slate-50/80 hover:border-teal-400 hover:bg-white'
               }`}>
                 <div>
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
-                    isDark ? 'bg-teal-500/10 text-teal-400' : 'bg-teal-100 text-teal-700'
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3.5 transition-transform group-hover:scale-105 ${
+                    isDark ? 'bg-teal-500/15 text-teal-400 border border-teal-500/20' : 'bg-teal-100 text-teal-700 border border-teal-200'
                   }`}>
                     <BarChart3 className="w-5 h-5" />
                   </div>
-                  <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  <h3 className={`text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                     Daily Financial Clarity
                   </h3>
                   <p className={`text-xs mt-2 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
                     Instant cash position, debtors ledger, operational expense tracking, and deterministic net profit margins.
                   </p>
                 </div>
-                <div className={`mt-4 pt-3 border-t text-xs font-semibold flex items-center gap-1 ${
-                  isDark ? 'border-zinc-900 text-teal-400' : 'border-slate-200 text-teal-700'
+                <div className={`mt-4 pt-3 border-t text-xs font-semibold flex items-center justify-between ${
+                  isDark ? 'border-zinc-900/90 text-teal-400' : 'border-slate-200/90 text-teal-700'
                 }`}>
                   <span>Real-time profit & loss</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
             </div>
 
             {/* AI Advisor Preview Ribbon */}
-            <div className={`mt-4 rounded-xl border p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-colors ${
+            <div className={`mt-4 rounded-xl border p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 transition-all ${
               isDark 
-                ? 'border-amber-500/30 bg-amber-950/20' 
-                : 'border-amber-300 bg-amber-50/70'
+                ? 'border-amber-500/30 bg-gradient-to-r from-amber-950/30 via-zinc-900/80 to-zinc-950/70 shadow-sm' 
+                : 'border-amber-300/80 bg-gradient-to-r from-amber-50/90 via-white to-amber-50/60 shadow-xs'
             }`}>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3.5">
                 <div className={`p-2.5 rounded-xl shrink-0 ${
-                  isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'
+                  isDark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-amber-100 text-amber-700 border border-amber-200'
                 }`}>
                   <Sparkles className="w-5 h-5" />
                 </div>
@@ -293,7 +301,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 variant="secondary"
                 size="sm"
                 onClick={onNavigateSignIn}
-                className="text-xs whitespace-nowrap self-end sm:self-auto font-medium"
+                className="text-xs whitespace-nowrap self-end sm:self-auto font-semibold shadow-xs"
               >
                 Sign In to Ursella
               </Button>
@@ -315,61 +323,97 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className={`p-4 rounded-xl border transition-colors ${
-              isDark ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-white shadow-xs'
+            <div className={`p-5 rounded-2xl border backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 group ${
+              isDark 
+                ? 'border-zinc-800/80 bg-zinc-900/70 hover:border-emerald-500/30 hover:bg-zinc-900/90 shadow-sm' 
+                : 'border-slate-200/80 bg-white/85 hover:border-emerald-300 hover:bg-white shadow-xs'
             }`}>
-              <Receipt className={`w-5 h-5 mb-2.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-              <h3 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Digital Receipts</h3>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 transition-transform group-hover:scale-105 ${
+                isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border border-emerald-200/60'
+              }`}>
+                <Receipt className="w-5 h-5" />
+              </div>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Digital Receipts</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
                 Print via standard thermal receipt printers or share instant invoice receipts with customers via WhatsApp.
               </p>
             </div>
 
-            <div className={`p-4 rounded-xl border transition-colors ${
-              isDark ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-white shadow-xs'
+            <div className={`p-5 rounded-2xl border backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 group ${
+              isDark 
+                ? 'border-zinc-800/80 bg-zinc-900/70 hover:border-indigo-500/30 hover:bg-zinc-900/90 shadow-sm' 
+                : 'border-slate-200/80 bg-white/85 hover:border-indigo-300 hover:bg-white shadow-xs'
             }`}>
-              <Smartphone className={`w-5 h-5 mb-2.5 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
-              <h3 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Mobile Money & Cash</h3>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 transition-transform group-hover:scale-105 ${
+                isDark ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-indigo-50 text-indigo-600 border border-indigo-200/60'
+              }`}>
+                <Smartphone className="w-5 h-5" />
+              </div>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Mobile Money & Cash</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
                 Seamless support for local cash collections, Mobile Money transfers, and multi-tender payments.
               </p>
             </div>
 
-            <div className={`p-4 rounded-xl border transition-colors ${
-              isDark ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-white shadow-xs'
+            <div className={`p-5 rounded-2xl border backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 group ${
+              isDark 
+                ? 'border-zinc-800/80 bg-zinc-900/70 hover:border-teal-500/30 hover:bg-zinc-900/90 shadow-sm' 
+                : 'border-slate-200/80 bg-white/85 hover:border-teal-300 hover:bg-white shadow-xs'
             }`}>
-              <BarChart3 className={`w-5 h-5 mb-2.5 ${isDark ? 'text-teal-400' : 'text-teal-600'}`} />
-              <h3 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Profit & Loss Reports</h3>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 transition-transform group-hover:scale-105 ${
+                isDark ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' : 'bg-teal-50 text-teal-600 border border-teal-200/60'
+              }`}>
+                <BarChart3 className="w-5 h-5" />
+              </div>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Profit & Loss Reports</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
                 Deterministic calculation of gross revenue, COGS, operating expenses, and net profit margins.
               </p>
             </div>
 
-            <div className={`p-4 rounded-xl border transition-colors ${
-              isDark ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-white shadow-xs'
+            <div className={`p-5 rounded-2xl border backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 group ${
+              isDark 
+                ? 'border-zinc-800/80 bg-zinc-900/70 hover:border-emerald-500/30 hover:bg-zinc-900/90 shadow-sm' 
+                : 'border-slate-200/80 bg-white/85 hover:border-emerald-300 hover:bg-white shadow-xs'
             }`}>
-              <ShieldCheck className={`w-5 h-5 mb-2.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-              <h3 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Multi-Tenant Isolation</h3>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 transition-transform group-hover:scale-105 ${
+                isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border border-emerald-200/60'
+              }`}>
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Multi-Tenant Isolation</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
                 Each store runs in a secure, isolated database tenancy with enterprise-grade row-level security.
               </p>
             </div>
 
-            <div className={`p-4 rounded-xl border transition-colors ${
-              isDark ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-white shadow-xs'
+            <div className={`p-5 rounded-2xl border backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 group ${
+              isDark 
+                ? 'border-zinc-800/80 bg-zinc-900/70 hover:border-amber-500/30 hover:bg-zinc-900/90 shadow-sm' 
+                : 'border-slate-200/80 bg-white/85 hover:border-amber-300 hover:bg-white shadow-xs'
             }`}>
-              <Zap className={`w-5 h-5 mb-2.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
-              <h3 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Proactive Health Checks</h3>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 transition-transform group-hover:scale-105 ${
+                isDark ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-amber-50 text-amber-600 border border-amber-200/60'
+              }`}>
+                <Zap className="w-5 h-5" />
+              </div>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Proactive Health Checks</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
                 Continuous anomaly monitoring flags slow-moving stock, overdue debtors, and sudden expense spikes.
               </p>
             </div>
 
-            <div className={`p-4 rounded-xl border transition-colors ${
-              isDark ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-white shadow-xs'
+            <div className={`p-5 rounded-2xl border backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 group ${
+              isDark 
+                ? 'border-zinc-800/80 bg-zinc-900/70 hover:border-rose-500/30 hover:bg-zinc-900/90 shadow-sm' 
+                : 'border-slate-200/80 bg-white/85 hover:border-rose-300 hover:bg-white shadow-xs'
             }`}>
-              <Users className={`w-5 h-5 mb-2.5 ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
-              <h3 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Team & Role Access</h3>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 transition-transform group-hover:scale-105 ${
+                isDark ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-rose-50 text-rose-600 border border-rose-200/60'
+              }`}>
+                <Users className="w-5 h-5" />
+              </div>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Team & Role Access</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
                 Add Cashiers, Store Managers, and Accountants with granular view and POS checkout permissions.
               </p>
