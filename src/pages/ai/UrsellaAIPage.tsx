@@ -605,9 +605,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       {/* ========================================================================= */}
       {/* 2. MAIN CHAT WORKSPACE (Edge-to-Edge Full Height)                         */}
       {/* ========================================================================= */}
-      <div className="flex-1 flex flex-col bg-zinc-950 min-w-0 h-full overflow-hidden">
-        {/* Full-Length Top Header (Reaches absolute top of viewport) */}
-        <div className="h-14 px-3 sm:px-6 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/90 backdrop-blur-md shrink-0">
+      <div className="flex-1 flex flex-col bg-zinc-950 min-w-0 h-full overflow-hidden relative">
+        {/* Full-Length Top Header (Reaches absolute top of viewport with consistent height) */}
+        <header className="h-14 min-h-[3.5rem] max-h-14 px-3 sm:px-6 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/95 backdrop-blur-md shrink-0 z-30">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Mobile App Menu Trigger */}
             {onOpenMobileMenu && (
@@ -688,16 +688,16 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
               </button>
 
               {showOptionsMenu && (
-                <div className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-zinc-900 border border-zinc-800 py-1 shadow-xl z-50 animate-in fade-in-50 zoom-in-95">
+                <div className="absolute right-0 top-full mt-2 w-48 rounded-xl bg-zinc-900/98 backdrop-blur-md border border-zinc-700/80 py-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 ring-1 ring-black/50">
                   {messages.length > 0 && (
                     <button
                       onClick={handleCopyTranscript}
-                      className="w-full px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-800 flex items-center gap-2"
+                      className="w-full px-3 py-2 text-left text-xs text-zinc-200 hover:text-white hover:bg-zinc-800 flex items-center gap-2.5 transition-colors"
                     >
                       {copiedTranscript ? (
-                        <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <CheckCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                       ) : (
-                        <Copy className="w-3.5 h-3.5 text-zinc-400" />
+                        <Copy className="w-4 h-4 text-zinc-400 shrink-0" />
                       )}
                       <span>{copiedTranscript ? 'Copied' : 'Copy Transcript'}</span>
                     </button>
@@ -706,9 +706,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                   {messages.length > 0 && (
                     <button
                       onClick={handleClearActiveConversation}
-                      className="w-full px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-800 flex items-center gap-2"
+                      className="w-full px-3 py-2 text-left text-xs text-zinc-200 hover:text-white hover:bg-zinc-800 flex items-center gap-2.5 transition-colors"
                     >
-                      <Trash2 className="w-3.5 h-3.5 text-zinc-400" />
+                      <Trash2 className="w-4 h-4 text-zinc-400 shrink-0" />
                       <span>Clear Messages</span>
                     </button>
                   )}
@@ -719,9 +719,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                         setShowOptionsMenu(false);
                         setDeleteConfirmConv(activeConv);
                       }}
-                      className="w-full px-3 py-2 text-left text-xs text-rose-400 hover:bg-rose-500/10 flex items-center gap-2"
+                      className="w-full px-3 py-2 text-left text-xs text-rose-400 hover:bg-rose-500/10 flex items-center gap-2.5 transition-colors"
                     >
-                      <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                      <Trash2 className="w-4 h-4 text-rose-400 shrink-0" />
                       <span>Delete Chat</span>
                     </button>
                   )}
@@ -729,7 +729,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
               )}
             </div>
           </div>
-        </div>
+        </header>
 
         {/* Message Container Area - Smooth vertical scrolling */}
         <div 
