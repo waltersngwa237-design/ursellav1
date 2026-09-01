@@ -21,7 +21,7 @@ export const AIContextService = {
 
   /**
    * Generates proactive AI insights using Gemini and structured business context.
-   * Model selection adheres to standard recommendations (gemini-2.5-flash for fast reasoning).
+   * Model selection adheres to standard recommendations (gemini-3.7-flash for fast reasoning).
    */
   async generateBusinessAdvice(businessId: string, userQuery: string) {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -40,7 +40,7 @@ AUTHORITATIVE BUSINESS CONTEXT:
 ${JSON.stringify(businessContext, null, 2)}`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.7-flash',
       contents: [
         { role: 'user', parts: [{ text: userQuery }] }
       ],

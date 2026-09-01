@@ -1,4 +1,5 @@
 import { serverSupabase } from './business-tools.service.ts';
+import { getActiveGeminiModel } from './ai-config.ts';
 
 export interface HealthCheckResult {
   status: 'healthy' | 'degraded' | 'unhealthy';
@@ -67,7 +68,7 @@ export class HealthService {
           error: detailed ? dbError : undefined,
         },
         aiEngine: {
-          model: process.env.GEMINI_MODEL || 'gemini-3.7-flash',
+          model: getActiveGeminiModel(),
           isConfigured: isGeminiConfigured,
         },
         paymentGateway: {

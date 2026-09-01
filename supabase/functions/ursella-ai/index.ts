@@ -544,7 +544,8 @@ Deno.serve(async (req: Request) => {
     let structuredResponse: any = null;
 
     if (geminiApiKey && geminiApiKey.trim().length > 0 && geminiApiKey !== "placeholder-key") {
-      const model = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+      const rawModel = Deno.env.get("GEMINI_MODEL") || "gemini-3.7-flash";
+      const model = rawModel === "gemini-2.5-flash" ? "gemini-3.7-flash" : rawModel;
 
       const systemInstruction = `You are Ursella AI, the intelligent, grounded business co-pilot inside Ursella Business OS.
 You are assisting the owner of "${businessName}" (${businessType}).

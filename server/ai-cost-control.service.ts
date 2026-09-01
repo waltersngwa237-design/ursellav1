@@ -1,5 +1,6 @@
 import { serverSupabase } from './business-tools.service.ts';
 import { SubscriptionService } from './subscription.service.ts';
+import { getActiveGeminiModel, FALLBACK_LITE_MODEL } from './ai-config.ts';
 
 export interface AIUsageLogEntry {
   businessId: string;
@@ -16,6 +17,7 @@ export interface AIUsageLogEntry {
 // Cost estimation per 1k tokens for Gemini models (approximate USD)
 const MODEL_COSTS: Record<string, { inputPer1k: number; outputPer1k: number }> = {
   'gemini-3.7-flash': { inputPer1k: 0.00015, outputPer1k: 0.0006 },
+  'gemini-3.6-flash': { inputPer1k: 0.00015, outputPer1k: 0.0006 },
   'gemini-3.1-flash-lite': { inputPer1k: 0.000075, outputPer1k: 0.0003 },
   'gemini-3.1-pro-preview': { inputPer1k: 0.00125, outputPer1k: 0.005 },
 };
@@ -25,8 +27,8 @@ export class AICostControlService {
    * Determine the most cost-effective and task-appropriate model tier
    */
   static selectModelForTask(taskType: 'chat' | 'intent_classification' | 'daily_brief' | 'proactive_insights'): string {
-    const configuredModel = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
-    const fallbackLiteModel = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite';
+    const configuredModel = getActiveGeminiModel();
+    const fallbackLiteModel = process.env.GEMINI_FALLBACK_MODEL || FALLBACK_LITE_MODEL;
 
     if (taskType === 'intent_classification') {
       return fallbackLiteModel; // High speed, minimal cost

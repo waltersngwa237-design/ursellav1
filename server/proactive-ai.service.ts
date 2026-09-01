@@ -4,7 +4,6 @@
  * human-friendly narratives, prioritized "What to do today" recommendations,
  * and morning daily briefs.
  */
-import { GoogleGenAI, Type } from '@google/genai';
 import { generateUUID } from '../src/lib/uuid.ts';
 import type { RawBusinessEvent } from './event-detection.service.ts';
 import type {
@@ -13,15 +12,6 @@ import type {
   DailyPriorityItem,
   NotificationPreferences,
 } from '../src/types/proactive.ts';
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || 'placeholder-key',
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    },
-  },
-});
 
 // Cache for business insights and notifications
 const businessInsightsCache = new Map<string, { timestamp: number; insights: BusinessInsight[] }>();

@@ -14,6 +14,7 @@ import { DataIOService } from './server/data-io.service.ts';
 import { ReportingService, type ReportFilterOptions } from './server/reporting.service.ts';
 import { FeedbackService } from './server/feedback.service.ts';
 import { HealthService } from './server/health.service.ts';
+import { getActiveGeminiModel } from './server/ai-config.ts';
 import { type AIChatRequestPayload, type AIChatResponsePayload } from './src/types/ai.ts';
 
 const app = express();
@@ -287,7 +288,7 @@ app.post('/api/ai/chat', async (req, res) => {
     AICostControlService.logUsage({
       businessId,
       requestType: 'chat',
-      model: process.env.GEMINI_MODEL || 'gemini-3.7-flash',
+      model: getActiveGeminiModel(),
       latencyMs,
       success: true,
     }).catch(() => {});
@@ -299,7 +300,7 @@ app.post('/api/ai/chat', async (req, res) => {
     AICostControlService.logUsage({
       businessId: req.body?.businessId || 'unknown',
       requestType: 'chat',
-      model: process.env.GEMINI_MODEL || 'gemini-3.7-flash',
+      model: getActiveGeminiModel(),
       latencyMs: Date.now() - startTime,
       success: false,
       errorMessage: error?.message,

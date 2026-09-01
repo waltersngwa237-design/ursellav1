@@ -1,22 +1,12 @@
-import { GoogleGenAI } from '@google/genai';
 import {
   type AIStructuredResponse,
   type AIDailyBrief,
 } from '../src/types/ai.ts';
-
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
-
-let geminiClient: GoogleGenAI | null = null;
-
-function getGeminiClient(): GoogleGenAI | null {
-  if (!geminiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (apiKey && apiKey.trim().length > 0 && apiKey !== 'placeholder-key') {
-      geminiClient = new GoogleGenAI({ apiKey });
-    }
-  }
-  return geminiClient;
-}
+import {
+  getGeminiClient,
+  getActiveGeminiModel,
+  logAIProvenance,
+} from './ai-config.ts';
 
 export interface ChatReasoningContext {
   businessName: string;
@@ -148,13 +138,24 @@ ${
 "${userMessage}"
 `;
 
+    const model = getActiveGeminiModel();
+    const startTime = Date.now();
+
     if (!ai) {
+      logAIProvenance({
+        endpoint: 'generateChatResponse',
+        businessId: ctx.businessName,
+        source: 'DETERMINISTIC_FALLBACK',
+        model,
+        latencyMs: 0,
+        error: 'GEMINI_API_KEY is not configured or client initialization failed',
+      });
       return this.generateDeterministicFallback(userMessage, ctx);
     }
 
     try {
       const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+        model,
         contents: contextPrompt,
         config: {
           systemInstruction: this.buildSystemInstruction(ctx),
@@ -163,10 +164,18 @@ ${
         },
       });
 
+      const latencyMs = Date.now() - startTime;
       const responseText = response.text || '';
       try {
         const parsed = JSON.parse(responseText);
         if (parsed && typeof parsed.answer === 'string') {
+          logAIProvenance({
+            endpoint: 'generateChatResponse',
+            businessId: ctx.businessName,
+            source: 'GEMINI_RESPONSE',
+            model,
+            latencyMs,
+          });
           return {
             answer: parsed.answer,
             intent: (parsed.intent as any) || ctx.parsedIntent?.intent || 'business_overview',
@@ -185,7 +194,15 @@ ${
             responseSource: 'GEMINI_RESPONSE',
           };
         }
-      } catch {
+      } catch (parseError: any) {
+        logAIProvenance({
+          endpoint: 'generateChatResponse',
+          businessId: ctx.businessName,
+          source: 'GEMINI_RESPONSE',
+          model,
+          latencyMs,
+          error: `JSON parse warning: ${parseError?.message}`,
+        });
         return {
           answer: responseText,
           confidence: 'moderate_confidence',
@@ -193,8 +210,17 @@ ${
           responseSource: 'GEMINI_RESPONSE',
         };
       }
-    } catch (err) {
-      console.warn('Gemini API call failed, using deterministic business synthesizer:', err);
+    } catch (err: any) {
+      const latencyMs = Date.now() - startTime;
+      console.warn(`[Gemini Chat API Error] Model="${model}" failed after ${latencyMs}ms:`, err?.message || err);
+      logAIProvenance({
+        endpoint: 'generateChatResponse',
+        businessId: ctx.businessName,
+        source: 'DETERMINISTIC_FALLBACK',
+        model,
+        latencyMs,
+        error: err?.message || String(err),
+      });
     }
 
     return this.generateDeterministicFallback(userMessage, ctx);
@@ -205,6 +231,8 @@ ${
    */
   public static async generateDailyBrief(ctx: ChatReasoningContext): Promise<AIDailyBrief> {
     const ai = getGeminiClient();
+    const model = getActiveGeminiModel();
+    const startTime = Date.now();
     const briefFacts = (ctx.toolResults.get_daily_brief_facts || ctx.toolResults.get_today_sales_summary) as any;
     const today = briefFacts?.todayMetrics || {
       revenueToday: briefFacts?.revenue || 0,
@@ -217,6 +245,14 @@ ${
     const debtors = briefFacts?.debtorAlerts || { debtorsCount: 0, totalOutstandingDebt: 0 };
 
     if (!ai) {
+      logAIProvenance({
+        endpoint: 'generateDailyBrief',
+        businessId: ctx.businessName,
+        source: 'DETERMINISTIC_FALLBACK',
+        model,
+        latencyMs: 0,
+        error: 'GEMINI_API_KEY not configured',
+      });
       return this.generateDeterministicDailyBrief(ctx, briefFacts);
     }
 
@@ -236,7 +272,7 @@ Return a valid JSON object matching the schema:
 }`;
 
       const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+        model,
         contents: prompt,
         config: {
           systemInstruction: `You are Ursella AI. Generate an accurate, grounded Daily Business Brief for ${ctx.businessName} in currency ${ctx.currency}. Never invent numbers. Answer performance facts directly.`,
@@ -245,7 +281,15 @@ Return a valid JSON object matching the schema:
         },
       });
 
+      const latencyMs = Date.now() - startTime;
       const parsed = JSON.parse(response.text || '{}');
+      logAIProvenance({
+        endpoint: 'generateDailyBrief',
+        businessId: ctx.businessName,
+        source: 'GEMINI_RESPONSE',
+        model,
+        latencyMs,
+      });
       return {
         generatedAt: new Date().toISOString(),
         businessName: ctx.businessName,
@@ -265,8 +309,17 @@ Return a valid JSON object matching the schema:
         recommendedFocusToday: parsed.recommendedFocusToday || 'Review daily sales and inventory levels.',
         confidence: parsed.confidence || (today.transactionCountToday >= 5 ? 'high_confidence' : 'insufficient_data'),
       };
-    } catch (err) {
-      console.warn('Gemini Daily Brief API failed, using deterministic briefing:', err);
+    } catch (err: any) {
+      const latencyMs = Date.now() - startTime;
+      console.warn(`[Gemini Daily Brief API Error] Model="${model}" failed after ${latencyMs}ms:`, err?.message || err);
+      logAIProvenance({
+        endpoint: 'generateDailyBrief',
+        businessId: ctx.businessName,
+        source: 'DETERMINISTIC_FALLBACK',
+        model,
+        latencyMs,
+        error: err?.message || String(err),
+      });
       return this.generateDeterministicDailyBrief(ctx, briefFacts);
     }
   }
