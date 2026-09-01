@@ -14,6 +14,7 @@ import { RevenueTrendsChart } from '../../components/analytics/RevenueTrendsChar
 import { AnomalyAlertBanner } from '../../components/analytics/AnomalyAlertBanner.tsx';
 import { DataSufficiencyBadge } from '../../components/analytics/DataSufficiencyBadge.tsx';
 import { HomeAIInsightCard } from '../../components/ai/HomeAIInsightCard.tsx';
+import { OnboardingLaunchpad } from '../../components/dashboard/OnboardingLaunchpad.tsx';
 import { Card } from '../../components/common/Card.tsx';
 import { Badge } from '../../components/common/Badge.tsx';
 import { Button } from '../../components/common/Button.tsx';
@@ -48,6 +49,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   const { activeBusiness, activeRole, currency, loading: businessLoading } = useBusiness();
 
   const [preset, setPreset] = useState<DateRangePreset>('last_30_days');
+  const [dashboardTab, setDashboardTab] = useState<'pulse' | 'inventory' | 'trends'>('pulse');
   const [analytics, setAnalytics] = useState<CompleteBusinessAnalytics | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -231,6 +233,19 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       </div>
 
       {/* ========================================================================= */}
+      {/* 2.4 ONBOARDING LAUNCHPAD FOR NEW STORES                                   */}
+      {/* ========================================================================= */}
+      {activeBusiness && (
+        <OnboardingLaunchpad
+          businessName={activeBusiness.name}
+          hasProducts={(analytics?.inventorySummary.totalActiveSKUs ?? 0) > 0}
+          hasSales={(analytics?.comparison.revenue.current ?? 0) > 0}
+          hasAIInteraction={true}
+          onNavigate={onNavigate}
+        />
+      )}
+
+      {/* ========================================================================= */}
       {/* 2.5 URSELLA AI PROACTIVE ADVISORY & INSIGHTS                               */}
       {/* ========================================================================= */}
       {activeBusiness && (
@@ -242,6 +257,42 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           onNavigateToInsights={() => onNavigate('insights')}
         />
       )}
+
+      {/* ========================================================================= */}
+      {/* 2.8 DASHBOARD VIEW SELECTOR TABS (REDUCES VERTICAL CLUTTER)               */}
+      {/* ========================================================================= */}
+      <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
+        <button
+          onClick={() => setDashboardTab('pulse')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            dashboardTab === 'pulse'
+              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
+          }`}
+        >
+          Overview & KPIs
+        </button>
+        <button
+          onClick={() => setDashboardTab('inventory')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            dashboardTab === 'inventory'
+              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
+          }`}
+        >
+          Health & Stock Alerts
+        </button>
+        <button
+          onClick={() => setDashboardTab('trends')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            dashboardTab === 'trends'
+              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
+          }`}
+        >
+          Performance Charts
+        </button>
+      </div>
 
       {/* ========================================================================= */}
       {/* 3. CORE FINANCIAL KPI METRIC CARDS WITH PERIOD COMPARISON                 */}
@@ -288,231 +339,223 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       )}
 
       {/* ========================================================================= */}
-      {/* 4. BUSINESS HEALTH INDICATOR & NOTICES                                    */}
+      {/* TAB 1: OVERVIEW & TOP PRODUCTS                                            */}
       {/* ========================================================================= */}
-      {analytics && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <BusinessHealthCard indicator={analytics.healthIndicator} />
-          </div>
-
-          <div className="space-y-4">
-            {/* Low stock callout */}
-            <div className="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-between gap-3">
-              <div>
-                <span className="text-xs text-zinc-400 font-medium">Inventory Stock Alerts</span>
-                <div className="text-lg font-bold text-white mt-0.5">
-                  {analytics.inventorySummary.lowStockCount}{' '}
-                  <span className="text-xs font-normal text-zinc-400">low / </span>
-                  {analytics.inventorySummary.outOfStockCount}{' '}
-                  <span className="text-xs font-normal text-zinc-400">out of stock</span>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onNavigate('business')}
-                className="text-xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10"
-              >
-                Stock List →
-              </Button>
-            </div>
-
-            {/* Receivables callout */}
-            <div className="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-between gap-3">
-              <div>
-                <span className="text-xs text-zinc-400 font-medium">Customer Receivables</span>
-                <div className="text-lg font-bold text-rose-400 mt-0.5">
-                  {currencyConfig.format(analytics.financialOverview.outstandingReceivables ?? 0)}
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onNavigate('customers')}
-                className="text-xs text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
-              >
-                Ledgers →
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Anomalies Banner */}
-      {analytics?.anomalies && analytics.anomalies.length > 0 && (
-        <AnomalyAlertBanner anomalies={analytics.anomalies} />
-      )}
-
-      {/* ========================================================================= */}
-      {/* 5. VISUAL REVENUE & PROFIT TRAJECTORY CHART                               */}
-      {/* ========================================================================= */}
-      {analytics && (
-        <RevenueTrendsChart data={analytics.timeSeries} currencyConfig={currencyConfig} />
-      )}
-
-      {/* ========================================================================= */}
-      {/* 6. QUICK ACTION WORKFLOWS                                                 */}
-      {/* ========================================================================= */}
-      <div>
-        <h3 className="text-sm font-bold text-zinc-300 mb-3 uppercase tracking-wider">
-          Quick Actions & Modules
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <button
-            onClick={() => onNavigate('sell')}
-            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
-          >
-            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <ShoppingCart className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-zinc-100 block">New Sale</span>
-              <span className="text-[10px] text-zinc-400">Launch POS terminal</span>
-            </div>
-          </button>
-
-          <button
-            onClick={() => onNavigate('business')}
-            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
-          >
-            <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <Package className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-zinc-100 block">Inventory</span>
-              <span className="text-[10px] text-zinc-400">Catalog & stock</span>
-            </div>
-          </button>
-
-          <button
-            onClick={() => onNavigate('customers')}
-            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
-          >
-            <div className="w-9 h-9 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <Users className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-zinc-100 block">Customers</span>
-              <span className="text-[10px] text-zinc-400">Ledgers & debt</span>
-            </div>
-          </button>
-
-          <button
-            onClick={() => onNavigate('analytics')}
-            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
-          >
-            <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <BarChart3 className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-zinc-100 block">Analytics Hub</span>
-              <span className="text-[10px] text-zinc-400">BI & Deep Insights</span>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 7. TOP PRODUCTS & RECENT TRANSACTIONS                                     */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Top Products */}
-        <div className="lg:col-span-2 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
-              <Package className="w-4 h-4 text-emerald-400" />
-              Top Performing Products ({analytics?.window.label})
+      {dashboardTab === 'pulse' && (
+        <div className="space-y-6">
+          {/* Quick Actions */}
+          <div>
+            <h3 className="text-xs font-bold text-zinc-400 mb-3 uppercase tracking-wider">
+              Quick Shortcuts
             </h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onNavigate('analytics')}
-              className="text-xs text-zinc-400 hover:text-white"
-            >
-              View all products →
-            </Button>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <button
+                onClick={() => onNavigate('sell')}
+                className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <ShoppingCart className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-zinc-100 block">New Sale</span>
+                  <span className="text-[10px] text-zinc-400">Launch POS terminal</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => onNavigate('business')}
+                className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Package className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-zinc-100 block">Inventory</span>
+                  <span className="text-[10px] text-zinc-400">Catalog & stock</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => onNavigate('customers')}
+                className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-zinc-100 block">Customers</span>
+                  <span className="text-[10px] text-zinc-400">Ledgers & debt</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => onNavigate('analytics')}
+                className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <BarChart3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-zinc-100 block">Analytics Hub</span>
+                  <span className="text-[10px] text-zinc-400">BI & Deep Insights</span>
+                </div>
+              </button>
+            </div>
           </div>
 
-          {analytics?.topProducts && analytics.topProducts.length > 0 ? (
-            <div className="space-y-2">
-              {analytics.topProducts.slice(0, 5).map((p) => (
-                <div
-                  key={p.id}
-                  className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-3 hover:border-zinc-700 transition-colors"
+          {/* Top Products */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                  <Package className="w-4 h-4 text-emerald-400" />
+                  Top Performing Products ({analytics?.window.label})
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onNavigate('analytics')}
+                  className="text-xs text-zinc-400 hover:text-white"
                 >
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-zinc-100 truncate">{p.name}</p>
-                    <p className="text-[11px] text-zinc-400 truncate">
-                      {p.unitsSold ?? 0} units sold • Margin: {(p.grossMargin ?? 0).toFixed(1)}% •{' '}
-                      {(p.observedVelocityUnitsPerDay ?? 0).toFixed(2)}/day
-                    </p>
-                  </div>
+                  View all products →
+                </Button>
+              </div>
 
-                  <div className="text-right shrink-0">
-                    <p className="text-xs font-bold text-emerald-400">
-                      {currencyConfig.format(p.revenue ?? 0)}
-                    </p>
-                    <span className="text-[10px] text-zinc-500">
-                      Profit: {currencyConfig.format(p.grossProfit ?? 0)}
-                    </span>
+              {analytics?.topProducts && analytics.topProducts.length > 0 ? (
+                <div className="space-y-2">
+                  {analytics.topProducts.slice(0, 5).map((p) => (
+                    <div
+                      key={p.id}
+                      className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800/80 flex items-center justify-between gap-3 hover:border-zinc-700 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-zinc-100 truncate">{p.name}</p>
+                        <p className="text-[11px] text-zinc-400 truncate">
+                          {p.unitsSold ?? 0} units sold • Margin: {(p.grossMargin ?? 0).toFixed(1)}%
+                        </p>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-bold text-emerald-400">
+                          {currencyConfig.format(p.revenue ?? 0)}
+                        </p>
+                        <span className="text-[10px] text-zinc-500">
+                          Profit: {currencyConfig.format(p.grossProfit ?? 0)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={<ShoppingCart className="w-6 h-6 text-zinc-400" />}
+                  title="No sales recorded in this period"
+                  description="Start recording customer sales through the Point of Sale terminal."
+                  actionLabel="Launch POS Terminal"
+                  onAction={() => onNavigate('sell')}
+                />
+              )}
+            </div>
+
+            {/* AI Assistant Ready Card */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                AI Operating Layer
+              </h3>
+
+              <Card
+                variant="glass"
+                className="space-y-3.5 border-emerald-500/20 bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/20"
+              >
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Intelligence Connected
+                </div>
+
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  Ursella tracks and synthesizes your core financial facts in real time: revenue, FIFO inventory margins,
+                  cash collections, and customer receivables.
+                </p>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                  onClick={() => onNavigate('ai', 'Give me an overview of today’s store performance and top margin items.')}
+                >
+                  Chat with Financial Co-Pilot →
+                </Button>
+              </Card>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: INVENTORY & HEALTH                                                 */}
+      {/* ========================================================================= */}
+      {dashboardTab === 'inventory' && analytics && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <BusinessHealthCard indicator={analytics.healthIndicator} />
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs text-zinc-400 font-medium">Inventory Stock Alerts</span>
+                  <div className="text-lg font-bold text-white mt-0.5">
+                    {analytics.inventorySummary.lowStockCount}{' '}
+                    <span className="text-xs font-normal text-zinc-400">low / </span>
+                    {analytics.inventorySummary.outOfStockCount}{' '}
+                    <span className="text-xs font-normal text-zinc-400">out of stock</span>
                   </div>
                 </div>
-              ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onNavigate('business')}
+                  className="text-xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10"
+                >
+                  Stock List →
+                </Button>
+              </div>
+
+              <div className="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs text-zinc-400 font-medium">Customer Receivables</span>
+                  <div className="text-lg font-bold text-rose-400 mt-0.5">
+                    {currencyConfig.format(analytics.financialOverview.outstandingReceivables ?? 0)}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onNavigate('customers')}
+                  className="text-xs text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+                >
+                  Ledgers →
+                </Button>
+              </div>
             </div>
-          ) : (
-            <EmptyState
-              icon={<ShoppingCart className="w-6 h-6 text-zinc-400" />}
-              title="No sales transactions recorded in this period"
-              description="Start recording customer sales through the Point of Sale terminal to populate product intelligence."
-              actionLabel="Launch POS Terminal"
-              onAction={() => onNavigate('sell')}
-            />
+          </div>
+
+          {analytics?.anomalies && analytics.anomalies.length > 0 && (
+            <AnomalyAlertBanner anomalies={analytics.anomalies} />
           )}
         </div>
+      )}
 
-        {/* AI Readiness Hub Card */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-emerald-400" />
-            AI Operating Layer
-          </h3>
-
-          <Card
-            variant="glass"
-            className="space-y-3.5 border-emerald-500/20 bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/20"
-          >
-            <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Live Business Intelligence Active
-            </div>
-
-            <p className="text-xs text-zinc-300 leading-relaxed">
-              Ursella tracks and synthesizes your core financial facts in real time: revenue, FIFO inventory margins,
-              cash collections, and customer receivables to power instant AI advisory and automated insights.
-            </p>
-
-            <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 text-[11px] text-zinc-400 space-y-1.5">
-              <div className="flex items-center gap-2 text-zinc-300 font-semibold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                Deterministic Analytics Active
-              </div>
-              <p className="text-[10px] text-zinc-400">
-                All business facts are verified and pre-computed with zero LLM financial calculation.
-              </p>
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
-              onClick={() => onNavigate('analytics')}
-            >
-              Explore Business Intelligence Hub →
-            </Button>
-          </Card>
+      {/* ========================================================================= */}
+      {/* TAB 3: VISUAL REVENUE & PROFIT TRAJECTORY CHART                           */}
+      {/* ========================================================================= */}
+      {dashboardTab === 'trends' && analytics && (
+        <div className="space-y-6">
+          <RevenueTrendsChart data={analytics.timeSeries} currencyConfig={currencyConfig} />
         </div>
-      </div>
+      )}
     </div>
   );
 };
