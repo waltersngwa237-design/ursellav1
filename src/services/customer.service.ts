@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 import { generateUUID, isValidUUID } from '../lib/uuid.ts';
+import { OfflineSyncService } from './offline-sync.service.ts';
 import type { Customer, CustomerWithSummary, Sale, Payment, PaymentMethodType } from '../types/index.ts';
 
 const LOCAL_CUSTOMERS_PREFIX = 'ursella_customers_';
@@ -86,8 +87,8 @@ export const CustomerService = {
 
         const { data, error } = await query;
         if (error) {
-          console.warn('Failed to fetch customers:', error.message);
-          return [];
+          console.warn('Failed to fetch customers from Supabase, checking local cache:', error.message);
+          throw error;
         }
 
         let customers: CustomerWithSummary[] = (data || []).map((c: any) => {
@@ -119,18 +120,26 @@ export const CustomerService = {
           };
         });
 
+        // Cache customer list locally for offline access
+        if (customers.length > 0 && !options.search) {
+          try {
+            const rawCusts = customers.map(({ total_spent, purchase_count, last_purchase_at, outstanding_balance, ...rest }) => rest);
+            localStorage.setItem(`${LOCAL_CUSTOMERS_PREFIX}${businessId}`, JSON.stringify(rawCusts));
+          } catch {}
+        }
+
         if (options.hasOutstandingDebt) {
           customers = customers.filter((c) => c.outstanding_balance > 0);
         }
 
         return customers;
       } catch (err) {
-        console.error('Error in CustomerService.getCustomers:', err);
-        return [];
+        console.warn('[CustomerService] Supabase offline, using local customer list:', err);
       }
-    } else {
-      // Local storage fallback
-      const key = `${LOCAL_CUSTOMERS_PREFIX}${businessId}`;
+    }
+
+    // Local storage fallback
+    const key = `${LOCAL_CUSTOMERS_PREFIX}${businessId}`;
       const stored = localStorage.getItem(key);
       let list: Customer[] = stored ? JSON.parse(stored) : [];
 
@@ -177,7 +186,6 @@ export const CustomerService = {
       }
 
       return results.sort((a, b) => a.name.localeCompare(b.name));
-    }
   },
 
   /**
@@ -303,46 +311,65 @@ export const CustomerService = {
       throw new Error('Customer name is required.');
     }
 
-    if (isSupabaseConfigured && isValidUUID(input.business_id)) {
-      const { data, error } = await (supabase as any)
-        .from('customers')
-        .insert({
-          business_id: input.business_id,
-          name: input.name.trim(),
-          phone: input.phone?.trim() || null,
-          email: input.email?.trim() || null,
-          location: input.location?.trim() || null,
-          notes: input.notes?.trim() || null,
-          is_active: true,
-        })
-        .select('*')
-        .single();
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
-      if (error) throw new Error(error.message);
-      return data as Customer;
-    } else {
-      const key = `${LOCAL_CUSTOMERS_PREFIX}${input.business_id}`;
-      const stored = localStorage.getItem(key);
-      const list: Customer[] = stored ? JSON.parse(stored) : [];
+    if (isSupabaseConfigured && isValidUUID(input.business_id) && isOnline) {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('customers')
+          .insert({
+            business_id: input.business_id,
+            name: input.name.trim(),
+            phone: input.phone?.trim() || null,
+            email: input.email?.trim() || null,
+            location: input.location?.trim() || null,
+            notes: input.notes?.trim() || null,
+            is_active: true,
+          })
+          .select('*')
+          .single();
 
-      const now = new Date().toISOString();
-      const newCustomer: Customer = {
-        id: generateUUID(),
-        business_id: input.business_id,
-        name: input.name.trim(),
-        phone: input.phone?.trim() || null,
-        email: input.email?.trim() || null,
-        location: input.location?.trim() || null,
-        notes: input.notes?.trim() || null,
-        is_active: true,
-        created_at: now,
-        updated_at: now,
-      };
-
-      list.push(newCustomer);
-      localStorage.setItem(key, JSON.stringify(list));
-      return newCustomer;
+        if (!error && data) {
+          // Also save in local cache
+          const key = `${LOCAL_CUSTOMERS_PREFIX}${input.business_id}`;
+          const stored = localStorage.getItem(key);
+          const list: Customer[] = stored ? JSON.parse(stored) : [];
+          list.push(data as Customer);
+          localStorage.setItem(key, JSON.stringify(list));
+          return data as Customer;
+        }
+      } catch (e) {
+        console.warn('[CustomerService] Cloud customer creation failed, saving locally:', e);
+      }
     }
+
+    // Local execution + offline queue
+    const key = `${LOCAL_CUSTOMERS_PREFIX}${input.business_id}`;
+    const stored = localStorage.getItem(key);
+    const list: Customer[] = stored ? JSON.parse(stored) : [];
+
+    const now = new Date().toISOString();
+    const newCustomer: Customer = {
+      id: generateUUID(),
+      business_id: input.business_id,
+      name: input.name.trim(),
+      phone: input.phone?.trim() || null,
+      email: input.email?.trim() || null,
+      location: input.location?.trim() || null,
+      notes: input.notes?.trim() || null,
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    };
+
+    list.push(newCustomer);
+    localStorage.setItem(key, JSON.stringify(list));
+
+    if (isSupabaseConfigured && isValidUUID(input.business_id)) {
+      OfflineSyncService.enqueue('customer', input.business_id, newCustomer);
+    }
+
+    return newCustomer;
   },
 
   /**

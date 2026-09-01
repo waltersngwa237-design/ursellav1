@@ -65,6 +65,12 @@ export const BusinessService = {
               settings: settings || null,
             });
           }
+
+          // Cache snapshot for offline startup
+          if (memberships.length > 0) {
+            const cacheKey = `${LOCAL_STORAGE_BIZ_PREFIX}${userId}`;
+            localStorage.setItem(cacheKey, JSON.stringify(memberships));
+          }
         }
       } catch (err: unknown) {
         console.warn('Supabase getUserBusinesses error, checking local fallback:', err);

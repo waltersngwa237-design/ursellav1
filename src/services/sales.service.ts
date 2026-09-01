@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 import { generateUUID, isValidUUID } from '../lib/uuid.ts';
+import { OfflineSyncService } from './offline-sync.service.ts';
 import type {
   PaymentMethodType,
   PaymentStatusType,
@@ -77,27 +78,38 @@ export const SalesService = {
         ? params.customer_id
         : null;
 
-      if (isSupabaseConfigured && isValidUUID(params.business_id)) {
-        const { data, error } = await (supabase as any).rpc('process_complete_sale', {
-          p_business_id: params.business_id,
-          p_customer_id: sanitizedCustomerId,
-          p_items: params.items,
-          p_discount: params.discount ?? 0.0,
-          p_tax: params.tax ?? 0.0,
-          p_payment_amount: params.payment_amount ?? 0.0,
-          p_payment_method: params.payment_method ?? 'cash',
-          p_payment_reference: params.payment_reference || null,
-          p_notes: params.notes || null,
-        });
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
-        if (error) {
-          return { sale_id: null, error: new Error(error.message) };
+      if (isSupabaseConfigured && isValidUUID(params.business_id) && isOnline) {
+        try {
+          const { data, error } = await (supabase as any).rpc('process_complete_sale', {
+            p_business_id: params.business_id,
+            p_customer_id: sanitizedCustomerId,
+            p_items: params.items,
+            p_discount: params.discount ?? 0.0,
+            p_tax: params.tax ?? 0.0,
+            p_payment_amount: params.payment_amount ?? 0.0,
+            p_payment_method: params.payment_method ?? 'cash',
+            p_payment_reference: params.payment_reference || null,
+            p_notes: params.notes || null,
+          });
+
+          if (error) {
+            // If it's a domain validation error (e.g. insufficient stock in DB), return the error
+            if (error.message && (error.message.includes('Insufficient stock') || error.message.includes('archived'))) {
+              return { sale_id: null, error: new Error(error.message) };
+            }
+            console.warn('[SalesService] Supabase RPC failed, executing offline and queueing sync:', error.message);
+          } else {
+            return { sale_id: data as string, error: null };
+          }
+        } catch (rpcErr) {
+          console.warn('[SalesService] Network error during sale RPC, executing offline:', rpcErr);
         }
+      }
 
-        return { sale_id: data as string, error: null };
-      } else {
-        // Fallback local transactional execution with strict stock deduction & snapshot preservation
-        const prodKey = `${LOCAL_PRODUCTS_PREFIX}${params.business_id}`;
+      // Fallback local transactional execution with strict stock deduction & snapshot preservation
+      const prodKey = `${LOCAL_PRODUCTS_PREFIX}${params.business_id}`;
         const prodStored = localStorage.getItem(prodKey);
         const prods: Product[] = prodStored ? JSON.parse(prodStored) : [];
 
@@ -243,8 +255,16 @@ export const SalesService = {
           localStorage.setItem(payKey, JSON.stringify(payList));
         }
 
+        // If Supabase is configured for this business, enqueue for automatic background sync
+        if (isSupabaseConfigured && isValidUUID(params.business_id)) {
+          try {
+            OfflineSyncService.enqueue('sale', params.business_id, params);
+          } catch (e) {
+            console.warn('[SalesService] Failed to enqueue offline sync:', e);
+          }
+        }
+
         return { sale_id: saleId, error: null };
-      }
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error('Failed to process sale.');
       return { sale_id: null, error };
@@ -299,8 +319,8 @@ export const SalesService = {
 
         const { data, error } = await query;
         if (error) {
-          console.warn('Error fetching sales:', error.message);
-          return [];
+          console.warn('Error fetching sales from Supabase, checking local cache:', error.message);
+          throw error;
         }
 
         let sales: SaleWithDetails[] = (data || []).map((s: any) => ({
@@ -322,6 +342,14 @@ export const SalesService = {
           })),
         }));
 
+        // Cache sales snapshot for offline access if this is a general query
+        if (sales.length > 0 && !options.customerId && !options.search) {
+          try {
+            const rawSales = sales.map(({ customers, sale_items, payments, ...rest }) => rest);
+            localStorage.setItem(`${LOCAL_SALES_PREFIX}${businessId}`, JSON.stringify(rawSales));
+          } catch {}
+        }
+
         if (options.search && options.search.trim()) {
           const q = options.search.trim().toLowerCase();
           sales = sales.filter(
@@ -335,11 +363,11 @@ export const SalesService = {
 
         return sales;
       } catch (err) {
-        console.error('Error in SalesService.getSales:', err);
-        return [];
+        console.warn('[SalesService] Supabase getSales offline, falling back to local storage:', err);
       }
-    } else {
-      const salesKey = `${LOCAL_SALES_PREFIX}${businessId}`;
+    }
+
+    const salesKey = `${LOCAL_SALES_PREFIX}${businessId}`;
       const salesStored = localStorage.getItem(salesKey);
       let salesList: Sale[] = salesStored ? JSON.parse(salesStored) : [];
 
@@ -407,7 +435,6 @@ export const SalesService = {
       }
 
       return results.slice(0, options.limit || 100);
-    }
   },
 
   /**

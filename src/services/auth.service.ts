@@ -267,20 +267,42 @@ export const AuthService = {
    * Get user profile from public.profiles
    */
   async getUserProfile(userId: string): Promise<UserProfile | null> {
-    if (isSupabaseConfigured && isValidUUID(userId)) {
-      const { data, error } = await (supabase as any)
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+    const localProfileKey = `${LOCAL_STORAGE_PROFILE_KEY}_${userId}`;
 
-      if (error) {
-        console.warn('Error fetching profile:', error.message);
-        return null;
+    if (isSupabaseConfigured && isValidUUID(userId)) {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (!error && data) {
+          localStorage.setItem(localProfileKey, JSON.stringify(data));
+          return data as UserProfile;
+        }
+      } catch (err) {
+        console.warn('Network error fetching profile, falling back to local cache:', err);
       }
-      return data as UserProfile;
+
+      // Check cached profile if offline or error
+      const cached = localStorage.getItem(localProfileKey);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {}
+      }
+
+      return {
+        id: userId,
+        full_name: 'Business Owner',
+        phone: null,
+        avatar_url: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
     } else {
-      const stored = localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
+      const stored = localStorage.getItem(localProfileKey) || localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
       if (stored) {
         try {
           return JSON.parse(stored);

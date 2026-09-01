@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 import { generateUUID, isValidUUID } from '../lib/uuid.ts';
+import { OfflineSyncService } from './offline-sync.service.ts';
 import type { Expense, PaymentMethodType } from '../types/index.ts';
 
 const LOCAL_EXPENSES_PREFIX = 'ursella_expenses_';
@@ -78,14 +79,21 @@ export const ExpenseService = {
 
         const { data, error } = await query;
         if (error) {
-          console.warn('Error fetching expenses:', error.message);
-          return [];
+          console.warn('Error fetching expenses from Supabase, checking local cache:', error.message);
+          throw error;
         }
 
         let expenses: Expense[] = (data || []).map((e: any) => ({
           ...e,
           amount: Number(e.amount) || 0,
         }));
+
+        // Cache expenses snapshot locally
+        if (expenses.length > 0 && !options.category && !options.search) {
+          try {
+            localStorage.setItem(`${LOCAL_EXPENSES_PREFIX}${businessId}`, JSON.stringify(expenses));
+          } catch {}
+        }
 
         if (options.search && options.search.trim()) {
           const s = options.search.trim().toLowerCase();
@@ -98,13 +106,13 @@ export const ExpenseService = {
 
         return expenses;
       } catch (err) {
-        console.error('Failed to get expenses:', err);
-        return [];
+        console.warn('[ExpenseService] Supabase offline, using local expense cache:', err);
       }
-    } else {
-      const key = `${LOCAL_EXPENSES_PREFIX}${businessId}`;
-      const stored = localStorage.getItem(key);
-      let list: Expense[] = stored ? JSON.parse(stored) : [];
+    }
+
+    const key = `${LOCAL_EXPENSES_PREFIX}${businessId}`;
+    const stored = localStorage.getItem(key);
+    let list: Expense[] = stored ? JSON.parse(stored) : [];
 
       if (options.category && options.category !== 'all') {
         list = list.filter((e) => e.category === options.category);
@@ -138,7 +146,6 @@ export const ExpenseService = {
       return list.sort(
         (a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime()
       );
-    }
   },
 
   /**
@@ -155,47 +162,65 @@ export const ExpenseService = {
       throw new Error('Expense date is required.');
     }
 
-    if (isSupabaseConfigured && isValidUUID(input.business_id)) {
-      const { data, error } = await (supabase as any)
-        .from('expenses')
-        .insert({
-          business_id: input.business_id,
-          category: input.category.trim(),
-          description: input.description?.trim() || null,
-          amount: input.amount,
-          payment_method: input.payment_method || 'cash',
-          expense_date: input.expense_date,
-          is_recurring: Boolean(input.is_recurring),
-        })
-        .select('*')
-        .single();
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
-      if (error) throw new Error(error.message);
-      return data as Expense;
-    } else {
-      const key = `${LOCAL_EXPENSES_PREFIX}${input.business_id}`;
-      const stored = localStorage.getItem(key);
-      const list: Expense[] = stored ? JSON.parse(stored) : [];
+    if (isSupabaseConfigured && isValidUUID(input.business_id) && isOnline) {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('expenses')
+          .insert({
+            business_id: input.business_id,
+            category: input.category.trim(),
+            description: input.description?.trim() || null,
+            amount: input.amount,
+            payment_method: input.payment_method || 'cash',
+            expense_date: input.expense_date,
+            is_recurring: Boolean(input.is_recurring),
+          })
+          .select('*')
+          .single();
 
-      const now = new Date().toISOString();
-      const newExp: Expense = {
-        id: generateUUID(),
-        business_id: input.business_id,
-        category: input.category.trim(),
-        description: input.description?.trim() || null,
-        amount: Number(input.amount),
-        payment_method: input.payment_method || 'cash',
-        expense_date: input.expense_date,
-        is_recurring: Boolean(input.is_recurring),
-        created_by: null,
-        created_at: now,
-        updated_at: now,
-      };
-
-      list.unshift(newExp);
-      localStorage.setItem(key, JSON.stringify(list));
-      return newExp;
+        if (!error && data) {
+          const key = `${LOCAL_EXPENSES_PREFIX}${input.business_id}`;
+          const stored = localStorage.getItem(key);
+          const list: Expense[] = stored ? JSON.parse(stored) : [];
+          list.unshift(data as Expense);
+          localStorage.setItem(key, JSON.stringify(list));
+          return data as Expense;
+        }
+      } catch (e) {
+        console.warn('[ExpenseService] Cloud expense creation failed, saving locally:', e);
+      }
     }
+
+    // Local execution + offline queue
+    const key = `${LOCAL_EXPENSES_PREFIX}${input.business_id}`;
+    const stored = localStorage.getItem(key);
+    const list: Expense[] = stored ? JSON.parse(stored) : [];
+
+    const now = new Date().toISOString();
+    const newExp: Expense = {
+      id: generateUUID(),
+      business_id: input.business_id,
+      category: input.category.trim(),
+      description: input.description?.trim() || null,
+      amount: Number(input.amount),
+      payment_method: input.payment_method || 'cash',
+      expense_date: input.expense_date,
+      is_recurring: Boolean(input.is_recurring),
+      created_by: null,
+      created_at: now,
+      updated_at: now,
+    };
+
+    list.unshift(newExp);
+    localStorage.setItem(key, JSON.stringify(list));
+
+    if (isSupabaseConfigured && isValidUUID(input.business_id)) {
+      OfflineSyncService.enqueue('expense', input.business_id, newExp);
+    }
+
+    return newExp;
   },
 
   /**

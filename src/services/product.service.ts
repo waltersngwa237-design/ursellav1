@@ -103,8 +103,8 @@ export const ProductService = {
 
         const { data, error } = await query;
         if (error) {
-          console.warn('Error fetching products from Supabase:', error.message);
-          return [];
+          console.warn('Error fetching products from Supabase, checking local cache:', error.message);
+          throw error;
         }
 
         let results: ProductWithCategory[] = (data || []).map((p: any) => ({
@@ -114,6 +114,13 @@ export const ProductService = {
           stock_quantity: Number(p.stock_quantity) || 0,
           minimum_stock_level: Number(p.minimum_stock_level) || 0,
         }));
+
+        // Cache products locally for instant offline POS & catalog access
+        if (results.length > 0 && !options.categoryId && !options.search) {
+          try {
+            localStorage.setItem(`${LOCAL_PRODUCTS_PREFIX}${businessId}`, JSON.stringify(results));
+          } catch {}
+        }
 
         // Apply client-side stock status filter if requested
         if (options.stockStatus && options.stockStatus !== 'all') {
@@ -133,13 +140,13 @@ export const ProductService = {
 
         return results;
       } catch (err) {
-        console.error('Failed to get products:', err);
-        return [];
+        console.warn('[ProductService] Supabase fetch failed or offline, using local fallback:', err);
       }
-    } else {
-      // Local fallback
-      const stored = localStorage.getItem(`${LOCAL_PRODUCTS_PREFIX}${businessId}`);
-      let list: Product[] = stored ? JSON.parse(stored) : [];
+    }
+
+    // Local fallback
+    const stored = localStorage.getItem(`${LOCAL_PRODUCTS_PREFIX}${businessId}`);
+    let list: Product[] = stored ? JSON.parse(stored) : [];
       const catStored = localStorage.getItem(`${LOCAL_CATEGORIES_PREFIX}${businessId}`);
       const categories: ProductCategory[] = catStored ? JSON.parse(catStored) : [];
       const supStored = localStorage.getItem(`${LOCAL_SUPPLIERS_PREFIX}${businessId}`);
@@ -183,7 +190,6 @@ export const ProductService = {
       }
 
       return enriched.sort((a, b) => a.name.localeCompare(b.name));
-    }
   },
 
   /**
