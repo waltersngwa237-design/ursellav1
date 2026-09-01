@@ -29,6 +29,7 @@ export const OnboardingLaunchpad: React.FC<OnboardingLaunchpadProps> = ({
   hasSales,
   hasAIInteraction,
   onNavigate,
+  onDismiss,
 }) => {
   const steps = [
     {
