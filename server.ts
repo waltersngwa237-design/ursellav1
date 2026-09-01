@@ -983,6 +983,6 @@ async function startServer() {
   });
 }
 
-if (process.env.VERCEL !== '1') {
+if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
   startServer();
 }
