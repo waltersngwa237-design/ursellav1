@@ -325,30 +325,48 @@ export const AuthService = {
    * Update user profile
    */
   async updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile> {
-    if (isSupabaseConfigured && isValidUUID(userId)) {
-      const { data, error } = await (supabase as any)
-        .from('profiles')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId)
-        .select()
-        .single();
-
-      if (error) {
-        throw new Error(error.message);
-      }
-      return data as UserProfile;
-    } else {
-      const existing = await this.getUserProfile(userId);
-      const updated: UserProfile = {
-        ...existing!,
-        ...updates,
+    const localProfileKey = `${LOCAL_STORAGE_PROFILE_KEY}_${userId}`;
+    const existing = await this.getUserProfile(userId);
+    const merged: UserProfile = {
+      ...(existing || {
+        id: userId,
+        full_name: 'Business Owner',
+        phone: null,
+        avatar_url: null,
+        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      };
-      localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(updated));
-      return updated;
+      }),
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+
+    localStorage.setItem(localProfileKey, JSON.stringify(merged));
+    localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(merged));
+
+    if (isSupabaseConfigured && isValidUUID(userId)) {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('profiles')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId)
+          .select()
+          .single();
+
+        if (error) {
+          console.warn('Supabase profile update warning:', error.message);
+        } else if (data) {
+          localStorage.setItem(localProfileKey, JSON.stringify(data));
+          localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(data));
+          return data as UserProfile;
+        }
+      } catch (err) {
+        console.warn('Network error updating profile on Supabase:', err);
+      }
     }
+
+    return merged;
   },
 };

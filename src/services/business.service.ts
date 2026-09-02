@@ -553,22 +553,102 @@ export const BusinessService = {
   },
 
   /**
+   * Update business details (name, business_type, country, currency, timezone, description, etc.)
+   */
+  async updateBusiness(businessId: string, updates: Partial<Business>, userId?: string): Promise<Business> {
+    let updatedBusiness: Business | null = null;
+
+    if (isSupabaseConfigured && isValidUUID(businessId)) {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('businesses')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', businessId)
+          .select()
+          .single();
+
+        if (error) {
+          console.warn('Supabase business update warning:', error.message);
+        } else if (data) {
+          updatedBusiness = data as Business;
+        }
+      } catch (err) {
+        console.warn('Network error updating business in Supabase:', err);
+      }
+    }
+
+    // Update in local storage cache
+    if (userId) {
+      const key = `${LOCAL_STORAGE_BIZ_PREFIX}${userId}`;
+      try {
+        const stored = localStorage.getItem(key);
+        if (stored) {
+          const list: UserBusinessMembership[] = JSON.parse(stored);
+          const index = list.findIndex((m) => m.business.id === businessId);
+          if (index !== -1) {
+            const currentBiz = list[index].business;
+            const mergedBiz: Business = {
+              ...currentBiz,
+              ...updates,
+              updated_at: new Date().toISOString(),
+            };
+            list[index].business = mergedBiz;
+            if (updates.currency && list[index].settings) {
+              list[index].settings = {
+                ...list[index].settings!,
+                currency: updates.currency,
+              };
+            }
+            localStorage.setItem(key, JSON.stringify(list));
+            if (!updatedBusiness) {
+              updatedBusiness = mergedBiz;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    if (!updatedBusiness) {
+      updatedBusiness = {
+        id: businessId,
+        name: updates.name || 'Store',
+        business_type: updates.business_type || 'Retail',
+        country: updates.country || 'Cameroon',
+        currency: updates.currency || 'XAF',
+        timezone: updates.timezone || 'Africa/Douala',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...updates,
+      } as Business;
+    }
+
+    return updatedBusiness;
+  },
+
+  /**
    * Update business settings
    */
   async updateSettings(businessId: string, updates: Partial<BusinessSettings>) {
-    if (isSupabaseConfigured) {
-      const { data, error } = await (supabase as any)
-        .from('business_settings')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('business_id', businessId)
-        .select()
-        .single();
+    if (isSupabaseConfigured && isValidUUID(businessId)) {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('business_settings')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('business_id', businessId)
+          .select()
+          .single();
 
-      if (error) throw new Error(error.message);
-      return data;
+        if (error) console.warn('Supabase updateSettings warning:', error.message);
+        return data;
+      } catch (err) {
+        console.warn('Network error in updateSettings:', err);
+      }
     }
     return null;
   },

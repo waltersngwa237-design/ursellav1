@@ -12,6 +12,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (newPass: string) => Promise<void>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<UserProfile>;
   refreshProfile: () => Promise<void>;
   clearError: () => void;
 }
@@ -133,6 +134,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateProfile = async (updates: Partial<UserProfile>): Promise<UserProfile> => {
+    if (!user?.id) {
+      throw new Error('User must be authenticated to update profile.');
+    }
+    try {
+      setError(null);
+      const updated = await AuthService.updateUserProfile(user.id, updates);
+      setProfile(updated);
+      return updated;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update profile.';
+      setError(msg);
+      throw new Error(msg);
+    }
+  };
+
   const refreshProfile = async () => {
     if (user?.id) {
       await loadUserProfile(user.id);
@@ -153,6 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut,
         resetPassword,
         updatePassword,
+        updateProfile,
         refreshProfile,
         clearError,
       }}

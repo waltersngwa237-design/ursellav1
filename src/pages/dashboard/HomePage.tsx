@@ -13,7 +13,6 @@ import { BusinessHealthCard } from '../../components/analytics/BusinessHealthCar
 import { RevenueTrendsChart } from '../../components/analytics/RevenueTrendsChart.tsx';
 import { AnomalyAlertBanner } from '../../components/analytics/AnomalyAlertBanner.tsx';
 import { DataSufficiencyBadge } from '../../components/analytics/DataSufficiencyBadge.tsx';
-import { HomeAIInsightCard } from '../../components/ai/HomeAIInsightCard.tsx';
 import { OnboardingLaunchpad } from '../../components/dashboard/OnboardingLaunchpad.tsx';
 import { Card } from '../../components/common/Card.tsx';
 import { Badge } from '../../components/common/Badge.tsx';
@@ -49,7 +48,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   const { activeBusiness, activeRole, currency, loading: businessLoading } = useBusiness();
 
   const [preset, setPreset] = useState<DateRangePreset>('last_30_days');
-  const [dashboardTab, setDashboardTab] = useState<'pulse' | 'inventory' | 'trends'>('pulse');
   const [isGuideDismissed, setIsGuideDismissed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('dismissed_setup_guide') === 'true';
@@ -145,102 +143,84 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             variant="outline"
             size="sm"
             onClick={() => onNavigate('analytics')}
-            leftIcon={<BarChart3 className="w-3.5 h-3.5 text-emerald-400" />}
-            className="text-xs text-zinc-300"
+            className="text-xs flex items-center gap-1.5"
           >
-            Full Analytics
+            <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Full Analytics</span>
           </Button>
 
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => loadData(true)}
-            isLoading={refreshing}
-            leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />}
-            className="text-xs text-zinc-300"
+            disabled={refreshing}
+            className="text-xs text-zinc-400 hover:text-white"
           >
-            Refresh
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
 
           <Button
-            variant="primary"
             size="sm"
             onClick={() => onNavigate('sell')}
-            leftIcon={<ShoppingCart className="w-4 h-4" />}
-            className="text-xs"
+            className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-1.5"
           >
-            Record Sale
+            <Plus className="w-3.5 h-3.5" />
+            <span>Record Sale</span>
           </Button>
         </div>
       </div>
 
+      {/* ========================================================================= */}
+      {/* 2. ERROR STATE (IF ANY)                                                   */}
+      {/* ========================================================================= */}
       {error && (
         <ErrorAlert
-          title="Could not load real-time metrics"
           message={error}
           onRetry={() => loadData(true)}
         />
       )}
 
       {/* ========================================================================= */}
-      {/* 2. TENANT BUSINESS INFO & TIMEFRAME SELECTOR                              */}
+      {/* 2.2 BUSINESS INFO HEADER & TIMEFRAME SELECTOR                             */}
       {/* ========================================================================= */}
-      <div className="rounded-2xl bg-gradient-to-r from-zinc-900 via-zinc-900/90 to-zinc-900/70 border border-zinc-800 p-4 sm:p-5 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg shrink-0">
-              {activeBusiness?.name?.charAt(0) || 'B'}
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-bold text-white">{activeBusiness?.name}</h2>
-                <Badge variant="emerald" size="sm">
-                  {activeRole?.toUpperCase()}
-                </Badge>
-                <Badge variant="zinc" size="sm">
-                  {activeBusiness?.business_type || 'Retail'}
-                </Badge>
-              </div>
-              <p className="text-xs text-zinc-400 mt-1">
-                {activeBusiness?.country} • Currency:{' '}
-                <span className="font-semibold text-zinc-200">
-                  {currencyConfig.code} ({currencyConfig.symbol})
-                </span>{' '}
-                • Timezone: {activeBusiness?.timezone}
-              </p>
-            </div>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Badge variant="zinc" className="text-zinc-300 border-zinc-700 bg-zinc-800/60">
+            {activeBusiness?.business_type || 'Retail'}
+          </Badge>
+          <span className="text-zinc-500">•</span>
+          <span className="text-zinc-400 font-medium">Currency: {currencyConfig.code} ({currencyConfig.symbol})</span>
+          <span className="text-zinc-500">•</span>
+          <span className="text-zinc-400 font-medium">Role: {activeRole || 'Owner'}</span>
+        </div>
 
-          {/* Timeframe Presets */}
-          <div className="flex items-center gap-1 bg-zinc-950/80 p-1 rounded-xl border border-zinc-800 self-start md:self-auto">
-            {(['today', 'last_7_days', 'last_30_days', 'this_month'] as DateRangePreset[]).map(
-              (p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPreset(p)}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                    preset === p
-                      ? 'bg-emerald-500 text-zinc-950 font-bold shadow-sm'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
-                  }`}
-                >
-                  {p === 'today'
-                    ? 'Today'
-                    : p === 'last_7_days'
-                    ? '7 Days'
-                    : p === 'last_30_days'
-                    ? '30 Days'
-                    : 'This Month'}
-                </button>
-              )
-            )}
-          </div>
+        {/* Timeframe Presets */}
+        <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800 self-start sm:self-auto overflow-x-auto max-w-full">
+          {(
+            [
+              { id: 'today', label: 'Today' },
+              { id: 'last_7_days', label: '7 Days' },
+              { id: 'last_30_days', label: '30 Days' },
+              { id: 'this_month', label: 'This Month' },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setPreset(t.id)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                preset === t.id
+                  ? 'bg-emerald-500 text-zinc-950 font-bold shadow-xs'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 2.4 ONBOARDING LAUNCHPAD FOR NEW STORES                                   */}
+      {/* 2.4 ONBOARDING LAUNCHPAD FOR NEW STORES (SETUP GUIDE)                      */}
       {/* ========================================================================= */}
       {activeBusiness && !isGuideDismissed && (
         <OnboardingLaunchpad
@@ -259,55 +239,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           }}
         />
       )}
-
-      {/* ========================================================================= */}
-      {/* 2.5 URSELLA AI PROACTIVE ADVISORY & INSIGHTS                               */}
-      {/* ========================================================================= */}
-      {activeBusiness && (
-        <HomeAIInsightCard
-          businessId={activeBusiness.id}
-          businessName={activeBusiness.name}
-          currency={currencyConfig.symbol}
-          onNavigateToAI={(prompt) => onNavigate('ai', prompt)}
-          onNavigateToInsights={() => onNavigate('insights')}
-        />
-      )}
-
-      {/* ========================================================================= */}
-      {/* 2.8 DASHBOARD VIEW SELECTOR TABS (REDUCES VERTICAL CLUTTER)               */}
-      {/* ========================================================================= */}
-      <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
-        <button
-          onClick={() => setDashboardTab('pulse')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            dashboardTab === 'pulse'
-              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
-          }`}
-        >
-          Overview & KPIs
-        </button>
-        <button
-          onClick={() => setDashboardTab('inventory')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            dashboardTab === 'inventory'
-              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
-          }`}
-        >
-          Health & Stock Alerts
-        </button>
-        <button
-          onClick={() => setDashboardTab('trends')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            dashboardTab === 'trends'
-              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
-          }`}
-        >
-          Performance Charts
-        </button>
-      </div>
 
       {/* ========================================================================= */}
       {/* 3. CORE FINANCIAL KPI METRIC CARDS WITH PERIOD COMPARISON                 */}
@@ -354,163 +285,160 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 1: OVERVIEW & TOP PRODUCTS                                            */}
+      {/* 4. QUICK ACTIONS & SHORTCUTS                                              */}
       {/* ========================================================================= */}
-      {dashboardTab === 'pulse' && (
-        <div className="space-y-6">
-          {/* Quick Actions */}
-          <div>
-            <h3 className="text-xs font-bold text-zinc-400 mb-3 uppercase tracking-wider">
-              Quick Shortcuts
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <button
-                onClick={() => onNavigate('sell')}
-                className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
-              >
-                <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <ShoppingCart className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-zinc-100 block">New Sale</span>
-                  <span className="text-[10px] text-zinc-400">Launch POS terminal</span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => onNavigate('business')}
-                className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
-              >
-                <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Package className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-zinc-100 block">Inventory</span>
-                  <span className="text-[10px] text-zinc-400">Catalog & stock</span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => onNavigate('customers')}
-                className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
-              >
-                <div className="w-9 h-9 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Users className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-zinc-100 block">Customers</span>
-                  <span className="text-[10px] text-zinc-400">Ledgers & debt</span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => onNavigate('analytics')}
-                className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
-              >
-                <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <BarChart3 className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-zinc-100 block">Analytics Hub</span>
-                  <span className="text-[10px] text-zinc-400">BI & Deep Insights</span>
-                </div>
-              </button>
+      <div>
+        <h3 className="text-xs font-bold text-zinc-400 mb-3 uppercase tracking-wider">
+          Quick Shortcuts
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <button
+            onClick={() => onNavigate('sell')}
+            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+          >
+            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <ShoppingCart className="w-4 h-4" />
             </div>
-          </div>
-
-          {/* Top Products */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-                  <Package className="w-4 h-4 text-emerald-400" />
-                  Top Performing Products ({analytics?.window.label})
-                </h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onNavigate('analytics')}
-                  className="text-xs text-zinc-400 hover:text-white"
-                >
-                  View all products →
-                </Button>
-              </div>
-
-              {analytics?.topProducts && analytics.topProducts.length > 0 ? (
-                <div className="space-y-2">
-                  {analytics.topProducts.slice(0, 5).map((p) => (
-                    <div
-                      key={p.id}
-                      className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800/80 flex items-center justify-between gap-3 hover:border-zinc-700 transition-colors"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-zinc-100 truncate">{p.name}</p>
-                        <p className="text-[11px] text-zinc-400 truncate">
-                          {p.unitsSold ?? 0} units sold • Margin: {(p.grossMargin ?? 0).toFixed(1)}%
-                        </p>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <p className="text-xs font-bold text-emerald-400">
-                          {currencyConfig.format(p.revenue ?? 0)}
-                        </p>
-                        <span className="text-[10px] text-zinc-500">
-                          Profit: {currencyConfig.format(p.grossProfit ?? 0)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={<ShoppingCart className="w-6 h-6 text-zinc-400" />}
-                  title="No sales recorded in this period"
-                  description="Start recording customer sales through the Point of Sale terminal."
-                  actionLabel="Launch POS Terminal"
-                  onAction={() => onNavigate('sell')}
-                />
-              )}
+            <div>
+              <span className="text-xs font-bold text-zinc-100 block">New Sale</span>
+              <span className="text-[10px] text-zinc-400">Launch POS terminal</span>
             </div>
+          </button>
 
-            {/* AI Assistant Ready Card */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-emerald-400" />
-                AI Operating Layer
-              </h3>
-
-              <Card
-                variant="glass"
-                className="space-y-3.5 border-emerald-500/20 bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/20"
-              >
-                <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  Live Intelligence Connected
-                </div>
-
-                <p className="text-xs text-zinc-300 leading-relaxed">
-                  Ursella tracks and synthesizes your core financial facts in real time: revenue, FIFO inventory margins,
-                  cash collections, and customer receivables.
-                </p>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
-                  onClick={() => onNavigate('ai', 'Give me an overview of today’s store performance and top margin items.')}
-                >
-                  Chat with Financial Co-Pilot →
-                </Button>
-              </Card>
+          <button
+            onClick={() => onNavigate('business')}
+            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+          >
+            <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Package className="w-4 h-4" />
             </div>
-          </div>
+            <div>
+              <span className="text-xs font-bold text-zinc-100 block">Inventory</span>
+              <span className="text-[10px] text-zinc-400">Catalog & stock</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onNavigate('customers')}
+            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+          >
+            <div className="w-9 h-9 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-zinc-100 block">Customers</span>
+              <span className="text-[10px] text-zinc-400">Ledgers & debt</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onNavigate('analytics')}
+            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+          >
+            <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-zinc-100 block">Analytics Hub</span>
+              <span className="text-[10px] text-zinc-400">BI & Deep Insights</span>
+            </div>
+          </button>
         </div>
-      )}
+      </div>
 
       {/* ========================================================================= */}
-      {/* TAB 2: INVENTORY & HEALTH                                                 */}
+      {/* 5. TOP PERFORMING PRODUCTS & AI ASSISTANT OVERVIEW                        */}
       {/* ========================================================================= */}
-      {dashboardTab === 'inventory' && analytics && (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+              <Package className="w-4 h-4 text-emerald-400" />
+              Top Performing Products ({analytics?.window.label})
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onNavigate('analytics')}
+              className="text-xs text-zinc-400 hover:text-white cursor-pointer"
+            >
+              View all products →
+            </Button>
+          </div>
+
+          {analytics?.topProducts && analytics.topProducts.length > 0 ? (
+            <div className="space-y-2">
+              {analytics.topProducts.slice(0, 5).map((p) => (
+                <div
+                  key={p.id}
+                  className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800/80 flex items-center justify-between gap-3 hover:border-zinc-700 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-zinc-100 truncate">{p.name}</p>
+                    <p className="text-[11px] text-zinc-400 truncate">
+                      {p.unitsSold ?? 0} units sold • Margin: {(p.grossMargin ?? 0).toFixed(1)}%
+                    </p>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-bold text-emerald-400">
+                      {currencyConfig.format(p.revenue ?? 0)}
+                    </p>
+                    <span className="text-[10px] text-zinc-500">
+                      Profit: {currencyConfig.format(p.grossProfit ?? 0)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={<ShoppingCart className="w-6 h-6 text-zinc-400" />}
+              title="No sales recorded in this period"
+              description="Start recording customer sales through the Point of Sale terminal."
+              actionLabel="Launch POS Terminal"
+              onAction={() => onNavigate('sell')}
+            />
+          )}
+        </div>
+
+        {/* AI Assistant Card */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            AI Operating Layer
+          </h3>
+
+          <Card
+            variant="glass"
+            className="space-y-3.5 border-emerald-500/20 bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/20"
+          >
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Live Intelligence Connected
+            </div>
+
+            <p className="text-xs text-zinc-300 leading-relaxed">
+              Ursella tracks and synthesizes your core financial facts in real time: revenue, FIFO inventory margins,
+              cash collections, and customer receivables.
+            </p>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 cursor-pointer"
+              onClick={() => onNavigate('ai', 'Give me an overview of today’s store performance and top margin items.')}
+            >
+              Chat with Ursella AI →
+            </Button>
+          </Card>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 6. BUSINESS HEALTH & STOCK ALERTS                                         */}
+      {/* ========================================================================= */}
+      {analytics && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
@@ -532,7 +460,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                   variant="outline"
                   size="sm"
                   onClick={() => onNavigate('business')}
-                  className="text-xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10"
+                  className="text-xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10 cursor-pointer"
                 >
                   Stock List →
                 </Button>
@@ -549,7 +477,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                   variant="outline"
                   size="sm"
                   onClick={() => onNavigate('customers')}
-                  className="text-xs text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+                  className="text-xs text-amber-400 border-amber-500/20 hover:bg-amber-500/10 cursor-pointer"
                 >
                   Ledgers →
                 </Button>
@@ -560,14 +488,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           {analytics?.anomalies && analytics.anomalies.length > 0 && (
             <AnomalyAlertBanner anomalies={analytics.anomalies} />
           )}
-        </div>
-      )}
 
-      {/* ========================================================================= */}
-      {/* TAB 3: VISUAL REVENUE & PROFIT TRAJECTORY CHART                           */}
-      {/* ========================================================================= */}
-      {dashboardTab === 'trends' && analytics && (
-        <div className="space-y-6">
+          {/* Visual Revenue & Profit Trends */}
           <RevenueTrendsChart data={analytics.timeSeries} currencyConfig={currencyConfig} />
         </div>
       )}

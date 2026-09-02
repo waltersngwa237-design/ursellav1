@@ -23,6 +23,8 @@ interface BusinessContextType {
   error: string | null;
   setActiveBusinessId: (id: string) => void;
   createBusiness: (input: Omit<CreateBusinessInput, 'userId'>) => Promise<UserBusinessMembership>;
+  updateBusiness: (updates: Partial<Business>) => Promise<Business>;
+  updateSettings: (updates: Partial<BusinessSettings>) => Promise<void>;
   refreshBusinesses: () => Promise<void>;
   createDemoBusiness: () => Promise<void>;
   resetCurrentBusinessData: () => Promise<void>;
@@ -154,6 +156,64 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  const updateBusiness = async (updates: Partial<Business>): Promise<Business> => {
+    if (!activeBusinessId) {
+      throw new Error('No active business selected.');
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const updated = await BusinessService.updateBusiness(activeBusinessId, updates, user?.id);
+      setBusinesses((prev) =>
+        prev.map((m) => {
+          if (m.business.id === activeBusinessId) {
+            return {
+              ...m,
+              business: {
+                ...m.business,
+                ...updates,
+              },
+            };
+          }
+          return m;
+        })
+      );
+      return updated;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update business details.';
+      setError(msg);
+      throw new Error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateSettings = async (updates: Partial<BusinessSettings>) => {
+    if (!activeBusinessId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await BusinessService.updateSettings(activeBusinessId, updates);
+      setBusinesses((prev) =>
+        prev.map((m) => {
+          if (m.business.id === activeBusinessId) {
+            return {
+              ...m,
+              settings: m.settings ? { ...m.settings, ...updates } : null,
+            };
+          }
+          return m;
+        })
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update business settings.';
+      setError(msg);
+      throw new Error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const refreshBusinesses = async () => {
     if (user?.id) {
       await fetchBusinesses(user.id);
@@ -184,6 +244,8 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         error,
         setActiveBusinessId,
         createBusiness,
+        updateBusiness,
+        updateSettings,
         refreshBusinesses,
         createDemoBusiness,
         resetCurrentBusinessData,
