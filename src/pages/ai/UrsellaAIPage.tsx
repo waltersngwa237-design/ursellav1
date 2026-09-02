@@ -71,8 +71,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const optionsMenuRef = useRef<HTMLDivElement | null>(null);
-  const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
+  const [isAtBottom, setIsAtBottom] = useState<boolean>(false);
   const [hasNewUnseenMessage, setHasNewUnseenMessage] = useState<boolean>(false);
+  const isInitialLoadRef = useRef<boolean>(true);
+  const prevActiveConvIdRef = useRef<string | null>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
 
@@ -99,19 +101,22 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     }
   }, []);
 
-  // Auto-scroll to bottom of chat only if user is near bottom
-  const scrollToBottom = useCallback((force = false) => {
-    if (force || isAtBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      setHasNewUnseenMessage(false);
-    } else {
-      setHasNewUnseenMessage(true);
-    }
-  }, [isAtBottom]);
+  // Manual scroll to bottom (used by floating button)
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setHasNewUnseenMessage(false);
+  }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading, scrollToBottom]);
+  // Smooth scroll to top of a specific message
+  const scrollToMessageTop = useCallback((messageId: string) => {
+    const element = document.getElementById(`msg-${messageId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setHasNewUnseenMessage(false);
+    } else if (scrollContainerRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
 
   // Load conversations when active business changes
   const loadConversations = useCallback(async () => {
@@ -141,6 +146,17 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     loadConversations();
   }, [loadConversations]);
 
+  // When switching conversations, start at the top
+  useEffect(() => {
+    if (activeConversationId !== prevActiveConvIdRef.current) {
+      prevActiveConvIdRef.current = activeConversationId;
+      isInitialLoadRef.current = true;
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = 0;
+      }
+    }
+  }, [activeConversationId]);
+
   // Load messages whenever activeConversationId changes
   useEffect(() => {
     if (!activeConversationId) {
@@ -155,6 +171,16 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         return true;
       });
       setMessages(deduplicated);
+
+      // When opening the tab or loading a conversation, ensure it starts at the top
+      if (isInitialLoadRef.current) {
+        requestAnimationFrame(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = 0;
+          }
+        });
+        isInitialLoadRef.current = false;
+      }
     });
   }, [activeConversationId]);
 
@@ -220,6 +246,11 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
 
     setLoading(true);
 
+    // Scroll to show user message and the loading typing indicator
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 60);
+
     try {
       // Build conversation history window (last 6 turns)
       const historyPayload = messages.slice(-6).map((m) => ({
@@ -244,8 +275,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         },
       });
 
+      const assistantMsgId = (res.messageId && isValidUUID(res.messageId)) ? res.messageId : generateUUID();
       const assistantMsg: AIChatMessage = {
-        id: (res.messageId && isValidUUID(res.messageId)) ? res.messageId : generateUUID(),
+        id: assistantMsgId,
         conversation_id: convId,
         business_id: activeBusiness.id,
         role: 'assistant',
@@ -261,12 +293,18 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
 
       appendUniqueMessage(assistantMsg);
       await AIService.saveMessage(assistantMsg);
+
+      // AI advisor messages should start reading from the top after AI responds
+      setTimeout(() => {
+        scrollToMessageTop(assistantMsgId);
+      }, 75);
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Failed to obtain AI response.';
       setError(errMsg);
 
+      const errorMsgId = generateUUID();
       const errorAssistantMsg: AIChatMessage = {
-        id: generateUUID(),
+        id: errorMsgId,
         conversation_id: convId,
         business_id: activeBusiness.id,
         role: 'assistant',
@@ -277,6 +315,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         created_at: new Date().toISOString(),
       };
       appendUniqueMessage(errorAssistantMsg);
+
+      setTimeout(() => {
+        scrollToMessageTop(errorMsgId);
+      }, 75);
     } finally {
       setLoading(false);
     }
@@ -644,15 +686,20 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
               )}
             </button>
 
-            {/* Active Chat Title & Store */}
+            {/* Active Chat Title: Ursella AI */}
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-indigo-500/25 flex items-center justify-center shrink-0 shadow-xs">
-                <UrsellaSymbolMark sizeClass="w-4 h-4" theme="ai" />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-zinc-900 border border-indigo-500/25 flex items-center justify-center shrink-0 shadow-xs">
+                <UrsellaSymbolMark sizeClass="w-4 h-4 sm:w-4.5 sm:h-4.5" theme="ai" />
               </div>
               <div className="min-w-0">
-                <h1 className="text-xs sm:text-sm font-semibold text-zinc-100 truncate leading-tight">
-                  {activeConv?.title || 'Business Advisory'}
-                </h1>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-xs sm:text-sm font-bold text-zinc-100 truncate leading-tight tracking-tight">
+                    Ursella AI
+                  </h1>
+                  <span className="hidden xs:inline-flex px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                    Advisor
+                  </span>
+                </div>
                 <p className="text-[10px] sm:text-[11px] text-zinc-500 truncate mt-0.5">
                   {activeBusiness.name}
                 </p>
@@ -802,7 +849,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         {(!isAtBottom || hasNewUnseenMessage) && messages.length > 2 && (
           <div className="absolute bottom-20 sm:bottom-24 left-1/2 -translate-x-1/2 z-20 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200">
             <button
-              onClick={() => scrollToBottom(true)}
+              onClick={() => scrollToBottom()}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-zinc-900/95 hover:bg-zinc-800 text-zinc-200 border border-emerald-500/40 text-xs font-semibold shadow-lg shadow-black/40 backdrop-blur-xs transition-all active:scale-95 group"
             >
               <span>{hasNewUnseenMessage ? 'New response received' : 'Scroll to bottom'}</span>

@@ -53,7 +53,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
   // User Message Bubble (Right-aligned, minimalist chat bubble)
   if (isUser) {
     return (
-      <div className="group flex justify-end my-3 sm:my-4">
+      <div id={`msg-${message.id}`} className="group flex justify-end my-3 sm:my-4 scroll-mt-6">
         <div className="max-w-[92%] sm:max-w-[80%] md:max-w-[75%] space-y-1">
           <div className="rounded-2xl rounded-tr-xs bg-zinc-800 border border-zinc-700/80 px-4 py-3 text-zinc-100 text-[13.5px] sm:text-sm leading-relaxed shadow-xs relative select-text break-words">
             <p className="whitespace-pre-wrap">{message.content}</p>
@@ -78,7 +78,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
 
   // Assistant Message (Clean Ursella AI advisor bubble)
   return (
-    <div className="group flex items-start gap-2.5 sm:gap-3.5 my-3 sm:my-5 w-full">
+    <div id={`msg-${message.id}`} className="group flex items-start gap-2.5 sm:gap-3.5 my-3 sm:my-5 w-full scroll-mt-6">
       {/* Bot Avatar */}
       <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-zinc-900 border border-indigo-500/25 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
         <UrsellaSymbolMark sizeClass="w-4 h-4 sm:w-4.5 sm:h-4.5" theme="ai" />
