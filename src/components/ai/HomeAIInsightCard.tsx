@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AIService } from '../../services/ai.service.ts';
-import { Sparkles, Sun, ArrowRight, ShieldCheck, AlertCircle, Activity } from 'lucide-react';
+import { UrsellaSymbolMark } from '../common/UrsellaLogo.tsx';
+import { Sun, ArrowRight, Activity } from 'lucide-react';
 import { DailyBriefModal } from './DailyBriefModal.tsx';
 
 interface HomeAIInsightCardProps {
@@ -41,16 +42,16 @@ export const HomeAIInsightCard: React.FC<HomeAIInsightCardProps> = ({
 
   return (
     <>
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-zinc-900 via-zinc-900/90 to-amber-950/20 border border-zinc-800 hover:border-amber-500/30 transition-all p-4 sm:p-5 shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-zinc-900 via-zinc-900/95 to-indigo-950/20 border border-zinc-800 hover:border-indigo-500/30 transition-all p-4 sm:p-5 shadow-sm">
         {/* Ambient Glow */}
-        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5 max-w-xl">
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold uppercase tracking-wider font-mono">
-                <Sparkles className="w-3 h-3" />
-                <span>Ursella AI Intelligence</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold uppercase tracking-wider font-mono">
+                <UrsellaSymbolMark sizeClass="w-3 h-3" theme="ai" />
+                <span>Ursella Intelligence</span>
               </div>
               <span className="text-[11px] text-zinc-400 font-mono">
                 {proactiveData?.healthRating ? `Health: ${proactiveData.healthRating} (${proactiveData.healthScore}/100)` : 'Proactive Live'}
@@ -91,7 +92,7 @@ export const HomeAIInsightCard: React.FC<HomeAIInsightCardProps> = ({
 
             <button
               onClick={() => onNavigateToAI(topInsight?.actionPrompt)}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 text-xs font-bold transition-all shadow-sm shadow-amber-500/20 group"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-bold transition-all shadow-sm shadow-emerald-500/20 group"
             >
               <span>Ask Ursella</span>
               <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -112,3 +113,4 @@ export const HomeAIInsightCard: React.FC<HomeAIInsightCardProps> = ({
     </>
   );
 };
+

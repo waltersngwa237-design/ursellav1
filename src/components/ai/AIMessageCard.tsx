@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import {
   type AIChatMessage,
 } from '../../types/ai.ts';
+import { UrsellaSymbolMark } from '../common/UrsellaLogo.tsx';
 import {
   Sparkles,
   Check,
@@ -75,12 +76,12 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
     );
   }
 
-  // Assistant Message (Clean Gemini-style advisor bubble)
+  // Assistant Message (Clean Ursella AI advisor bubble)
   return (
     <div className="group flex items-start gap-2.5 sm:gap-3.5 my-3 sm:my-5 w-full">
       {/* Bot Avatar */}
-      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center shrink-0 text-amber-300 shadow-xs mt-0.5">
-        <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-zinc-900 border border-indigo-500/25 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+        <UrsellaSymbolMark sizeClass="w-4 h-4 sm:w-4.5 sm:h-4.5" theme="ai" />
       </div>
 
       <div className="flex-1 min-w-0 space-y-2.5">

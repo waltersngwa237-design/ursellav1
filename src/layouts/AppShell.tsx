@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { useBusiness } from '../contexts/BusinessContext.tsx';
 import { type AppNavRoute } from '../types/index.ts';
-import { UrsellaLogo } from '../components/common/UrsellaLogo.tsx';
+import { UrsellaLogo, UrsellaSymbolMark } from '../components/common/UrsellaLogo.tsx';
 import { BusinessSwitcher } from '../components/business/BusinessSwitcher.tsx';
 import { Modal } from '../components/common/Modal.tsx';
 import { OnboardingPage } from '../pages/onboarding/OnboardingPage.tsx';
@@ -96,7 +96,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     { route: 'home', label: 'Home', icon: <Home className="w-5 h-5" /> },
     { route: 'sell', label: 'Sell / POS', icon: <ShoppingCart className="w-5 h-5" /> },
     { route: 'insights', label: 'Proactive AI', icon: <Activity className="w-5 h-5 text-indigo-400" /> },
-    { route: 'ai', label: 'AI Advisor', icon: <Sparkles className="w-5 h-5 text-amber-400" /> },
+    { route: 'ai', label: 'AI Advisor', icon: <UrsellaSymbolMark sizeClass="w-5 h-5" theme="ai" /> },
     { route: 'analytics', label: 'Analytics', icon: <BarChart3 className="w-5 h-5 text-emerald-400" /> },
     { route: 'reports', label: 'Reports', icon: <FileText className="w-5 h-5 text-teal-400" /> },
     { route: 'business', label: 'Business & Stock', icon: <Store className="w-5 h-5" /> },
@@ -367,12 +367,16 @@ export const AppShell: React.FC<AppShellProps> = ({
           onClick={() => onNavigate('ai')}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             currentRoute === 'ai'
-              ? 'text-amber-400 font-bold'
+              ? 'text-emerald-400 font-bold'
               : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          <div className={`p-1 rounded-lg ${currentRoute === 'ai' ? 'bg-amber-500/10' : ''}`}>
-            <Sparkles className="w-5 h-5 text-amber-400" />
+          <div className={`p-1 rounded-lg ${currentRoute === 'ai' ? 'bg-emerald-500/10 shadow-sm shadow-emerald-500/20' : ''}`}>
+            <UrsellaSymbolMark
+              sizeClass="w-5 h-5"
+              theme={currentRoute === 'ai' ? 'ai' : 'mono-white'}
+              className={currentRoute === 'ai' ? '' : 'opacity-60'}
+            />
           </div>
           <span className="text-[10px] mt-0.5 leading-none">AI Advisor</span>
         </button>

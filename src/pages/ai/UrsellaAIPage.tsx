@@ -10,6 +10,7 @@ import {
 import { AIMessageCard } from '../../components/ai/AIMessageCard.tsx';
 import { SuggestedPromptChips } from '../../components/ai/SuggestedPromptChips.tsx';
 import { DailyBriefModal } from '../../components/ai/DailyBriefModal.tsx';
+import { UrsellaSymbolMark } from '../../components/common/UrsellaLogo.tsx';
 import {
   Sparkles,
   Send,
@@ -645,8 +646,8 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
 
             {/* Active Chat Title & Store */}
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 shrink-0">
-                <Sparkles className="w-3.5 h-3.5" />
+              <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-indigo-500/25 flex items-center justify-center shrink-0 shadow-xs">
+                <UrsellaSymbolMark sizeClass="w-4 h-4" theme="ai" />
               </div>
               <div className="min-w-0">
                 <h1 className="text-xs sm:text-sm font-semibold text-zinc-100 truncate leading-tight">
@@ -663,7 +664,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={() => setIsDailyBriefOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-amber-300 text-xs font-medium transition-colors"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-emerald-300 text-xs font-medium transition-colors"
             >
               <Sun className="w-3.5 h-3.5 text-amber-400" />
               <span className="hidden sm:inline">Daily Brief</span>
@@ -671,7 +672,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
 
             <button
               onClick={handleNewConversation}
-              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-semibold transition-colors"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-semibold transition-colors shadow-xs shadow-emerald-500/20"
             >
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">New Chat</span>
@@ -741,14 +742,14 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           {messages.length === 0 && (
             <div className="max-w-3xl mx-auto py-6 sm:py-14 space-y-6">
               <div className="text-center space-y-2">
-                <div className="inline-flex p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 shadow-xs mb-2">
-                  <Sparkles className="w-6 h-6" />
+                <div className="inline-flex p-3 sm:p-3.5 rounded-2xl bg-zinc-900 border border-indigo-500/25 shadow-lg shadow-indigo-950/40 mb-2">
+                  <UrsellaSymbolMark sizeClass="w-8 h-8 sm:w-10 sm:h-10" theme="ai" />
                 </div>
                 <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                  How can I help your business today?
+                  How can I assist your business today?
                 </h2>
                 <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto leading-relaxed">
-                  Ask questions about sales trends, inventory stockouts, unpaid customer debts, and profit margins.
+                  Ask questions across sales trends, inventory stockouts, unpaid customer debts, and financial performance.
                 </p>
               </div>
 
@@ -781,14 +782,14 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
             {/* Chatbot Typing Indicator */}
             {loading && (
               <div className="flex items-start gap-2.5 sm:gap-3.5 my-3 sm:my-5">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center shrink-0 text-amber-300 shadow-xs mt-0.5">
-                  <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-zinc-900 border border-indigo-500/25 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                  <UrsellaSymbolMark sizeClass="w-4 h-4 sm:w-4.5 sm:h-4.5" theme="ai" isAnimated={true} />
                 </div>
                 <div className="rounded-2xl rounded-tl-xs bg-zinc-900 border border-zinc-800 px-4 py-3 text-xs text-zinc-300 flex items-center gap-2 shadow-xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                  <span className="text-zinc-400 text-xs ml-1 font-medium">Analyzing records...</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <span className="text-zinc-400 text-xs ml-1 font-medium">Ursella is analyzing business data...</span>
                 </div>
               </div>
             )}
@@ -802,10 +803,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           <div className="absolute bottom-20 sm:bottom-24 left-1/2 -translate-x-1/2 z-20 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200">
             <button
               onClick={() => scrollToBottom(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-zinc-900/95 hover:bg-zinc-800 text-zinc-200 border border-amber-500/40 text-xs font-semibold shadow-lg shadow-black/40 backdrop-blur-xs transition-all active:scale-95 group"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-zinc-900/95 hover:bg-zinc-800 text-zinc-200 border border-emerald-500/40 text-xs font-semibold shadow-lg shadow-black/40 backdrop-blur-xs transition-all active:scale-95 group"
             >
               <span>{hasNewUnseenMessage ? 'New response received' : 'Scroll to bottom'}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-amber-400 group-hover:translate-y-0.5 transition-transform" />
+              <ChevronDown className="w-3.5 h-3.5 text-emerald-400 group-hover:translate-y-0.5 transition-transform" />
             </button>
           </div>
         )}
@@ -815,7 +816,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         {/* ========================================================================= */}
         <div className="p-3 sm:p-4 border-t border-zinc-800/80 bg-zinc-950 shrink-0">
           <div className="max-w-3xl lg:max-w-4xl mx-auto">
-            <div className="relative flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-1.5 focus-within:border-amber-500/60 transition-all shadow-xs">
+            <div className="relative flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-1.5 focus-within:border-emerald-500/60 focus-within:ring-1 focus-within:ring-emerald-500/30 transition-all shadow-xs">
               <textarea
                 ref={textareaRef}
                 value={inputText}
@@ -832,7 +833,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
               <button
                 onClick={() => handleSendMessage()}
                 disabled={!inputText.trim() || loading}
-                className="p-2.5 sm:p-2.5 min-w-[40px] min-h-[40px] rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-xs flex items-center justify-center active:scale-95"
+                className="p-2.5 sm:p-2.5 min-w-[40px] min-h-[40px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-xs shadow-emerald-500/20 flex items-center justify-center active:scale-95"
                 title="Send query"
                 aria-label="Send query"
               >
