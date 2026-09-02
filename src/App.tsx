@@ -26,8 +26,7 @@ import { MoreMenuPage } from './pages/more/MoreMenuPage.tsx';
 import { AppShell } from './layouts/AppShell.tsx';
 import { OfflineBanner } from './components/common/OfflineBanner.tsx';
 import { PWAInstallPrompt } from './components/common/PWAInstallPrompt.tsx';
-import { UrsellaLogo } from './components/common/UrsellaLogo.tsx';
-import { Loader2 } from 'lucide-react';
+import { UrsellaEngineLoader } from './components/common/UrsellaEngineLoader.tsx';
 
 type AuthView = 'landing' | 'signin' | 'signup' | 'forgot-password';
 
@@ -68,19 +67,13 @@ const MainRouter: React.FC = () => {
     window.location.hash = `#/${view}`;
   };
 
-  // 1. Initial global loading screen
+  // 1. Initial global engine loading state
   if (authLoading) {
     return (
-      <div className="min-h-screen w-full bg-zinc-950 flex flex-col items-center justify-center p-4">
+      <>
         <OfflineBanner />
-        <div className="flex flex-col items-center space-y-4 animate-in fade-in duration-300">
-          <UrsellaLogo size="xl" />
-          <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
-            <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-            <span>Initializing Ursella engine...</span>
-          </div>
-        </div>
-      </div>
+        <UrsellaEngineLoader />
+      </>
     );
   }
 
@@ -118,19 +111,13 @@ const MainRouter: React.FC = () => {
     );
   }
 
-  // 3. Authenticated but business loading
+  // 3. Authenticated but business workspace initializing
   if (bizLoading) {
     return (
-      <div className="min-h-screen w-full bg-zinc-950 flex flex-col items-center justify-center p-4">
+      <>
         <OfflineBanner />
-        <div className="flex flex-col items-center space-y-4 animate-in fade-in duration-300">
-          <UrsellaLogo size="lg" />
-          <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
-            <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-            <span>Loading your business workspace...</span>
-          </div>
-        </div>
-      </div>
+        <UrsellaEngineLoader />
+      </>
     );
   }
 

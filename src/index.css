@@ -338,4 +338,140 @@ html.light .shadow-lg {
   }
 }
 
+/* ========================================================================= */
+/* URSELLA BUSINESS OPERATING SYSTEM ENGINE INITIALIZATION ANIMATIONS         */
+/* ========================================================================= */
+
+@keyframes ursella-ring-orbit {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ursella-beam-sweep {
+  0% {
+    left: -35%;
+    width: 30%;
+    opacity: 0.6;
+  }
+  50% {
+    width: 45%;
+    opacity: 1;
+  }
+  100% {
+    left: 105%;
+    width: 30%;
+    opacity: 0.6;
+  }
+}
+
+@keyframes ursella-text-shimmer {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes ursella-pulse-mantle {
+  0%, 100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes ursella-pulse-tentacle {
+  0%, 100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes ursella-node-pulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+}
+
+.ursella-orbit-ring {
+  animation: ursella-ring-orbit 3.2s linear infinite;
+  transform-origin: 36px 36px;
+}
+
+.ursella-loading-beam {
+  animation: ursella-beam-sweep 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.ursella-status-text {
+  animation: ursella-text-shimmer 2.8s ease-in-out infinite;
+}
+
+.ursella-part-mantle {
+  animation: ursella-pulse-mantle 2.6s ease-in-out infinite;
+  transform-origin: 16px 10px;
+}
+
+.ursella-part-tentacle {
+  animation: ursella-pulse-tentacle 2.6s ease-in-out infinite;
+}
+
+.ursella-t1 {
+  animation-delay: 0.15s;
+}
+.ursella-t2 {
+  animation-delay: 0.3s;
+}
+.ursella-t3 {
+  animation-delay: 0.45s;
+}
+.ursella-t4 {
+  animation-delay: 0.6s;
+}
+.ursella-t5 {
+  animation-delay: 0.75s;
+}
+
+.ursella-node {
+  animation: ursella-node-pulse 2.6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.ursella-n1 { animation-delay: 0.2s; }
+.ursella-n2 { animation-delay: 0.4s; }
+.ursella-n3 { animation-delay: 0.6s; }
+.ursella-n4 { animation-delay: 0.8s; }
+.ursella-n5 { animation-delay: 1.0s; }
+.ursella-n6 { animation-delay: 1.2s; }
+
+/* Accessibility: prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .ursella-orbit-ring,
+  .ursella-loading-beam,
+  .ursella-status-text,
+  .ursella-part-mantle,
+  .ursella-part-tentacle,
+  .ursella-node {
+    animation: none !important;
+  }
+  .ursella-node {
+    opacity: 0.75 !important;
+  }
+}
+
+
 
