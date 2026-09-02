@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { useBusiness } from '../contexts/BusinessContext.tsx';
+import { useTheme } from '../contexts/ThemeContext.tsx';
 import { type AppNavRoute } from '../types/index.ts';
 import { UrsellaLogo, UrsellaSymbolMark } from '../components/common/UrsellaLogo.tsx';
 import { BusinessSwitcher } from '../components/business/BusinessSwitcher.tsx';
@@ -49,6 +50,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 }) => {
   const { user, profile, signOut } = useAuth();
   const { activeBusiness } = useBusiness();
+  const { isDark } = useTheme();
 
   const [isNewBusinessModalOpen, setIsNewBusinessModalOpen] = useState(false);
   const [isQuickActionModalOpen, setIsQuickActionModalOpen] = useState(false);
@@ -367,18 +369,18 @@ export const AppShell: React.FC<AppShellProps> = ({
           onClick={() => onNavigate('ai')}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             currentRoute === 'ai'
-              ? 'text-emerald-400 font-bold'
-              : 'text-zinc-400 hover:text-zinc-200'
+              ? 'text-emerald-500 font-bold'
+              : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
           }`}
         >
           <div className={`p-1 rounded-lg ${currentRoute === 'ai' ? 'bg-emerald-500/10 shadow-sm shadow-emerald-500/20' : ''}`}>
             <UrsellaSymbolMark
               sizeClass="w-5 h-5"
-              theme={currentRoute === 'ai' ? 'ai' : 'mono-white'}
-              className={currentRoute === 'ai' ? '' : 'opacity-60'}
+              theme={currentRoute === 'ai' ? 'ai' : isDark ? 'mono-white' : 'mono-black'}
+              className={currentRoute === 'ai' ? '' : isDark ? 'opacity-60' : 'opacity-80'}
             />
           </div>
-          <span className="text-[10px] mt-0.5 leading-none">AI Advisor</span>
+          <span className="text-[10px] mt-0.5 leading-none font-medium">AI Advisor</span>
         </button>
 
         {/* 5. Menu Bar Drawer Trigger */}

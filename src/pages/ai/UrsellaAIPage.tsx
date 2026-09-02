@@ -146,14 +146,11 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     loadConversations();
   }, [loadConversations]);
 
-  // When switching conversations, start at the top
+  // When switching conversations
   useEffect(() => {
     if (activeConversationId !== prevActiveConvIdRef.current) {
       prevActiveConvIdRef.current = activeConversationId;
       isInitialLoadRef.current = true;
-      if (scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTop = 0;
-      }
     }
   }, [activeConversationId]);
 
@@ -172,10 +169,17 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       });
       setMessages(deduplicated);
 
-      // When opening the tab or loading a conversation, ensure it starts at the top
+      // Old chats only should start reading from the bottom (latest messages)
       if (isInitialLoadRef.current) {
         requestAnimationFrame(() => {
-          if (scrollContainerRef.current) {
+          if (deduplicated.length > 0) {
+            if (scrollContainerRef.current) {
+              scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+            }
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+            }
+          } else if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTop = 0;
           }
         });

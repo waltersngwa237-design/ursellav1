@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
 import { AnalyticsService } from '../../services/analytics.service.ts';
@@ -14,6 +14,7 @@ import { RevenueTrendsChart } from '../../components/analytics/RevenueTrendsChar
 import { AnomalyAlertBanner } from '../../components/analytics/AnomalyAlertBanner.tsx';
 import { DataSufficiencyBadge } from '../../components/analytics/DataSufficiencyBadge.tsx';
 import { OnboardingLaunchpad } from '../../components/dashboard/OnboardingLaunchpad.tsx';
+import { HomeAIInsightCard } from '../../components/ai/HomeAIInsightCard.tsx';
 import { Card } from '../../components/common/Card.tsx';
 import { Badge } from '../../components/common/Badge.tsx';
 import { Button } from '../../components/common/Button.tsx';
@@ -39,6 +40,9 @@ import {
   PieChart,
 } from 'lucide-react';
 
+// Fast in-memory cache to prevent blank loading flashes on tab navigation
+const analyticsMemoryCache = new Map<string, CompleteBusinessAnalytics>();
+
 interface HomePageProps {
   onNavigate: (route: AppNavRoute, prompt?: string) => void;
 }
@@ -55,10 +59,20 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       return false;
     }
   });
-  const [analytics, setAnalytics] = useState<CompleteBusinessAnalytics | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+
+  const cacheKey = activeBusiness?.id ? `${activeBusiness.id}_${preset}` : null;
+  const [analytics, setAnalytics] = useState<CompleteBusinessAnalytics | null>(() => {
+    return cacheKey ? analyticsMemoryCache.get(cacheKey) || null : null;
+  });
+
+  const [loading, setLoading] = useState<boolean>(() => !analytics);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pull to refresh states
+  const [pullStartY, setPullStartY] = useState<number | null>(null);
+  const [pullMoveY, setPullMoveY] = useState<number>(0);
+  const [isPulling, setIsPulling] = useState<boolean>(false);
 
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF || CURRENCY_MAP.USD;
 
@@ -72,11 +86,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       }
       try {
         if (isManual) setRefreshing(true);
-        else setLoading(true);
+        else if (!analytics) setLoading(true);
         setError(null);
 
         const data = await AnalyticsService.getCompleteAnalytics(activeBusiness.id, preset);
         setAnalytics(data);
+        analyticsMemoryCache.set(`${activeBusiness.id}_${preset}`, data);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Failed to load dashboard metrics.';
         setError(msg);
@@ -85,12 +100,39 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
         setRefreshing(false);
       }
     },
-    [activeBusiness?.id, preset, businessLoading]
+    [activeBusiness?.id, preset, businessLoading, analytics]
   );
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [activeBusiness?.id, preset]);
+
+  // Touch handlers for mobile swipe-down / pull-to-refresh
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0 || document.documentElement.scrollTop === 0) {
+      setPullStartY(e.touches[0].clientY);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (pullStartY !== null && (window.scrollY === 0 || document.documentElement.scrollTop === 0)) {
+      const currentY = e.touches[0].clientY;
+      const diff = currentY - pullStartY;
+      if (diff > 0) {
+        setPullMoveY(Math.min(diff * 0.45, 70));
+        setIsPulling(true);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullMoveY > 40 && !refreshing) {
+      loadData(true);
+    }
+    setPullStartY(null);
+    setPullMoveY(0);
+    setIsPulling(false);
+  };
 
   if ((loading || businessLoading) && !analytics) {
     return <DashboardSkeleton />;
@@ -117,7 +159,23 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   const displayName = profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Partner';
 
   return (
-    <div className="space-y-6 pb-10">
+    <div
+      className="space-y-6 pb-10"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Mobile Pull-to-Refresh Indicator */}
+      {(isPulling || refreshing) && pullMoveY > 0 && (
+        <div
+          className="flex items-center justify-center gap-2 py-2 text-xs font-semibold text-emerald-400 transition-all overflow-hidden bg-emerald-500/10 rounded-xl border border-emerald-500/20"
+          style={{ height: `${Math.max(pullMoveY, 36)}px` }}
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing || pullMoveY > 40 ? 'animate-spin text-emerald-400' : 'text-emerald-500'}`} />
+          <span>{refreshing ? 'Refreshing dashboard...' : pullMoveY > 40 ? 'Release to refresh' : 'Swipe down to refresh'}</span>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* 1. TOP GREETING & STATUS BANNER                                           */}
       {/* ========================================================================= */}
@@ -150,13 +208,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           </Button>
 
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={() => loadData(true)}
             disabled={refreshing}
-            className="text-xs text-zinc-400 hover:text-white"
+            className="text-xs flex items-center gap-1.5 px-3 py-1.5 text-zinc-300 hover:text-white border-zinc-700 bg-zinc-800/60 cursor-pointer"
+            title="Refresh dashboard data"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-emerald-400' : 'text-zinc-400'}`} />
+            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </Button>
 
           <Button
@@ -171,7 +231,18 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. ERROR STATE (IF ANY)                                                   */}
+      {/* 2. ASK URSELLA PROACTIVE INTELLIGENCE CARD (TOP OF HOME TAB)             */}
+      {/* ========================================================================= */}
+      <HomeAIInsightCard
+        businessId={activeBusiness.id}
+        businessName={activeBusiness.name}
+        currency={currencyConfig.symbol}
+        onNavigateToAI={(prompt) => onNavigate('ai', prompt)}
+        onNavigateToInsights={() => onNavigate('insights')}
+      />
+
+      {/* ========================================================================= */}
+      {/* 2.1 ERROR STATE (IF ANY)                                                  */}
       {/* ========================================================================= */}
       {error && (
         <ErrorAlert

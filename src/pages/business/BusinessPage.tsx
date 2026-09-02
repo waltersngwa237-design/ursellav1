@@ -585,9 +585,9 @@ export const BusinessPage: React.FC = () => {
       {activeTab === 'catalog' && (
         <div className="space-y-4">
           {/* Header Action Bar */}
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-            <div className="flex flex-1 flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
+          <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              <div className="relative min-w-[200px] flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                 <input
                   type="text"
@@ -624,7 +624,7 @@ export const BusinessPage: React.FC = () => {
 
               <button
                 onClick={() => setShowArchivedProducts(!showArchivedProducts)}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap ${
+                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
                   showArchivedProducts
                     ? 'bg-amber-950/30 text-amber-300 border-amber-500/40'
                     : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
@@ -635,7 +635,7 @@ export const BusinessPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0 self-end lg:self-auto">
               <Button
                 variant="secondary"
                 size="sm"
@@ -648,7 +648,7 @@ export const BusinessPage: React.FC = () => {
                   )
                 }
                 disabled={products.length === 0}
-                className="flex items-center justify-center gap-1.5 text-xs font-semibold"
+                className="flex items-center justify-center gap-1.5 text-xs font-semibold shrink-0"
                 title="Export Product Catalog PDF"
               >
                 <FileText className="w-3.5 h-3.5 text-blue-400" />
@@ -662,7 +662,7 @@ export const BusinessPage: React.FC = () => {
                   resetProductForm();
                   setIsAddProductModalOpen(true);
                 }}
-                className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white"
+                className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white shrink-0"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add Product</span>

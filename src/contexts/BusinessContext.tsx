@@ -33,22 +33,43 @@ interface BusinessContextType {
 }
 
 const BusinessContext = createContext<BusinessContextType | undefined>(undefined);
+const CACHED_MEMBERSHIPS_KEY = 'ursella_cached_memberships_v1';
 
 export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const [businesses, setBusinesses] = useState<UserBusinessMembership[]>([]);
+  
+  // Instant synchronous hydration from local cache
+  const [businesses, setBusinesses] = useState<UserBusinessMembership[]>(() => {
+    try {
+      const raw = localStorage.getItem(CACHED_MEMBERSHIPS_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // fallback
+    }
+    return [];
+  });
+
   const [activeBusinessId, setActiveBusinessIdState] = useState<string | null>(() => {
     return localStorage.getItem(ACTIVE_BIZ_KEY);
   });
-  const [loading, setLoading] = useState<boolean>(true);
+
+  const [loading, setLoading] = useState<boolean>(() => businesses.length === 0);
   const [error, setError] = useState<string | null>(null);
 
   const fetchBusinesses = useCallback(async (userId: string) => {
     try {
-      setLoading(true);
+      if (businesses.length === 0) {
+        setLoading(true);
+      }
       setError(null);
       const list = await BusinessService.getUserBusinesses(userId);
       setBusinesses(list);
+
+      try {
+        localStorage.setItem(CACHED_MEMBERSHIPS_KEY, JSON.stringify(list));
+      } catch {
+        // ignore storage errors
+      }
 
       // Determine active business
       if (list.length > 0) {
@@ -72,7 +93,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [businesses.length]);
 
   useEffect(() => {
     if (user?.id) {
