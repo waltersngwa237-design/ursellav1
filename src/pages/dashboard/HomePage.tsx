@@ -218,15 +218,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-emerald-400' : 'text-zinc-400'}`} />
             <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </Button>
-
-          <Button
-            size="sm"
-            onClick={() => onNavigate('sell')}
-            className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Record Sale</span>
-          </Button>
         </div>
       </div>
 

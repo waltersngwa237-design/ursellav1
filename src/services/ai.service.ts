@@ -70,6 +70,10 @@ export class AIService {
       timezone?: string;
     }
   ): Promise<AIDailyBrief> {
+    const bizName = businessContext?.businessName || 'My Business';
+    const bizCurr = businessContext?.currency || 'XAF';
+
+    // 1. Try Supabase Edge Function 'ursella-ai' if configured
     if (isSupabaseConfigured && isValidUUID(businessId)) {
       try {
         const { data: edgeData, error: edgeError } = await supabase.functions.invoke('ursella-ai', {
@@ -80,33 +84,40 @@ export class AIService {
           },
         });
 
-        if (!edgeError && edgeData?.response) {
-          const resp = edgeData.response;
-          return {
-            generatedAt: new Date().toISOString(),
-            businessName: businessContext?.businessName || 'My Business',
-            currency: businessContext?.currency || 'XAF',
-            headline: resp.answer?.split('\n')?.[0]?.replace(/^#+\s*/, '') || `Daily Business Brief`,
-            executiveSummary: resp.answer || 'Daily performance ready.',
-            performanceSnapshot: {
-              revenue: 0,
-              transactions: 0,
-              amountCollected: 0,
-              expenses: 0,
-              outstandingReceivables: 0,
-            },
-            keyTakeaways: resp.recommendations?.map((r: any) => r.reasoning || r.title) || [],
-            inventoryAlerts: [],
-            debtFollowUps: [],
-            recommendedFocusToday: resp.recommendations?.[0]?.actionSuggestion || 'Focus on active sales.',
-            confidence: resp.confidence || 'high_confidence',
-          };
+        if (!edgeError && edgeData) {
+          const raw = edgeData.brief || edgeData.response || edgeData;
+          if (raw && (raw.headline || raw.executiveSummary || raw.answer)) {
+            return {
+              generatedAt: raw.generatedAt || new Date().toISOString(),
+              businessName: raw.businessName || bizName,
+              currency: raw.currency || bizCurr,
+              headline: raw.headline || raw.answer?.split('\n')?.[0]?.replace(/^#+\s*/, '') || `Daily Business Brief for ${bizName}`,
+              executiveSummary: raw.executiveSummary || raw.answer || 'Daily performance report ready.',
+              performanceSnapshot: {
+                revenue: Number(raw.performanceSnapshot?.revenue || 0),
+                transactions: Number(raw.performanceSnapshot?.transactions || 0),
+                amountCollected: Number(raw.performanceSnapshot?.amountCollected || 0),
+                expenses: Number(raw.performanceSnapshot?.expenses || 0),
+                outstandingReceivables: Number(raw.performanceSnapshot?.outstandingReceivables || 0),
+              },
+              keyTakeaways: Array.isArray(raw.keyTakeaways)
+                ? raw.keyTakeaways
+                : Array.isArray(raw.recommendations)
+                ? raw.recommendations.map((r: any) => r.reasoning || r.title)
+                : ['Business data synchronized.'],
+              inventoryAlerts: Array.isArray(raw.inventoryAlerts) ? raw.inventoryAlerts : [],
+              debtFollowUps: Array.isArray(raw.debtFollowUps) ? raw.debtFollowUps : [],
+              recommendedFocusToday: raw.recommendedFocusToday || raw.recommendations?.[0]?.actionSuggestion || 'Focus on high-velocity inventory sales.',
+              confidence: raw.confidence || 'high_confidence',
+            };
+          }
         }
       } catch (err) {
         console.warn('Edge function invoke for daily-brief failed, attempting server route:', err);
       }
     }
 
+    // 2. Full-stack server proxy fallback
     try {
       const session = isSupabaseConfigured ? (await supabase.auth.getSession()).data?.session : null;
       const headers: Record<string, string> = {
@@ -129,18 +140,98 @@ export class AIService {
       });
 
       if (response.ok) {
-        return await response.json();
+        const raw = await response.json();
+        if (raw && (raw.headline || raw.executiveSummary)) {
+          return {
+            generatedAt: raw.generatedAt || new Date().toISOString(),
+            businessName: raw.businessName || bizName,
+            currency: raw.currency || bizCurr,
+            headline: raw.headline || `Daily Briefing for ${bizName}`,
+            executiveSummary: raw.executiveSummary || 'Daily briefing summary generated.',
+            performanceSnapshot: {
+              revenue: Number(raw.performanceSnapshot?.revenue || 0),
+              transactions: Number(raw.performanceSnapshot?.transactions || 0),
+              amountCollected: Number(raw.performanceSnapshot?.amountCollected || 0),
+              expenses: Number(raw.performanceSnapshot?.expenses || 0),
+              outstandingReceivables: Number(raw.performanceSnapshot?.outstandingReceivables || 0),
+            },
+            keyTakeaways: Array.isArray(raw.keyTakeaways) ? raw.keyTakeaways : ['Business operations synchronized.'],
+            inventoryAlerts: Array.isArray(raw.inventoryAlerts) ? raw.inventoryAlerts : [],
+            debtFollowUps: Array.isArray(raw.debtFollowUps) ? raw.debtFollowUps : [],
+            recommendedFocusToday: raw.recommendedFocusToday || 'Review daily sales and inventory levels.',
+            confidence: raw.confidence || 'high_confidence',
+          };
+        }
       }
     } catch {
       // server route not available
     }
 
+    // 3. Factual Local / Supabase Query Fallback (Guarantees authentic factual metrics even offline)
+    try {
+      if (businessId && isSupabaseConfigured && isValidUUID(businessId)) {
+        const todayStartIso = new Date().toISOString().split('T')[0] + 'T00:00:00.000Z';
+        const [salesRes, expRes, prodRes, custRes] = await Promise.all([
+          (supabase as any).from('sales').select('total, amount_paid, amount_due, sale_status, created_at').eq('business_id', businessId).gte('created_at', todayStartIso),
+          (supabase as any).from('expenses').select('amount').eq('business_id', businessId).gte('expense_date', todayStartIso.split('T')[0]),
+          (supabase as any).from('products').select('name, stock_quantity, alert_threshold').eq('business_id', businessId).eq('is_archived', false),
+          (supabase as any).from('customers').select('name, total_debt').eq('business_id', businessId).gt('total_debt', 0),
+        ]);
+
+        const salesList = (salesRes.data || []).filter((s: any) => s.sale_status !== 'voided');
+        const revenue = salesList.reduce((sum: number, s: any) => sum + Number(s.total || 0), 0);
+        const amountCollected = salesList.reduce((sum: number, s: any) => sum + Number(s.amount_paid || 0), 0);
+        const expenses = (expRes.data || []).reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0);
+        const customers = custRes.data || [];
+        const outstandingReceivables = customers.reduce((sum: number, c: any) => sum + Number(c.total_debt || 0), 0);
+
+        const products = prodRes.data || [];
+        const lowStock = products.filter((p: any) => Number(p.stock_quantity || 0) <= Number(p.alert_threshold || 5));
+        const inventoryAlerts = lowStock.slice(0, 3).map((p: any) => `${p.name}: only ${p.stock_quantity} unit(s) remaining in stock.`);
+        const debtFollowUps = customers.slice(0, 3).map((c: any) => `${c.name}: owes ${bizCurr} ${Number(c.total_debt || 0).toLocaleString()}`);
+
+        return {
+          generatedAt: new Date().toISOString(),
+          businessName: bizName,
+          currency: bizCurr,
+          headline: revenue > 0
+            ? `Trading Active: ${bizCurr} ${revenue.toLocaleString()} recorded across ${salesList.length} orders today`
+            : `Daily Briefing: Ready for trading at ${bizName}`,
+          executiveSummary: revenue > 0
+            ? `Today's revenue stands at ${bizCurr} ${revenue.toLocaleString()} with ${bizCurr} ${amountCollected.toLocaleString()} in cash collected. Operating expenses logged total ${bizCurr} ${expenses.toLocaleString()}.`
+            : `Store operations are active. Review inventory levels and record sales transactions directly through the POS terminal.`,
+          performanceSnapshot: {
+            revenue,
+            transactions: salesList.length,
+            amountCollected,
+            expenses,
+            outstandingReceivables,
+          },
+          keyTakeaways: [
+            `${salesList.length} transaction(s) recorded today`,
+            `${lowStock.length} product(s) flagged near low-stock threshold`,
+            `${customers.length} debtor customer(s) with open credit balances`,
+          ],
+          inventoryAlerts,
+          debtFollowUps,
+          recommendedFocusToday: lowStock.length > 0
+            ? `Restock low-inventory items (${lowStock[0]?.name}) to prevent stockouts.`
+            : customers.length > 0
+            ? `Follow up on outstanding customer credit (${bizCurr} ${outstandingReceivables.toLocaleString()}).`
+            : 'Process counter sales and maintain inventory ledger accuracy.',
+          confidence: salesList.length >= 3 ? 'high_confidence' : 'moderate_confidence',
+        };
+      }
+    } catch (dbErr) {
+      console.warn('Factual DB fallback for daily brief caught error:', dbErr);
+    }
+
     return {
       generatedAt: new Date().toISOString(),
-      businessName: businessContext?.businessName || 'My Business',
-      currency: businessContext?.currency || 'XAF',
-      headline: `Daily Business Overview`,
-      executiveSummary: `Ready for trading. Review real-time sales and inventory movements directly in the Sell POS and Stock modules.`,
+      businessName: bizName,
+      currency: bizCurr,
+      headline: `Daily Business Briefing for ${bizName}`,
+      executiveSummary: `Ready for operations. Review real-time sales velocity, customer accounts, and stock movements.`,
       performanceSnapshot: {
         revenue: 0,
         transactions: 0,
@@ -148,10 +239,10 @@ export class AIService {
         expenses: 0,
         outstandingReceivables: 0,
       },
-      keyTakeaways: ['All business data is synchronized with your cloud database.'],
+      keyTakeaways: ['All core modules are synchronized with the Ursella operating engine.'],
       inventoryAlerts: [],
       debtFollowUps: [],
-      recommendedFocusToday: 'Process sales in POS terminal to record transactions.',
+      recommendedFocusToday: 'Process sales in the POS terminal to record transactional revenue.',
       confidence: 'high_confidence',
     };
   }

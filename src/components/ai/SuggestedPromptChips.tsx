@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTheme } from '../../contexts/ThemeContext.tsx';
 import {
   ArrowRight,
   TrendingUp,
@@ -16,6 +17,7 @@ interface SuggestedPromptChipsProps {
 export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
   onSelectPrompt,
 }) => {
+  const { isDark } = useTheme();
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
   const categories = [
@@ -96,11 +98,15 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
               onClick={() => setActiveCategory(cat.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
                 isActive
-                  ? 'bg-zinc-800 text-white border border-zinc-700 shadow-xs'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+                  ? isDark
+                    ? 'bg-zinc-800 text-white border border-zinc-700 shadow-xs'
+                    : 'bg-white text-slate-900 border border-slate-300 shadow-xs font-semibold'
+                  : isDark
+                  ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
               }`}
             >
-              {Icon && <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-amber-400' : 'text-zinc-500'}`} />}
+              {Icon && <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-amber-500' : isDark ? 'text-zinc-500' : 'text-slate-400'}`} />}
               <span>{cat.label}</span>
             </button>
           );
@@ -113,18 +119,28 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
           <button
             key={idx}
             onClick={() => onSelectPrompt(item.prompt)}
-            className="text-left p-3.5 sm:p-4 rounded-xl border bg-zinc-900/40 border-zinc-800/80 hover:border-amber-500/40 hover:bg-zinc-900/80 transition-all flex flex-col justify-between group shadow-xs cursor-pointer"
+            className={`text-left p-3.5 sm:p-4 rounded-xl border transition-all flex flex-col justify-between group shadow-xs cursor-pointer ${
+              isDark 
+                ? 'bg-zinc-900/40 border-zinc-800/80 hover:border-amber-500/40 hover:bg-zinc-900/80' 
+                : 'bg-white border-slate-200 hover:border-amber-500/60 hover:bg-amber-50/30 shadow-xs'
+            }`}
           >
             <div className="flex items-start justify-between gap-2 w-full">
               <div className="space-y-1 min-w-0 flex-1">
-                <div className="text-xs sm:text-[13px] font-semibold text-zinc-100 group-hover:text-amber-300 transition-colors">
+                <div className={`text-xs sm:text-[13px] font-semibold transition-colors ${
+                  isDark ? 'text-zinc-100 group-hover:text-amber-300' : 'text-slate-900 group-hover:text-amber-700'
+                }`}>
                   {item.title}
                 </div>
-                <p className="text-[11px] text-zinc-400 line-clamp-1 leading-normal">
+                <p className={`text-[11px] line-clamp-1 leading-normal ${
+                  isDark ? 'text-zinc-400' : 'text-slate-500'
+                }`}>
                   {item.subtitle}
                 </p>
               </div>
-              <ArrowRight className="w-3.5 h-3.5 text-zinc-600 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
+              <ArrowRight className={`w-3.5 h-3.5 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5 ${
+                isDark ? 'text-zinc-600 group-hover:text-amber-400' : 'text-slate-400 group-hover:text-amber-600'
+              }`} />
             </div>
           </button>
         ))}
