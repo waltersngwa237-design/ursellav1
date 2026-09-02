@@ -11,6 +11,7 @@ import {
   Boxes,
   Zap,
   TrendingUp,
+  X,
 } from 'lucide-react';
 import type { AppNavRoute } from '../../types/index.ts';
 
@@ -68,8 +69,13 @@ export const OnboardingLaunchpad: React.FC<OnboardingLaunchpadProps> = ({
   const completedCount = [hasProducts, hasSales, hasAIInteraction].filter(Boolean).length;
   const progressPercent = Math.round((completedCount / steps.length) * 100);
 
+  // Automatically disappear once all steps are completed
+  if (completedCount === steps.length) {
+    return null;
+  }
+
   return (
-    <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-zinc-900 via-zinc-900/95 to-emerald-950/20 p-5 sm:p-6 shadow-xl space-y-6">
+    <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-zinc-900 via-zinc-900/95 to-emerald-950/20 p-5 sm:p-6 shadow-xl space-y-6 relative">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -89,18 +95,31 @@ export const OnboardingLaunchpad: React.FC<OnboardingLaunchpadProps> = ({
           </p>
         </div>
 
-        {/* Progress Pill */}
-        <div className="flex items-center gap-3 bg-zinc-950/80 border border-zinc-800/80 px-3.5 py-2 rounded-xl self-start sm:self-auto">
-          <div className="text-right">
-            <div className="text-xs font-bold text-white">{completedCount} of 3 Complete</div>
-            <div className="text-[10px] text-zinc-400">{progressPercent}% Ready</div>
+        {/* Progress Pill & Dismiss Button */}
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          <div className="flex items-center gap-3 bg-zinc-950/80 border border-zinc-800/80 px-3.5 py-2 rounded-xl">
+            <div className="text-right">
+              <div className="text-xs font-bold text-white">{completedCount} of 3 Complete</div>
+              <div className="text-[10px] text-zinc-400">{progressPercent}% Ready</div>
+            </div>
+            <div className="w-12 h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 transition-all duration-500 rounded-full"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
           </div>
-          <div className="w-12 h-2 bg-zinc-800 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-emerald-500 transition-all duration-500 rounded-full"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
+
+          {onDismiss && (
+            <button
+              onClick={onDismiss}
+              className="p-2 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 rounded-xl border border-zinc-800/80 transition-colors"
+              title="Dismiss Setup Guide"
+              aria-label="Dismiss Setup Guide"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 

@@ -50,6 +50,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
 
   const [preset, setPreset] = useState<DateRangePreset>('last_30_days');
   const [dashboardTab, setDashboardTab] = useState<'pulse' | 'inventory' | 'trends'>('pulse');
+  const [isGuideDismissed, setIsGuideDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('dismissed_setup_guide') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [analytics, setAnalytics] = useState<CompleteBusinessAnalytics | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -235,13 +242,21 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       {/* ========================================================================= */}
       {/* 2.4 ONBOARDING LAUNCHPAD FOR NEW STORES                                   */}
       {/* ========================================================================= */}
-      {activeBusiness && (
+      {activeBusiness && !isGuideDismissed && (
         <OnboardingLaunchpad
           businessName={activeBusiness.name}
           hasProducts={(analytics?.inventorySummary.totalActiveSKUs ?? 0) > 0}
           hasSales={(analytics?.comparison.revenue.current ?? 0) > 0}
           hasAIInteraction={true}
           onNavigate={onNavigate}
+          onDismiss={() => {
+            setIsGuideDismissed(true);
+            try {
+              localStorage.setItem('dismissed_setup_guide', 'true');
+            } catch {
+              // ignore localStorage errors
+            }
+          }}
         />
       )}
 
