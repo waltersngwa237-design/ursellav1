@@ -54,6 +54,7 @@ export const InventoryService = {
         p_reference_type: params.reference_type || 'manual',
         p_reference_id: sanitizedRefId,
         p_notes: params.notes || null,
+        p_unit_cost: params.unit_cost ?? null,
       });
 
       if (error) {
@@ -73,6 +74,10 @@ export const InventoryService = {
       }
 
       const product = prods[prodIdx];
+      if (product.product_type === 'service') {
+        throw new Error('Cannot record inventory movements for service items.');
+      }
+
       let newStock = product.stock_quantity;
 
       if (['purchase', 'restock', 'return'].includes(params.type)) {

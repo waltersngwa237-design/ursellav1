@@ -5,6 +5,7 @@ import type {
   SaleStatusType,
   PaymentStatusType,
   InventoryTransactionType,
+  ProductType,
 } from './database.types.ts';
 
 export type {
@@ -13,6 +14,7 @@ export type {
   SaleStatusType,
   PaymentStatusType,
   InventoryTransactionType,
+  ProductType,
 };
 
 export type UserProfile = Database['public']['Tables']['profiles']['Row'];

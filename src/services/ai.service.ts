@@ -171,24 +171,56 @@ export class AIService {
     try {
       if (businessId && isSupabaseConfigured && isValidUUID(businessId)) {
         const todayStartIso = new Date().toISOString().split('T')[0] + 'T00:00:00.000Z';
-        const [salesRes, expRes, prodRes, custRes] = await Promise.all([
-          (supabase as any).from('sales').select('total, amount_paid, amount_due, sale_status, created_at').eq('business_id', businessId).gte('created_at', todayStartIso),
-          (supabase as any).from('expenses').select('amount').eq('business_id', businessId).gte('expense_date', todayStartIso.split('T')[0]),
-          (supabase as any).from('products').select('name, stock_quantity, alert_threshold').eq('business_id', businessId).eq('is_archived', false),
-          (supabase as any).from('customers').select('name, total_debt').eq('business_id', businessId).gt('total_debt', 0),
+        const [salesRes, expRes, prodRes, unpaidSalesRes, custRes] = await Promise.all([
+          (supabase as any)
+            .from('sales')
+            .select('id, total, amount_paid, amount_due, sale_status, sold_at')
+            .eq('business_id', businessId)
+            .gte('sold_at', todayStartIso),
+          (supabase as any)
+            .from('expenses')
+            .select('amount')
+            .eq('business_id', businessId)
+            .gte('expense_date', todayStartIso.split('T')[0]),
+          (supabase as any)
+            .from('products')
+            .select('id, name, stock_quantity, minimum_stock_level, product_type, is_active')
+            .eq('business_id', businessId)
+            .eq('is_active', true),
+          (supabase as any)
+            .from('sales')
+            .select('id, customer_id, amount_due')
+            .eq('business_id', businessId)
+            .eq('sale_status', 'completed')
+            .gt('amount_due', 0),
+          (supabase as any)
+            .from('customers')
+            .select('id, name, phone')
+            .eq('business_id', businessId),
         ]);
 
-        const salesList = (salesRes.data || []).filter((s: any) => s.sale_status !== 'voided');
+        const salesList = (salesRes.data || []).filter((s: any) => s.sale_status === 'completed');
         const revenue = salesList.reduce((sum: number, s: any) => sum + Number(s.total || 0), 0);
         const amountCollected = salesList.reduce((sum: number, s: any) => sum + Number(s.amount_paid || 0), 0);
         const expenses = (expRes.data || []).reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0);
-        const customers = custRes.data || [];
-        const outstandingReceivables = customers.reduce((sum: number, c: any) => sum + Number(c.total_debt || 0), 0);
 
-        const products = prodRes.data || [];
-        const lowStock = products.filter((p: any) => Number(p.stock_quantity || 0) <= Number(p.alert_threshold || 5));
+        // Calculate receivables from unpaid sales
+        const unpaidSales = (unpaidSalesRes.data || []) as Array<{ id: string; customer_id: string | null; amount_due: number }>;
+        const outstandingReceivables = unpaidSales.reduce((sum: number, s: any) => sum + Number(s.amount_due || 0), 0);
+        const customerMap = new Map<string, string>((custRes.data || []).map((c: any) => [String(c.id), String(c.name || 'Customer')]));
+        const debtorBalances = new Map<string, number>();
+        for (const us of unpaidSales) {
+          const cName: string = us.customer_id ? (customerMap.get(String(us.customer_id)) || 'Customer') : 'Walk-in Customer';
+          debtorBalances.set(cName, (debtorBalances.get(cName) || 0) + Number(us.amount_due || 0));
+        }
+
+        // Inventory alerts (excluding services)
+        const physicalProducts = (prodRes.data || []).filter((p: any) => p.product_type !== 'service');
+        const lowStock = physicalProducts.filter((p: any) => Number(p.stock_quantity || 0) <= Number(p.minimum_stock_level || 5));
         const inventoryAlerts = lowStock.slice(0, 3).map((p: any) => `${p.name}: only ${p.stock_quantity} unit(s) remaining in stock.`);
-        const debtFollowUps = customers.slice(0, 3).map((c: any) => `${c.name}: owes ${bizCurr} ${Number(c.total_debt || 0).toLocaleString()}`);
+        const debtFollowUps = Array.from(debtorBalances.entries())
+          .slice(0, 3)
+          .map(([name, amount]) => `${name}: owes ${bizCurr} ${amount.toLocaleString()}`);
 
         return {
           generatedAt: new Date().toISOString(),
@@ -210,13 +242,13 @@ export class AIService {
           keyTakeaways: [
             `${salesList.length} transaction(s) recorded today`,
             `${lowStock.length} product(s) flagged near low-stock threshold`,
-            `${customers.length} debtor customer(s) with open credit balances`,
+            `${debtorBalances.size} debtor account(s) with open credit balances`,
           ],
           inventoryAlerts,
           debtFollowUps,
           recommendedFocusToday: lowStock.length > 0
             ? `Restock low-inventory items (${lowStock[0]?.name}) to prevent stockouts.`
-            : customers.length > 0
+            : debtorBalances.size > 0
             ? `Follow up on outstanding customer credit (${bizCurr} ${outstandingReceivables.toLocaleString()}).`
             : 'Process counter sales and maintain inventory ledger accuracy.',
           confidence: salesList.length >= 3 ? 'high_confidence' : 'moderate_confidence',

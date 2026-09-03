@@ -181,13 +181,14 @@ export class BusinessToolsService {
   public static async getInventoryAlerts(businessId: string) {
     const { data: products } = await serverSupabase
       .from('products')
-      .select('id, name, sku, cost_price, selling_price, stock_quantity, minimum_stock_level, is_active')
+      .select('id, name, sku, cost_price, selling_price, stock_quantity, minimum_stock_level, is_active, product_type, unit_of_measure')
       .eq('business_id', businessId)
       .eq('is_active', true);
 
     const activeList = products || [];
-    const outOfStock = activeList.filter((p) => (p.stock_quantity || 0) === 0);
-    const lowStock = activeList.filter(
+    const physicalList = activeList.filter((p: any) => p.product_type !== 'service');
+    const outOfStock = physicalList.filter((p) => (p.stock_quantity || 0) <= 0);
+    const lowStock = physicalList.filter(
       (p) => (p.stock_quantity || 0) > 0 && (p.stock_quantity || 0) <= (p.minimum_stock_level || 5)
     );
 
@@ -197,7 +198,7 @@ export class BusinessToolsService {
       const fifo = await this.runFIFOLedger(businessId);
       fifoValuation = fifo.ledgerResult.totals.inventoryValue;
     } catch {
-      fifoValuation = activeList.reduce((sum, p) => sum + (Number(p.stock_quantity || 0) * Number(p.cost_price || 0)), 0);
+      fifoValuation = physicalList.reduce((sum, p) => sum + (Number(p.stock_quantity || 0) * Number(p.cost_price || 0)), 0);
     }
 
     const criticalItemsToRestock = [...outOfStock, ...lowStock].map((p) => ({
@@ -208,15 +209,16 @@ export class BusinessToolsService {
       minimumStockLevel: p.minimum_stock_level || 5,
       costPrice: p.cost_price,
       sellingPrice: p.selling_price,
-      status: (p.stock_quantity || 0) === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
-      estimatedRestockCost: ((p.minimum_stock_level || 5) * 2 - (p.stock_quantity || 0)) * (p.cost_price || 0),
+      unitOfMeasure: p.unit_of_measure || 'piece',
+      status: (p.stock_quantity || 0) <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
+      estimatedRestockCost: Math.max(0, ((p.minimum_stock_level || 5) * 2 - (p.stock_quantity || 0)) * (p.cost_price || 0)),
     }));
 
     return {
-      totalActiveSKUs: activeList.length,
+      totalActiveSKUs: physicalList.length,
       outOfStockCount: outOfStock.length,
       lowStockCount: lowStock.length,
-      healthyStockCount: activeList.length - outOfStock.length - lowStock.length,
+      healthyStockCount: physicalList.length - outOfStock.length - lowStock.length,
       totalInventoryValuation: fifoValuation,
       criticalItemsToRestock,
       hasStockIssues: outOfStock.length > 0 || lowStock.length > 0,

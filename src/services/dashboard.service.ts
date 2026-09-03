@@ -77,15 +77,16 @@ export const DashboardService = {
           .gte('sold_at', todayIso)
           .order('sold_at', { ascending: false });
 
-        // 3. Query low stock products
+        // 3. Query low stock products (excluding services)
         const { data: lowStockProducts } = await (supabase as any)
           .from('products')
-          .select('id, stock_quantity, minimum_stock_level')
+          .select('id, stock_quantity, minimum_stock_level, product_type')
           .eq('business_id', businessId)
-          .eq('is_active', true);
+          .eq('is_active', true)
+          .neq('product_type', 'service');
 
         const lowStockCount = ((lowStockProducts as any[]) || []).filter(
-          (p: any) => Number(p.stock_quantity) <= (Number(p.minimum_stock_level) || 5)
+          (p: any) => p.product_type !== 'service' && Number(p.stock_quantity) <= (Number(p.minimum_stock_level) || 5)
         ).length;
 
         // 4. Query outstanding receivables across all unpaid/partial sales
@@ -221,7 +222,7 @@ export const DashboardService = {
       );
 
       const lowStockCount = prods.filter(
-        (p) => p.is_active && p.stock_quantity <= (p.minimum_stock_level || 5)
+        (p) => p.is_active && p.product_type !== 'service' && p.stock_quantity <= (p.minimum_stock_level || 5)
       ).length;
 
       const todayDateStr = todayStart.toISOString().split('T')[0];

@@ -122,7 +122,7 @@ export const SalesService = {
           if (!p.is_active) {
             throw new Error(`Product "${p.name}" is archived and cannot be sold.`);
           }
-          if (p.stock_quantity < item.quantity) {
+          if (p.product_type !== 'service' && p.stock_quantity < item.quantity) {
             throw new Error(
               `Insufficient stock for "${p.name}". Requested: ${item.quantity}, Available: ${p.stock_quantity}.`
             );
@@ -154,12 +154,15 @@ export const SalesService = {
             discount: itemDiscount,
             subtotal: itemSubtotal,
             total: itemTotal,
+            unit_of_measure: p.unit_of_measure || 'piece',
             created_at: now,
           });
 
-          // Decrement stock in catalog
-          p.stock_quantity -= item.quantity;
-          p.updated_at = now;
+          // Decrement stock in catalog if not a service
+          if (p.product_type !== 'service') {
+            p.stock_quantity -= item.quantity;
+            p.updated_at = now;
+          }
         }
 
         const discount = params.discount || 0;
@@ -218,6 +221,10 @@ export const SalesService = {
         const invList: InventoryTransaction[] = invStored ? JSON.parse(invStored) : [];
 
         for (const item of saleItemsToInsert) {
+          const prod = prods.find((x) => x.id === item.product_id);
+          if (prod?.product_type === 'service') {
+            continue; // Skip services from inventory movements
+          }
           invList.unshift({
             id: generateUUID(),
             business_id: params.business_id,

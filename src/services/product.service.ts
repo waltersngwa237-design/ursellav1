@@ -21,6 +21,8 @@ export interface CreateProductInput {
   name: string;
   description?: string | null;
   sku?: string | null;
+  product_type?: 'physical' | 'service';
+  unit_of_measure?: string;
   selling_price: number;
   cost_price: number;
   stock_quantity: number;
@@ -35,6 +37,8 @@ export interface UpdateProductInput {
   name?: string;
   description?: string | null;
   sku?: string | null;
+  product_type?: 'physical' | 'service';
+  unit_of_measure?: string;
   selling_price?: number;
   cost_price?: number;
   minimum_stock_level?: number;
@@ -125,6 +129,9 @@ export const ProductService = {
         // Apply client-side stock status filter if requested
         if (options.stockStatus && options.stockStatus !== 'all') {
           results = results.filter((p) => {
+            if (p.product_type === 'service') {
+              return options.stockStatus === 'in_stock';
+            }
             if (options.stockStatus === 'out_of_stock') {
               return p.stock_quantity <= 0;
             }
@@ -305,11 +312,20 @@ export const ProductService = {
     if (input.cost_price < 0) {
       throw new Error('Cost price must be greater than or equal to 0.');
     }
-    if (input.stock_quantity < 0) {
-      throw new Error('Stock quantity cannot be negative.');
-    }
-    if (input.minimum_stock_level < 0) {
-      throw new Error('Minimum stock level cannot be negative.');
+
+    const isService = input.product_type === 'service';
+    const productType = isService ? 'service' : 'physical';
+    const unitOfMeasure = input.unit_of_measure?.trim() || 'piece';
+    const effectiveStockQty = isService ? 0 : Math.max(0, input.stock_quantity || 0);
+    const effectiveMinStock = isService ? 0 : Math.max(0, input.minimum_stock_level ?? 5);
+
+    if (!isService) {
+      if (input.stock_quantity < 0) {
+        throw new Error('Stock quantity cannot be negative.');
+      }
+      if (input.minimum_stock_level < 0) {
+        throw new Error('Minimum stock level cannot be negative.');
+      }
     }
 
     const sanitizedCategoryId = input.category_id && isValidUUID(input.category_id) ? input.category_id : null;
@@ -325,10 +341,12 @@ export const ProductService = {
           name: input.name.trim(),
           description: input.description?.trim() || null,
           sku: input.sku?.trim() || null,
+          product_type: productType,
+          unit_of_measure: unitOfMeasure,
           selling_price: input.selling_price,
           cost_price: input.cost_price,
-          stock_quantity: input.stock_quantity,
-          minimum_stock_level: input.minimum_stock_level ?? 5,
+          stock_quantity: effectiveStockQty,
+          minimum_stock_level: effectiveMinStock,
           image_url: input.image_url || null,
           is_active: input.is_active !== undefined ? input.is_active : true,
         })
@@ -342,14 +360,15 @@ export const ProductService = {
         throw new Error(error.message);
       }
 
-      // Record initial stock transaction if quantity > 0
-      if (input.stock_quantity > 0 && data?.id) {
+      // Record initial stock transaction if physical product and quantity > 0
+      if (!isService && effectiveStockQty > 0 && data?.id) {
         try {
           await (supabase as any).from('inventory_transactions').insert({
             business_id: input.business_id,
             product_id: data.id,
             transaction_type: 'initial_stock',
-            quantity: input.stock_quantity,
+            quantity: effectiveStockQty,
+            unit_cost: input.cost_price > 0 ? input.cost_price : null,
             reference_type: 'initialization',
             notes: 'Initial inventory quantity logged at product creation',
           });
@@ -378,10 +397,12 @@ export const ProductService = {
         name: input.name.trim(),
         description: input.description?.trim() || null,
         sku: input.sku?.trim() || null,
+        product_type: productType,
+        unit_of_measure: unitOfMeasure,
         selling_price: Number(input.selling_price),
         cost_price: Number(input.cost_price),
-        stock_quantity: Number(input.stock_quantity),
-        minimum_stock_level: Number(input.minimum_stock_level ?? 5),
+        stock_quantity: Number(effectiveStockQty),
+        minimum_stock_level: Number(effectiveMinStock),
         image_url: input.image_url || null,
         is_active: input.is_active !== undefined ? input.is_active : true,
         created_at: now,
@@ -391,7 +412,7 @@ export const ProductService = {
       list.push(newProd);
       localStorage.setItem(key, JSON.stringify(list));
 
-      if (input.stock_quantity > 0) {
+      if (!isService && effectiveStockQty > 0) {
         const invKey = `${LOCAL_INVENTORY_PREFIX}${input.business_id}`;
         const invStored = localStorage.getItem(invKey);
         const invList: InventoryTransaction[] = invStored ? JSON.parse(invStored) : [];
@@ -400,7 +421,7 @@ export const ProductService = {
           business_id: input.business_id,
           product_id: newProd.id,
           transaction_type: 'initial_stock',
-          quantity: input.stock_quantity,
+          quantity: effectiveStockQty,
           unit_cost: Number(input.cost_price || 0),
           reference_type: 'initialization',
           reference_id: null,
@@ -445,6 +466,13 @@ export const ProductService = {
         ...input,
         updated_at: new Date().toISOString(),
       };
+      if (input.unit_of_measure !== undefined) {
+        updatePayload.unit_of_measure = input.unit_of_measure.trim() || 'piece';
+      }
+      if (input.product_type === 'service') {
+        updatePayload.stock_quantity = 0;
+        updatePayload.minimum_stock_level = 0;
+      }
       if (sanitizedCategory !== undefined) updatePayload.category_id = sanitizedCategory;
       if (sanitizedSupplier !== undefined) updatePayload.supplier_id = sanitizedSupplier;
 
@@ -483,6 +511,10 @@ export const ProductService = {
       const updated: Product = {
         ...list[idx],
         ...input,
+        product_type: input.product_type || list[idx].product_type || 'physical',
+        unit_of_measure: input.unit_of_measure !== undefined ? (input.unit_of_measure.trim() || 'piece') : list[idx].unit_of_measure || 'piece',
+        stock_quantity: input.product_type === 'service' ? 0 : list[idx].stock_quantity,
+        minimum_stock_level: input.product_type === 'service' ? 0 : (input.minimum_stock_level !== undefined ? input.minimum_stock_level : list[idx].minimum_stock_level),
         updated_at: new Date().toISOString(),
       };
 

@@ -48,6 +48,8 @@ export type AIInsightSeverity = 'info' | 'warning' | 'critical';
 
 export type AIInsightStatus = 'new' | 'read' | 'dismissed' | 'actioned';
 
+export type ProductType = 'physical' | 'service';
+
 export type Database = {
   public: {
     Tables: {
@@ -252,6 +254,8 @@ export type Database = {
           name: string;
           description: string | null;
           sku: string | null;
+          product_type: ProductType;
+          unit_of_measure: string;
           selling_price: number;
           cost_price: number;
           stock_quantity: number;
@@ -269,6 +273,8 @@ export type Database = {
           name: string;
           description?: string | null;
           sku?: string | null;
+          product_type?: ProductType;
+          unit_of_measure?: string;
           selling_price?: number;
           cost_price?: number;
           stock_quantity?: number;
@@ -286,6 +292,8 @@ export type Database = {
           name?: string;
           description?: string | null;
           sku?: string | null;
+          product_type?: ProductType;
+          unit_of_measure?: string;
           selling_price?: number;
           cost_price?: number;
           stock_quantity?: number;
@@ -447,6 +455,7 @@ export type Database = {
           discount: number;
           subtotal: number;
           total: number;
+          unit_of_measure: string | null;
           created_at: string;
         };
         Insert: {
@@ -461,6 +470,7 @@ export type Database = {
           discount?: number;
           subtotal: number;
           total: number;
+          unit_of_measure?: string | null;
           created_at?: string;
         };
         Update: {
@@ -475,6 +485,7 @@ export type Database = {
           discount?: number;
           subtotal?: number;
           total?: number;
+          unit_of_measure?: string | null;
           created_at?: string;
         };
       };

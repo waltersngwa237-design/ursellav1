@@ -15,6 +15,8 @@ export interface UrsellaProductRow {
   business_id?: string;
   name: string;
   sku?: string | null;
+  product_type?: string;
+  unit_of_measure?: string;
   selling_price: number | string;
   cost_price: number | string;
   stock_quantity: number | string;
@@ -248,6 +250,7 @@ export function openingLotsFromProducts(
 ): InventoryEvent[] {
   const events: InventoryEvent[] = [];
   for (const r of rows) {
+    if (r.product_type === 'service') continue;
     const qty = num(r.stock_quantity);
     if (qty > 0) {
       events.push({
@@ -324,6 +327,7 @@ export function reconcileStock(
   }> = [];
 
   for (const r of rows) {
+    if (r.product_type === 'service') continue;
     const snapshot = num(r.stock_quantity);
     const computed = valuationByProduct[r.id]?.quantityOnHand ?? 0;
     const drift = computed - snapshot;
