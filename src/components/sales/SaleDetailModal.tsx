@@ -176,7 +176,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                       )}
                     </td>
                     <td className="py-2.5 px-2 text-center text-zinc-300 font-semibold">
-                      {item.quantity}
+                      {item.quantity} {item.unit_of_measure ? <span className="text-[10px] text-zinc-400 font-normal">({item.unit_of_measure})</span> : null}
                     </td>
                     <td className="py-2.5 px-3 text-right text-zinc-300">
                       {currencyConfig.format(item.unit_price)}

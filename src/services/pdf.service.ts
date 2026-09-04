@@ -58,7 +58,7 @@ export class PDFAndPrintService {
           <tr>
             <td class="item-name">
               <div class="name">${item.product_name_snapshot}</div>
-              <div class="qty-unit">${item.quantity} x ${unitPrice}</div>
+              <div class="qty-unit">${item.quantity} ${item.unit_of_measure ? `${item.unit_of_measure} ` : ''}x ${unitPrice}</div>
               ${discountText}
             </td>
             <td class="item-total">${itemTotal}</td>

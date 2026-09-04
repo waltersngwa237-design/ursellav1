@@ -27,8 +27,9 @@ interface AIMessageCardProps {
   onDeleteMessage?: (messageId: string) => void;
 }
 
-export const AIMessageCard: React.FC<AIMessageCardProps> = ({
+export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
   message,
+  currencySymbol,
   onSelectPrompt,
   onRetry,
   onDeleteMessage,
@@ -85,7 +86,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
 
   // Assistant Message (Clean Ursella AI advisor bubble)
   return (
-    <div id={`msg-${message.id}`} className="group flex items-start gap-2.5 sm:gap-3.5 my-3 sm:my-5 w-full scroll-mt-6">
+    <div id={`msg-${message.id}`} className="group flex items-start gap-2.5 sm:gap-3.5 my-3 sm:my-5 w-full min-w-0 scroll-mt-6">
       {/* Bot Avatar */}
       <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border flex items-center justify-center shrink-0 shadow-xs mt-0.5 ${
         isDark ? 'bg-zinc-900 border-indigo-500/25' : 'bg-white border-indigo-200'
@@ -95,7 +96,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = ({
 
       <div className="flex-1 min-w-0 space-y-2.5">
         {/* Main Chat Bubble */}
-        <div className={`rounded-2xl rounded-tl-xs p-3.5 sm:p-5 text-sm shadow-xs space-y-3.5 border ${
+        <div className={`rounded-2xl rounded-tl-xs p-3.5 sm:p-5 text-sm shadow-xs space-y-3.5 border min-w-0 ${
           isDark ? 'bg-zinc-900/95 border-zinc-800 text-zinc-100' : 'bg-white border-slate-200 text-slate-900 shadow-sm'
         }`}>
           {/* Conversational Markdown Body */}

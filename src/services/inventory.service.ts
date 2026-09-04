@@ -204,16 +204,16 @@ export const InventoryService = {
 
         const { data, error } = await query;
         if (error) {
-          console.warn('Failed to fetch inventory ledger:', error.message);
-          return [];
+          console.warn('Failed to fetch inventory ledger, using local fallback:', error.message);
+        } else if (data && data.length > 0) {
+          return data;
         }
-        return data || [];
       } catch (err) {
-        console.error('Inventory ledger fetch error:', err);
-        return [];
+        console.warn('Inventory ledger fetch error, using local fallback:', err);
       }
-    } else {
-      const invKey = `${LOCAL_INVENTORY_PREFIX}${businessId}`;
+    }
+
+    const invKey = `${LOCAL_INVENTORY_PREFIX}${businessId}`;
       const invStored = localStorage.getItem(invKey);
       let invList: InventoryTransaction[] = invStored ? JSON.parse(invStored) : [];
 
@@ -242,6 +242,5 @@ export const InventoryService = {
       });
 
       return results;
-    }
   },
 };

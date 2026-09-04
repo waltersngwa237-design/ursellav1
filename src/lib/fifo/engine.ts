@@ -93,19 +93,21 @@ function consumeFifo(
   quantity: number
 ): { consumptions: LotConsumption[]; covered: number; shortfall: number } {
   const consumptions: LotConsumption[] = [];
-  let remaining = quantity;
+  let remaining = round(quantity, 6);
 
-  while (remaining > 0 && state.lots.length > 0) {
+  while (remaining > 1e-9 && state.lots.length > 0) {
     const lot = state.lots[0];
-    const take = Math.min(lot.quantityRemaining, remaining);
-    lot.quantityRemaining -= take;
-    remaining -= take;
+    const take = round(Math.min(lot.quantityRemaining, remaining), 6);
+    lot.quantityRemaining = round(lot.quantityRemaining - take, 6);
+    remaining = round(remaining - take, 6);
     state.lastConsumedUnitCost = lot.unitCost;
     consumptions.push({ lotId: lot.lotId, quantity: take, unitCost: lot.unitCost });
-    if (lot.quantityRemaining <= 0) state.lots.shift();
+    if (lot.quantityRemaining <= 1e-9) state.lots.shift();
   }
 
-  return { consumptions, covered: quantity - remaining, shortfall: remaining };
+  if (remaining <= 1e-9) remaining = 0;
+  const covered = round(quantity - remaining, 6);
+  return { consumptions, covered, shortfall: remaining };
 }
 
 function resolveFallback(

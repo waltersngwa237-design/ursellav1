@@ -368,7 +368,13 @@ export const SalesService = {
           );
         }
 
-        return sales;
+        if (sales.length > 0) {
+          return sales;
+        }
+        const localSales = localStorage.getItem(`${LOCAL_SALES_PREFIX}${businessId}`);
+        if (!localSales) {
+          return sales;
+        }
       } catch (err) {
         console.warn('[SalesService] Supabase getSales offline, falling back to local storage:', err);
       }

@@ -18,18 +18,22 @@ export class AIService {
   public static async sendChatMessage(
     payload: AIChatRequestPayload
   ): Promise<AIChatResponsePayload> {
-    // 1. Try invoking the Supabase Edge Function 'ursella-ai' if configured
+    // 1. Try invoking the Supabase Edge Function 'ursella-ai' if configured (with 4s timeout)
     if (isSupabaseConfigured && isValidUUID(payload.businessId)) {
       try {
-        const { data: edgeData, error: edgeError } = await supabase.functions.invoke('ursella-ai', {
+        const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
+          setTimeout(() => resolve({ data: null, error: new Error('Edge function timeout') }), 4000)
+        );
+        const invokePromise = supabase.functions.invoke('ursella-ai', {
           body: payload,
         });
+        const { data: edgeData, error: edgeError } = await Promise.race([invokePromise, timeoutPromise]);
 
         if (!edgeError && edgeData && edgeData.response) {
           return edgeData as AIChatResponsePayload;
         }
         if (edgeError) {
-          console.warn('Supabase Edge Function invocation failed, falling back to server route:', edgeError);
+          console.warn('Supabase Edge Function invocation skipped or timed out, falling back to server route:', edgeError);
         }
       } catch (err) {
         console.warn('Edge function invoke error, falling back to server route:', err);
@@ -73,16 +77,20 @@ export class AIService {
     const bizName = businessContext?.businessName || 'My Business';
     const bizCurr = businessContext?.currency || 'XAF';
 
-    // 1. Try Supabase Edge Function 'ursella-ai' if configured
+    // 1. Try Supabase Edge Function 'ursella-ai' if configured (with 4s timeout)
     if (isSupabaseConfigured && isValidUUID(businessId)) {
       try {
-        const { data: edgeData, error: edgeError } = await supabase.functions.invoke('ursella-ai', {
+        const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
+          setTimeout(() => resolve({ data: null, error: new Error('Edge function timeout') }), 4000)
+        );
+        const invokePromise = supabase.functions.invoke('ursella-ai', {
           body: {
             action: 'daily-brief',
             businessId,
             businessContext,
           },
         });
+        const { data: edgeData, error: edgeError } = await Promise.race([invokePromise, timeoutPromise]);
 
         if (!edgeError && edgeData) {
           const raw = edgeData.brief || edgeData.response || edgeData;
@@ -184,7 +192,7 @@ export class AIService {
             .gte('expense_date', todayStartIso.split('T')[0]),
           (supabase as any)
             .from('products')
-            .select('id, name, stock_quantity, minimum_stock_level, product_type, is_active')
+            .select('id, name, stock_quantity, minimum_stock_level, product_type, unit_of_measure, is_active')
             .eq('business_id', businessId)
             .eq('is_active', true),
           (supabase as any)
@@ -217,7 +225,7 @@ export class AIService {
         // Inventory alerts (excluding services)
         const physicalProducts = (prodRes.data || []).filter((p: any) => p.product_type !== 'service');
         const lowStock = physicalProducts.filter((p: any) => Number(p.stock_quantity || 0) <= Number(p.minimum_stock_level || 5));
-        const inventoryAlerts = lowStock.slice(0, 3).map((p: any) => `${p.name}: only ${p.stock_quantity} unit(s) remaining in stock.`);
+        const inventoryAlerts = lowStock.slice(0, 3).map((p: any) => `${p.name}: only ${p.stock_quantity} ${p.unit_of_measure || 'unit'}(s) remaining in stock.`);
         const debtFollowUps = Array.from(debtorBalances.entries())
           .slice(0, 3)
           .map(([name, amount]) => `${name}: owes ${bizCurr} ${amount.toLocaleString()}`);

@@ -41,6 +41,7 @@ export interface UpdateProductInput {
   unit_of_measure?: string;
   selling_price?: number;
   cost_price?: number;
+  stock_quantity?: number;
   minimum_stock_level?: number;
   image_url?: string | null;
   is_active?: boolean;
@@ -130,7 +131,7 @@ export const ProductService = {
         if (options.stockStatus && options.stockStatus !== 'all') {
           results = results.filter((p) => {
             if (p.product_type === 'service') {
-              return options.stockStatus === 'in_stock';
+              return false;
             }
             if (options.stockStatus === 'out_of_stock') {
               return p.stock_quantity <= 0;
@@ -145,7 +146,13 @@ export const ProductService = {
           });
         }
 
-        return results;
+        if (results.length > 0) {
+          return results;
+        }
+        const localCached = localStorage.getItem(`${LOCAL_PRODUCTS_PREFIX}${businessId}`);
+        if (!localCached) {
+          return results;
+        }
       } catch (err) {
         console.warn('[ProductService] Supabase fetch failed or offline, using local fallback:', err);
       }
@@ -183,6 +190,9 @@ export const ProductService = {
 
       if (options.stockStatus && options.stockStatus !== 'all') {
         enriched = enriched.filter((p) => {
+          if (p.product_type === 'service') {
+            return false;
+          }
           if (options.stockStatus === 'out_of_stock') {
             return p.stock_quantity <= 0;
           }
@@ -357,29 +367,31 @@ export const ProductService = {
         if (error.message.includes('unique') || error.message.includes('sku')) {
           throw new Error('A product with this SKU already exists in this business.');
         }
-        throw new Error(error.message);
-      }
-
-      // Record initial stock transaction if physical product and quantity > 0
-      if (!isService && effectiveStockQty > 0 && data?.id) {
-        try {
-          await (supabase as any).from('inventory_transactions').insert({
-            business_id: input.business_id,
-            product_id: data.id,
-            transaction_type: 'initial_stock',
-            quantity: effectiveStockQty,
-            unit_cost: input.cost_price > 0 ? input.cost_price : null,
-            reference_type: 'initialization',
-            notes: 'Initial inventory quantity logged at product creation',
-          });
-        } catch (txErr) {
-          console.warn('Initial stock log failed (non-critical):', txErr);
+        console.warn('[ProductService] Supabase createProduct failed, falling back to local storage:', error.message);
+      } else if (data) {
+        // Record initial stock transaction if physical product and quantity > 0
+        if (!isService && effectiveStockQty > 0 && data?.id) {
+          try {
+            await (supabase as any).from('inventory_transactions').insert({
+              business_id: input.business_id,
+              product_id: data.id,
+              transaction_type: 'initial_stock',
+              quantity: effectiveStockQty,
+              unit_cost: input.cost_price > 0 ? input.cost_price : null,
+              reference_type: 'initialization',
+              notes: 'Initial inventory quantity logged at product creation',
+            });
+          } catch (txErr) {
+            console.warn('Initial stock log failed (non-critical):', txErr);
+          }
         }
-      }
 
-      return data as Product;
-    } else {
-      const key = `${LOCAL_PRODUCTS_PREFIX}${input.business_id}`;
+        return data as Product;
+      }
+    }
+
+    // Local / Offline Storage Fallback
+    const key = `${LOCAL_PRODUCTS_PREFIX}${input.business_id}`;
       const stored = localStorage.getItem(key);
       const list: Product[] = stored ? JSON.parse(stored) : [];
 
@@ -433,7 +445,6 @@ export const ProductService = {
       }
 
       return newProd;
-    }
   },
 
   /**
@@ -488,12 +499,13 @@ export const ProductService = {
         if (error.message.includes('unique') || error.message.includes('sku')) {
           throw new Error('A product with this SKU already exists in this business.');
         }
-        throw new Error(error.message);
+        console.warn('[ProductService] Supabase updateProduct failed, falling back to local storage:', error.message);
+      } else if (data) {
+        return data as Product;
       }
+    }
 
-      return data as Product;
-    } else {
-      const key = `${LOCAL_PRODUCTS_PREFIX}${businessId}`;
+    const key = `${LOCAL_PRODUCTS_PREFIX}${businessId}`;
       const stored = localStorage.getItem(key);
       const list: Product[] = stored ? JSON.parse(stored) : [];
       const idx = list.findIndex((p) => p.id === productId);
@@ -513,7 +525,7 @@ export const ProductService = {
         ...input,
         product_type: input.product_type || list[idx].product_type || 'physical',
         unit_of_measure: input.unit_of_measure !== undefined ? (input.unit_of_measure.trim() || 'piece') : list[idx].unit_of_measure || 'piece',
-        stock_quantity: input.product_type === 'service' ? 0 : list[idx].stock_quantity,
+        stock_quantity: input.product_type === 'service' ? 0 : (input.stock_quantity !== undefined ? input.stock_quantity : list[idx].stock_quantity),
         minimum_stock_level: input.product_type === 'service' ? 0 : (input.minimum_stock_level !== undefined ? input.minimum_stock_level : list[idx].minimum_stock_level),
         updated_at: new Date().toISOString(),
       };
@@ -521,7 +533,6 @@ export const ProductService = {
       list[idx] = updated;
       localStorage.setItem(key, JSON.stringify(list));
       return updated;
-    }
   },
 
   /**

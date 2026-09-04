@@ -137,7 +137,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       {item.product_name_snapshot}
                     </p>
                     <p className="text-[10px] text-zinc-400">
-                      {item.quantity} x {currencyConfig.format(item.unit_price)}
+                      {item.quantity} {item.unit_of_measure ? `${item.unit_of_measure} ` : ''}x {currencyConfig.format(item.unit_price)}
                       {item.discount > 0 ? ` (-${currencyConfig.format(item.discount)})` : ''}
                     </p>
                   </div>

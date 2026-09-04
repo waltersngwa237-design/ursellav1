@@ -58,6 +58,28 @@ export const AppShell: React.FC<AppShellProps> = ({
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const handleViewportChange = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      // On Android/mobile, keyboard open shrinks visualViewport height significantly (> 100px)
+      const isKb = window.innerHeight - vv.height > 100;
+      setIsKeyboardVisible(isKb);
+    };
+
+    const vv = window.visualViewport;
+    vv.addEventListener('resize', handleViewportChange);
+    vv.addEventListener('scroll', handleViewportChange);
+
+    return () => {
+      vv.removeEventListener('resize', handleViewportChange);
+      vv.removeEventListener('scroll', handleViewportChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (activeBusiness?.id) {
@@ -117,7 +139,9 @@ export const AppShell: React.FC<AppShellProps> = ({
   const isMenuSectionActive = ['insights', 'analytics', 'reports', 'customers', 'data-io', 'billing', 'more'].includes(currentRoute);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col md:flex-row">
+    <div className={`min-h-screen bg-zinc-950 text-zinc-100 flex flex-col md:flex-row ${
+      currentRoute === 'ai' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : ''
+    }`}>
       {/* ========================================================================= */}
       {/* DESKTOP SIDEBAR (Visible on md: screens and above)                        */}
       {/* ========================================================================= */}
@@ -204,7 +228,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* ========================================================================= */}
       <div className={`flex-1 flex flex-col min-w-0 ${
         currentRoute === 'ai' 
-          ? 'h-[100dvh] md:h-screen overflow-hidden pb-16 md:pb-0' 
+          ? `h-[100dvh] md:h-screen overflow-hidden ${isKeyboardVisible ? 'pb-0' : 'pb-16'} md:pb-0` 
           : 'pb-20 md:pb-8'
       }`}>
         {/* Mobile Top Bar - Only shown for non-AI routes; AI route has its own integrated top-to-bottom header */}
@@ -318,7 +342,9 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* ========================================================================= */}
       {/* MOBILE BOTTOM NAVIGATION: 5 Essential Tabs (Comfortable 64px Touch Area)  */}
       {/* ========================================================================= */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-900/95 backdrop-blur-lg border-t border-zinc-800/90 px-1 py-1.5 flex items-center justify-around shadow-2xl safe-area-bottom">
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-900/95 backdrop-blur-lg border-t border-zinc-800/90 px-1 py-1.5 flex items-center justify-around shadow-2xl safe-area-bottom transition-all duration-200 ${
+        isKeyboardVisible && currentRoute === 'ai' ? 'translate-y-full pointer-events-none opacity-0' : 'translate-y-0 opacity-100'
+      }`}>
         {/* 1. Home Tab */}
         <button
           onClick={() => onNavigate('home')}

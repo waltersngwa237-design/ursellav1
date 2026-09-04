@@ -1,9 +1,13 @@
 // Ursella Progressive Web App Service Worker
-const CACHE_NAME = 'ursella-app-v2';
+const CACHE_NAME = 'ursella-app-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/pwa-192x192.png',
+  '/pwa-512x512.png',
+  '/pwa-maskable-512x512.png',
+  '/apple-touch-icon.png',
   '/icon.svg',
   '/favicon.svg',
 ];
@@ -136,8 +140,8 @@ self.addEventListener('push', (event) => {
     const title = data.title || 'Ursella Business Alert';
     const options = {
       body: data.body || 'You have a new operational update.',
-      icon: '/icon.svg',
-      badge: '/icon.svg',
+      icon: '/pwa-192x192.png',
+      badge: '/pwa-192x192.png',
       data: {
         url: data.url || '/#/insights',
       },

@@ -189,13 +189,14 @@ export const SellPage: React.FC = () => {
 
   // Cart Handlers
   const addToCart = (product: ProductWithCategory) => {
-    if (product.stock_quantity <= 0) return;
+    const isService = product.product_type === 'service';
+    if (!isService && product.stock_quantity <= 0) return;
 
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
-        if (existing.quantity >= product.stock_quantity) {
-          // Cannot add more than current stock
+        if (!isService && existing.quantity >= product.stock_quantity) {
+          // Cannot add more than current stock for physical products
           return prev;
         }
         return prev.map((item) =>
@@ -226,8 +227,9 @@ export const SellPage: React.FC = () => {
       return;
     }
 
-    if (newQty > item.product.stock_quantity) {
-      // Limit to max stock
+    const isService = item.product.product_type === 'service';
+    if (!isService && newQty > item.product.stock_quantity) {
+      // Limit to max stock for physical products
       return;
     }
 
@@ -466,8 +468,10 @@ export const SellPage: React.FC = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {filteredProducts.map((product) => {
                   const inCartItem = cart.find((i) => i.product.id === product.id);
-                  const isOutOfStock = product.stock_quantity <= 0;
+                  const isService = product.product_type === 'service';
+                  const isOutOfStock = !isService && product.stock_quantity <= 0;
                   const isLowStock =
+                    !isService &&
                     product.stock_quantity > 0 &&
                     product.stock_quantity <= product.minimum_stock_level;
 
@@ -485,17 +489,24 @@ export const SellPage: React.FC = () => {
                     >
                       {/* In-Cart Quantity Indicator Badge */}
                       {inCartItem && (
-                        <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shadow-lg animate-in zoom-in-50">
+                        <div className="absolute top-2 right-2 px-1.5 min-w-[24px] h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shadow-lg animate-in zoom-in-50">
                           {inCartItem.quantity}
                         </div>
                       )}
 
                       <div>
-                        {product.category && (
-                          <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block truncate">
-                            {product.category.name}
-                          </span>
-                        )}
+                        <div className="flex items-center justify-between gap-1">
+                          {product.category ? (
+                            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block truncate">
+                              {product.category.name}
+                            </span>
+                          ) : <span />}
+                          {isService && (
+                            <span className="text-[9px] font-bold text-blue-400 bg-blue-950/40 border border-blue-800/50 px-1.5 py-0.5 rounded">
+                              Service
+                            </span>
+                          )}
+                        </div>
                         <h4 className="text-xs font-bold text-zinc-100 mt-0.5 line-clamp-2 leading-tight">
                           {product.name}
                         </h4>
@@ -512,17 +523,21 @@ export const SellPage: React.FC = () => {
                             {currencyConfig.format(product.selling_price)}
                           </p>
                           <div className="mt-0.5">
-                            {isOutOfStock ? (
+                            {isService ? (
+                              <span className="text-[10px] font-medium text-blue-400">
+                                Service (No stock limit)
+                              </span>
+                            ) : isOutOfStock ? (
                               <span className="text-[10px] font-bold text-rose-400">
                                 Out of stock
                               </span>
                             ) : isLowStock ? (
                               <span className="text-[10px] font-semibold text-amber-400">
-                                {product.stock_quantity} left (Low)
+                                {product.stock_quantity} {product.unit_of_measure || 'piece'} left (Low)
                               </span>
                             ) : (
                               <span className="text-[10px] text-zinc-400">
-                                Stock: {product.stock_quantity}
+                                Stock: {product.stock_quantity} {product.unit_of_measure || 'piece'}
                               </span>
                             )}
                           </div>
@@ -639,19 +654,32 @@ export const SellPage: React.FC = () => {
                       </div>
 
                       {/* Quantity Controls */}
-                      <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+                      <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
                         <button
-                          onClick={() => updateCartQuantity(item.product.id, item.quantity - 1)}
+                          onClick={() => updateCartQuantity(item.product.id, Math.max(0, item.quantity - 1))}
                           className="w-5 h-5 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className="w-6 text-center font-bold text-zinc-100 text-xs">
-                          {item.quantity}
+                        <input
+                          type="number"
+                          step="any"
+                          min="0.0001"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val) && val > 0) {
+                              updateCartQuantity(item.product.id, val);
+                            }
+                          }}
+                          className="w-11 text-center font-bold text-zinc-100 text-xs bg-transparent border-none focus:outline-none p-0"
+                        />
+                        <span className="text-[10px] text-zinc-400 select-none pr-0.5">
+                          {item.product.unit_of_measure || 'piece'}
                         </span>
                         <button
                           onClick={() => updateCartQuantity(item.product.id, item.quantity + 1)}
-                          disabled={item.quantity >= item.product.stock_quantity}
+                          disabled={item.product.product_type !== 'service' && item.quantity >= item.product.stock_quantity}
                           className="w-5 h-5 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30"
                         >
                           <Plus className="w-3 h-3" />
