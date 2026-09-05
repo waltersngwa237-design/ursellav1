@@ -670,5 +670,33 @@ export const BusinessService = {
 
     this.seedStarterCatalogIfEmpty(membership.business.id, 'XAF');
     return membership;
-  }
+  },
+
+  /**
+   * Ensure a fully configured demo business exists with starter data for instant demo usage
+   */
+  async ensureDemoBusinessExists(userId: string): Promise<UserBusinessMembership> {
+    const key = `${LOCAL_STORAGE_BIZ_PREFIX}${userId}`;
+    let existingList: UserBusinessMembership[] = [];
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        existingList = JSON.parse(stored);
+        const found = existingList.find((m) => m.business.name.includes('(Demo)'));
+        if (found) {
+          localStorage.setItem('ursella_active_business_id', found.business.id);
+          localStorage.setItem('ursella_cached_memberships_v1', JSON.stringify(existingList));
+          this.seedStarterCatalogIfEmpty(found.business.id, 'XAF');
+          return found;
+        }
+      }
+    } catch {}
+
+    const membership = await this.createDemoBusiness(userId);
+    localStorage.setItem('ursella_active_business_id', membership.business.id);
+    const updatedList = [...existingList.filter((m) => m.business.id !== membership.business.id), membership];
+    localStorage.setItem(key, JSON.stringify(updatedList));
+    localStorage.setItem('ursella_cached_memberships_v1', JSON.stringify(updatedList));
+    return membership;
+  },
 };

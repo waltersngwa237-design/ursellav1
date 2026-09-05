@@ -62,7 +62,15 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setLoading(true);
       }
       setError(null);
-      const list = await BusinessService.getUserBusinesses(userId);
+      let list = await BusinessService.getUserBusinesses(userId);
+      if (list.length === 0 && (user?.is_demo || localStorage.getItem('ursella_is_demo_mode') === 'true')) {
+        try {
+          const demo = await BusinessService.ensureDemoBusinessExists(userId);
+          list = [demo];
+        } catch (demoErr) {
+          console.warn('Failed to ensure demo business on fetch:', demoErr);
+        }
+      }
       setBusinesses(list);
 
       try {
@@ -143,7 +151,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       setLoading(true);
       setError(null);
-      const demoMembership = await BusinessService.createDemoBusiness(user.id);
+      const demoMembership = await BusinessService.ensureDemoBusinessExists(user.id);
       setBusinesses((prev) => [
         ...prev.filter((b) => b.business.id !== demoMembership.business.id),
         demoMembership,

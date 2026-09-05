@@ -106,9 +106,20 @@ export const AppShell: React.FC<AppShellProps> = ({
   }, []);
 
   useEffect(() => {
-    if (activeBusiness?.id) {
+    if (!activeBusiness?.id) return;
+
+    const loadNotifications = () => {
       ProactiveService.getNotifications(activeBusiness.id).then(setNotifications);
-    }
+    };
+
+    loadNotifications();
+    window.addEventListener('ursella_notification_refresh', loadNotifications);
+    const interval = setInterval(loadNotifications, 30000);
+
+    return () => {
+      window.removeEventListener('ursella_notification_refresh', loadNotifications);
+      clearInterval(interval);
+    };
   }, [activeBusiness?.id]);
 
   const unreadNotifCount = notifications.filter((n) => !n.is_read).length;
@@ -135,6 +146,9 @@ export const AppShell: React.FC<AppShellProps> = ({
 
   const handleToggleReadNotification = async (notificationId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (activeBusiness?.id) {
+      await ProactiveService.toggleNotificationRead(notificationId, activeBusiness.id);
+    }
     setNotifications((prev) =>
       prev.map((n) => (n.id === notificationId ? { ...n, is_read: !n.is_read } : n))
     );

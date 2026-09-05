@@ -1,14 +1,19 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 import { generateUUID, isValidUUID } from '../lib/uuid.ts';
 import type { UserProfile } from '../types/index.ts';
+import { BusinessService } from './business.service.ts';
 
-// Local storage key for fallback preview mode
+// Local storage key for fallback preview mode & instant demo
 const LOCAL_STORAGE_AUTH_KEY = 'ursella_preview_auth_user';
 const LOCAL_STORAGE_PROFILE_KEY = 'ursella_preview_profile';
+
+export const DEMO_USER_ID = '00000000-0000-4000-8000-000000000001';
+export const DEMO_USER_EMAIL = 'demo@ursella.app';
 
 export interface AuthUser {
   id: string;
   email: string;
+  is_demo?: boolean;
   user_metadata?: {
     full_name?: string;
     phone?: string;
@@ -17,11 +22,85 @@ export interface AuthUser {
 
 export const AuthService = {
   /**
+   * Launch an instant demo session without requiring credentials or sign in
+   */
+  async startInstantDemo(): Promise<AuthUser> {
+    const demoUser: AuthUser = {
+      id: DEMO_USER_ID,
+      email: DEMO_USER_EMAIL,
+      is_demo: true,
+      user_metadata: {
+        full_name: 'Demo Business Owner',
+        phone: '+237 670 000 000',
+      },
+    };
+
+    localStorage.setItem(LOCAL_STORAGE_AUTH_KEY, JSON.stringify(demoUser));
+    localStorage.setItem('ursella_is_demo_mode', 'true');
+
+    const profile: UserProfile = {
+      id: demoUser.id,
+      full_name: 'Demo Business Owner',
+      phone: '+237 670 000 000',
+      avatar_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(profile));
+
+    // Ensure demo business with realistic inventory, sales, customers, and alerts is seeded immediately
+    try {
+      await BusinessService.ensureDemoBusinessExists(demoUser.id);
+    } catch (err) {
+      console.warn('Error ensuring demo business exists:', err);
+    }
+
+    // Broadcast instant auth change
+    window.dispatchEvent(new CustomEvent('ursella_auth_change', { detail: demoUser }));
+    window.dispatchEvent(new Event('storage'));
+
+    return demoUser;
+  },
+
+  /**
    * Listen to authentication state changes
    */
   onAuthStateChange(callback: (user: AuthUser | null) => void) {
+    const handleCustomChange = (e: Event) => {
+      const customEvent = e as CustomEvent<AuthUser | null>;
+      callback(customEvent.detail ?? null);
+    };
+
+    const checkLocal = () => {
+      const stored = localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
+      if (stored) {
+        try {
+          callback(JSON.parse(stored));
+        } catch {
+          callback(null);
+        }
+      } else {
+        callback(null);
+      }
+    };
+
+    window.addEventListener('ursella_auth_change', handleCustomChange);
+    window.addEventListener('storage', checkLocal);
+
     if (isSupabaseConfigured) {
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        // If an instant demo session is active, keep demo user
+        const stored = localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed?.is_demo || parsed?.id === DEMO_USER_ID) {
+              callback(parsed);
+              return;
+            }
+          } catch {}
+        }
+
         if (session?.user) {
           callback({
             id: session.user.id,
@@ -32,26 +111,16 @@ export const AuthService = {
           callback(null);
         }
       });
+
       return () => {
+        window.removeEventListener('ursella_auth_change', handleCustomChange);
+        window.removeEventListener('storage', checkLocal);
         data.subscription.unsubscribe();
       };
     } else {
-      // Preview / Dev mode listener
-      const checkLocal = () => {
-        const stored = localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
-        if (stored) {
-          try {
-            callback(JSON.parse(stored));
-          } catch {
-            callback(null);
-          }
-        } else {
-          callback(null);
-        }
-      };
       checkLocal();
-      window.addEventListener('storage', checkLocal);
       return () => {
+        window.removeEventListener('ursella_auth_change', handleCustomChange);
         window.removeEventListener('storage', checkLocal);
       };
     }
@@ -61,20 +130,39 @@ export const AuthService = {
    * Get initial session/user
    */
   async getInitialUser(): Promise<AuthUser | null> {
+    // 1. Check if an instant demo or preview user session exists in local storage
+    const stored = localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed?.is_demo || parsed?.id === DEMO_USER_ID || !isSupabaseConfigured) {
+          return parsed;
+        }
+      } catch {}
+    }
+
+    // 2. If Supabase is configured, check real session
     if (isSupabaseConfigured) {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
-        if (error || !session?.user) return null;
+        if (error || !session?.user) {
+          if (stored) {
+            try { return JSON.parse(stored); } catch {}
+          }
+          return null;
+        }
         return {
           id: session.user.id,
           email: session.user.email || '',
           user_metadata: session.user.user_metadata,
         };
       } catch {
+        if (stored) {
+          try { return JSON.parse(stored); } catch {}
+        }
         return null;
       }
     } else {
-      const stored = localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
       if (stored) {
         try {
           return JSON.parse(stored);
@@ -217,11 +305,18 @@ export const AuthService = {
    * Sign out
    */
   async signOut() {
+    localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY);
+    localStorage.removeItem('ursella_is_demo_mode');
+    localStorage.removeItem(LOCAL_STORAGE_PROFILE_KEY);
+    window.dispatchEvent(new CustomEvent('ursella_auth_change', { detail: null }));
+    window.dispatchEvent(new Event('storage'));
+
     if (isSupabaseConfigured) {
-      await supabase.auth.signOut();
-    } else {
-      localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY);
-      window.dispatchEvent(new Event('storage'));
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn('Supabase sign out error:', err);
+      }
     }
   },
 

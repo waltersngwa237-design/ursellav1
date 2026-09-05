@@ -249,19 +249,146 @@ export class ProactiveService {
   }
 
   /**
-   * In-App Notifications API
+   * Scan local storage for offline / preview business alerts
+   */
+  public static scanLocalAlerts(businessId: string): AppNotification[] {
+    const alerts: AppNotification[] = [];
+    try {
+      // 1. Check local catalog
+      const prodsRaw = localStorage.getItem(`ursella_products_${businessId}`);
+      if (prodsRaw) {
+        const products = JSON.parse(prodsRaw);
+        if (Array.isArray(products)) {
+          for (const prod of products) {
+            const stock = Number(prod.stock_quantity ?? 0);
+            const minStock = Number(prod.minimum_stock_level ?? 5);
+            if (stock <= 0) {
+              alerts.push({
+                id: `alert_stock_out_${prod.id}`,
+                business_id: businessId,
+                title: `Out of Stock: ${prod.name}`,
+                message: `Current inventory is 0 units. Replenish immediately to prevent lost sales.`,
+                priority: 'critical',
+                category: 'inventory',
+                is_read: false,
+                action_type: 'create_restock_task',
+                action_payload: { productId: prod.id, productName: prod.name, suggestedQuantity: minStock * 2 },
+                created_at: new Date().toISOString(),
+              });
+            } else if (stock <= minStock) {
+              alerts.push({
+                id: `alert_stock_low_${prod.id}`,
+                business_id: businessId,
+                title: `Low Stock: ${prod.name}`,
+                message: `Only ${stock} unit(s) remaining (threshold: ${minStock}). Consider reordering.`,
+                priority: 'high',
+                category: 'inventory',
+                is_read: false,
+                action_type: 'create_restock_task',
+                action_payload: { productId: prod.id, productName: prod.name, suggestedQuantity: minStock * 2 },
+                created_at: new Date().toISOString(),
+              });
+            }
+          }
+        }
+      }
+
+      // 2. Check local customer debts
+      const custRaw = localStorage.getItem(`ursella_customers_${businessId}`);
+      if (custRaw) {
+        const customers = JSON.parse(custRaw);
+        if (Array.isArray(customers)) {
+          for (const cust of customers) {
+            const debt = Number(cust.total_debt ?? 0);
+            if (debt > 0) {
+              alerts.push({
+                id: `alert_debt_${cust.id}`,
+                business_id: businessId,
+                title: `Overdue Balance: ${cust.name}`,
+                message: `${cust.name} has an outstanding credit balance of ${debt.toLocaleString()}.`,
+                priority: debt >= 50000 ? 'critical' : 'high',
+                category: 'customers',
+                is_read: false,
+                action_type: 'send_customer_message',
+                action_payload: { customerId: cust.id, customerName: cust.name, phone: cust.phone, debtAmount: debt },
+                created_at: new Date().toISOString(),
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore local scan error
+    }
+    return alerts;
+  }
+
+  /**
+   * In-App Notifications API with combined server and local detection
    */
   public static async getNotifications(businessId: string): Promise<AppNotification[]> {
+    let serverNotifications: AppNotification[] = [];
     try {
       const response = await fetch(`/api/notifications?businessId=${encodeURIComponent(businessId)}`);
-      if (!response.ok) return [];
-      return await response.json();
+      if (response.ok) {
+        serverNotifications = await response.json();
+      }
     } catch {
-      return [];
+      // offline / fallback
     }
+
+    const localAlerts = this.scanLocalAlerts(businessId);
+
+    // Read local override state (marked read, deleted)
+    let readIds = new Set<string>();
+    let deletedIds = new Set<string>();
+    try {
+      const stateRaw = localStorage.getItem(`ursella_notif_states_${businessId}`);
+      if (stateRaw) {
+        const state = JSON.parse(stateRaw);
+        if (Array.isArray(state.readIds)) readIds = new Set(state.readIds);
+        if (Array.isArray(state.deletedIds)) deletedIds = new Set(state.deletedIds);
+      }
+    } catch {}
+
+    // Combine and deduplicate by title or ID
+    const combined: AppNotification[] = [];
+    const seenTitles = new Set<string>();
+
+    for (const notif of [...serverNotifications, ...localAlerts]) {
+      if (deletedIds.has(notif.id)) continue;
+      const normalizedTitle = notif.title.trim().toLowerCase();
+      if (seenTitles.has(normalizedTitle)) continue;
+      seenTitles.add(normalizedTitle);
+
+      combined.push({
+        ...notif,
+        is_read: readIds.has(notif.id) ? true : notif.is_read,
+      });
+    }
+
+    return combined;
+  }
+
+  /**
+   * Explicitly trigger a fresh background business scan and get updated notifications
+   */
+  public static async triggerAlertScan(businessId: string): Promise<AppNotification[]> {
+    try {
+      await this.scanBusinessInsights(businessId);
+    } catch {}
+    return this.getNotifications(businessId);
   }
 
   public static async markAllNotificationsRead(businessId: string): Promise<boolean> {
+    try {
+      const stateRaw = localStorage.getItem(`ursella_notif_states_${businessId}`);
+      const state = stateRaw ? JSON.parse(stateRaw) : { readIds: [], deletedIds: [] };
+      const current = await this.getNotifications(businessId);
+      state.readIds = current.map((n) => n.id);
+      localStorage.setItem(`ursella_notif_states_${businessId}`, JSON.stringify(state));
+    } catch {}
+
     try {
       const response = await fetch('/api/notifications/read-all', {
         method: 'POST',
@@ -270,22 +397,43 @@ export class ProactiveService {
       });
       return response.ok;
     } catch {
-      return false;
+      return true;
     }
   }
 
   public static async deleteNotification(notificationId: string, businessId: string): Promise<boolean> {
+    try {
+      const stateRaw = localStorage.getItem(`ursella_notif_states_${businessId}`);
+      const state = stateRaw ? JSON.parse(stateRaw) : { readIds: [], deletedIds: [] };
+      if (!state.deletedIds.includes(notificationId)) {
+        state.deletedIds.push(notificationId);
+      }
+      localStorage.setItem(`ursella_notif_states_${businessId}`, JSON.stringify(state));
+    } catch {}
+
     try {
       const response = await fetch(`/api/notifications/${encodeURIComponent(notificationId)}?businessId=${encodeURIComponent(businessId)}`, {
         method: 'DELETE',
       });
       return response.ok;
     } catch {
-      return false;
+      return true;
     }
   }
 
   public static async toggleNotificationRead(notificationId: string, businessId: string): Promise<boolean> {
+    try {
+      const stateRaw = localStorage.getItem(`ursella_notif_states_${businessId}`);
+      const state = stateRaw ? JSON.parse(stateRaw) : { readIds: [], deletedIds: [] };
+      const idx = state.readIds.indexOf(notificationId);
+      if (idx >= 0) {
+        state.readIds.splice(idx, 1);
+      } else {
+        state.readIds.push(notificationId);
+      }
+      localStorage.setItem(`ursella_notif_states_${businessId}`, JSON.stringify(state));
+    } catch {}
+
     try {
       const response = await fetch(`/api/notifications/${encodeURIComponent(notificationId)}/toggle-read`, {
         method: 'POST',
@@ -294,11 +442,17 @@ export class ProactiveService {
       });
       return response.ok;
     } catch {
-      return false;
+      return true;
     }
   }
 
   public static async clearAllNotifications(businessId: string): Promise<boolean> {
+    try {
+      const current = await this.getNotifications(businessId);
+      const state = { readIds: [], deletedIds: current.map((n) => n.id) };
+      localStorage.setItem(`ursella_notif_states_${businessId}`, JSON.stringify(state));
+    } catch {}
+
     try {
       const response = await fetch('/api/notifications/clear-all', {
         method: 'POST',
@@ -307,7 +461,7 @@ export class ProactiveService {
       });
       return response.ok;
     } catch {
-      return false;
+      return true;
     }
   }
 

@@ -9,6 +9,7 @@ interface AuthContextType {
   error: string | null;
   signIn: (email: string, pass: string) => Promise<void>;
   signUp: (email: string, pass: string, fullName: string, phone?: string) => Promise<void>;
+  startInstantDemo: () => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (newPass: string) => Promise<void>;
@@ -101,6 +102,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const startInstantDemo = async () => {
+    try {
+      setError(null);
+      setLoading(true);
+      const authUser = await AuthService.startInstantDemo();
+      setUser(authUser);
+      await loadUserProfile(authUser.id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to launch instant demo.';
+      setError(msg);
+      throw new Error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const signOut = async () => {
     try {
       setLoading(true);
@@ -167,6 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         signIn,
         signUp,
+        startInstantDemo,
         signOut,
         resetPassword,
         updatePassword,

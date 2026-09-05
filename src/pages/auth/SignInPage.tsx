@@ -17,7 +17,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   onNavigateForgotPassword,
   onNavigateLanding,
 }) => {
-  const { signIn, loading, error, clearError } = useAuth();
+  const { signIn, startInstantDemo, loading, error, clearError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -47,9 +47,9 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   const handleQuickDemo = async () => {
     try {
       setFormError(null);
-      await signIn('owner@ursella-demo.com', 'ursella2026!');
+      await startInstantDemo();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Sign in failed.';
+      const msg = err instanceof Error ? err.message : 'Instant demo failed to load.';
       setFormError(msg);
     }
   };

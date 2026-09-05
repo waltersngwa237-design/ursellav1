@@ -25,8 +25,8 @@ export const BETA_CONFIG: BetaConfig = {
   version: '0.9.5-beta',
   isBeta: true,
   feedbackEnabled: true,
-  allowDemoCreation: false, // Default to FALSE for real-user testing so real users start with 100% clean data
-  strictSupabaseAuth: true,
+  allowDemoCreation: true, // Enabled for instant demo access
+  strictSupabaseAuth: false, // Allows seamless instant demo mode without Supabase session lock
   showOnboardingGuide: true,
   maxUploadMb: 10,
 };

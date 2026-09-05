@@ -27,15 +27,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onNavigateSignIn,
   onNavigateSignUp,
 }) => {
-  const { signIn, loading } = useAuth();
+  const { startInstantDemo, loading } = useAuth();
   const { isDark } = useTheme();
 
   const handleQuickDemo = async () => {
     try {
-      await signIn('owner@ursella-demo.com', 'ursella2026!');
+      await startInstantDemo();
     } catch (err) {
-      console.warn('Demo login redirected to signin:', err);
-      onNavigateSignIn();
+      console.warn('Instant demo launch warning:', err);
     }
   };
 
