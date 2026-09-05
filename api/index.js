@@ -4385,11 +4385,22 @@ app.delete("/api/reminders/:id", (req, res) => {
     return res.status(500).json({ error: "Failed to delete reminder" });
   }
 });
-app.get("/api/notifications", (req, res) => {
+app.get("/api/notifications", async (req, res) => {
   try {
     const businessId = req.query.businessId;
     if (!businessId) return res.status(400).json({ error: "businessId required" });
-    const notifications = ProactiveAIService.getNotifications(businessId);
+    let notifications = ProactiveAIService.getNotifications(businessId);
+    if (notifications.length === 0) {
+      try {
+        const rawEvents = await EventDetectionService.scanBusiness(businessId);
+        if (rawEvents.length > 0) {
+          await ProactiveAIService.processDetectedEvents(businessId, rawEvents);
+          notifications = ProactiveAIService.getNotifications(businessId);
+        }
+      } catch (scanErr) {
+        console.warn("[Auto-scan on empty notifications error]:", scanErr);
+      }
+    }
     return res.json(notifications);
   } catch (error) {
     return res.status(500).json({ error: "Failed to get notifications" });
