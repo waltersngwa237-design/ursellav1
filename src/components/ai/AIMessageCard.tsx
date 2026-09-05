@@ -370,5 +370,6 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
       </div>
     </div>
   );
-};
+});
 
+AIMessageCard.displayName = 'AIMessageCard';

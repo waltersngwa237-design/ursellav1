@@ -309,6 +309,8 @@ export class BusinessToolsService {
           id: string;
           name: string;
           sku?: string | null;
+          productType: string;
+          unitOfMeasure: string;
           sellingPrice: number;
           costPrice: number;
           unitsSold: number;
