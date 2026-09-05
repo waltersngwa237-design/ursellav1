@@ -55,17 +55,19 @@ function makeLot(productId, unitCost, quantity, receivedAt, sourceEventId, seq) 
 }
 function consumeFifo(state, quantity) {
   const consumptions = [];
-  let remaining = quantity;
-  while (remaining > 0 && state.lots.length > 0) {
+  let remaining = round(quantity, 6);
+  while (remaining > 1e-9 && state.lots.length > 0) {
     const lot = state.lots[0];
-    const take = Math.min(lot.quantityRemaining, remaining);
-    lot.quantityRemaining -= take;
-    remaining -= take;
+    const take = round(Math.min(lot.quantityRemaining, remaining), 6);
+    lot.quantityRemaining = round(lot.quantityRemaining - take, 6);
+    remaining = round(remaining - take, 6);
     state.lastConsumedUnitCost = lot.unitCost;
     consumptions.push({ lotId: lot.lotId, quantity: take, unitCost: lot.unitCost });
-    if (lot.quantityRemaining <= 0) state.lots.shift();
+    if (lot.quantityRemaining <= 1e-9) state.lots.shift();
   }
-  return { consumptions, covered: quantity - remaining, shortfall: remaining };
+  if (remaining <= 1e-9) remaining = 0;
+  const covered = round(quantity - remaining, 6);
+  return { consumptions, covered, shortfall: remaining };
 }
 function resolveFallback(fallback, state) {
   if (typeof fallback === "number") return fallback;
@@ -336,6 +338,7 @@ function productCostIndex(rows) {
 function openingLotsFromProducts(rows, openingDate = "1970-01-01T00:00:00Z") {
   const events = [];
   for (const r of rows) {
+    if (r.product_type === "service") continue;
     const qty = num(r.stock_quantity);
     if (qty > 0) {
       events.push({
@@ -374,6 +377,7 @@ function compareToRecordedCost(saleItems, sales) {
 function reconcileStock(rows, valuationByProduct) {
   const out = [];
   for (const r of rows) {
+    if (r.product_type === "service") continue;
     const snapshot = num(r.stock_quantity);
     const computed = valuationByProduct[r.id]?.quantityOnHand ?? 0;
     const drift = computed - snapshot;
@@ -501,10 +505,11 @@ var BusinessToolsService = class {
    * 2. Tool: get_inventory_alerts
    */
   static async getInventoryAlerts(businessId) {
-    const { data: products } = await serverSupabase.from("products").select("id, name, sku, cost_price, selling_price, stock_quantity, minimum_stock_level, is_active").eq("business_id", businessId).eq("is_active", true);
+    const { data: products } = await serverSupabase.from("products").select("id, name, sku, cost_price, selling_price, stock_quantity, minimum_stock_level, is_active, product_type, unit_of_measure").eq("business_id", businessId).eq("is_active", true);
     const activeList = products || [];
-    const outOfStock = activeList.filter((p) => (p.stock_quantity || 0) === 0);
-    const lowStock = activeList.filter(
+    const physicalList = activeList.filter((p) => p.product_type !== "service");
+    const outOfStock = physicalList.filter((p) => (p.stock_quantity || 0) <= 0);
+    const lowStock = physicalList.filter(
       (p) => (p.stock_quantity || 0) > 0 && (p.stock_quantity || 0) <= (p.minimum_stock_level || 5)
     );
     let fifoValuation = 0;
@@ -512,7 +517,7 @@ var BusinessToolsService = class {
       const fifo = await this.runFIFOLedger(businessId);
       fifoValuation = fifo.ledgerResult.totals.inventoryValue;
     } catch {
-      fifoValuation = activeList.reduce((sum, p) => sum + Number(p.stock_quantity || 0) * Number(p.cost_price || 0), 0);
+      fifoValuation = physicalList.reduce((sum, p) => sum + Number(p.stock_quantity || 0) * Number(p.cost_price || 0), 0);
     }
     const criticalItemsToRestock = [...outOfStock, ...lowStock].map((p) => ({
       productId: p.id,
@@ -522,14 +527,15 @@ var BusinessToolsService = class {
       minimumStockLevel: p.minimum_stock_level || 5,
       costPrice: p.cost_price,
       sellingPrice: p.selling_price,
-      status: (p.stock_quantity || 0) === 0 ? "OUT_OF_STOCK" : "LOW_STOCK",
-      estimatedRestockCost: ((p.minimum_stock_level || 5) * 2 - (p.stock_quantity || 0)) * (p.cost_price || 0)
+      unitOfMeasure: p.unit_of_measure || "piece",
+      status: (p.stock_quantity || 0) <= 0 ? "OUT_OF_STOCK" : "LOW_STOCK",
+      estimatedRestockCost: Math.max(0, ((p.minimum_stock_level || 5) * 2 - (p.stock_quantity || 0)) * (p.cost_price || 0))
     }));
     return {
-      totalActiveSKUs: activeList.length,
+      totalActiveSKUs: physicalList.length,
       outOfStockCount: outOfStock.length,
       lowStockCount: lowStock.length,
-      healthyStockCount: activeList.length - outOfStock.length - lowStock.length,
+      healthyStockCount: physicalList.length - outOfStock.length - lowStock.length,
       totalInventoryValuation: fifoValuation,
       criticalItemsToRestock,
       hasStockIssues: outOfStock.length > 0 || lowStock.length > 0
@@ -604,6 +610,8 @@ var BusinessToolsService = class {
           id: p.id,
           name: p.name,
           sku: p.sku,
+          productType: p.product_type || "physical",
+          unitOfMeasure: p.unit_of_measure || "piece",
           sellingPrice: sellP,
           costPrice: costP,
           unitsSold: 0,
@@ -637,6 +645,8 @@ var BusinessToolsService = class {
           id: p.id,
           name: p.name,
           sku: p.sku,
+          productType: p.productType,
+          unitOfMeasure: p.unitOfMeasure,
           sellingPrice: p.sellingPrice,
           costPrice: p.costPrice,
           stockQuantity: p.stockQuantity,
@@ -1146,19 +1156,58 @@ function classifyBusinessQuery(query) {
   };
 }
 
-// server/gemini.service.ts
+// server/ai-config.ts
 import { GoogleGenAI } from "@google/genai";
-var GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.7-flash";
-var geminiClient = null;
+var DEFAULT_GEMINI_MODEL = "gemini-3.7-flash";
+var FALLBACK_LITE_MODEL = "gemini-3.1-flash-lite";
+var DEPRECATED_MODELS = /* @__PURE__ */ new Set([
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-preview",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-001",
+  "gemini-2.0-pro",
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
+  "gemini-pro"
+]);
+function getActiveGeminiModel() {
+  const envModel = process.env.GEMINI_MODEL?.trim();
+  if (!envModel) {
+    return DEFAULT_GEMINI_MODEL;
+  }
+  if (DEPRECATED_MODELS.has(envModel.toLowerCase())) {
+    console.warn(
+      `[AI Config] Warning: configured GEMINI_MODEL "${envModel}" is deprecated and unsupported. Auto-resolving to authoritative "${DEFAULT_GEMINI_MODEL}".`
+    );
+    return DEFAULT_GEMINI_MODEL;
+  }
+  return envModel;
+}
+var geminiClientInstance = null;
 function getGeminiClient() {
-  if (!geminiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (apiKey && apiKey.trim().length > 0 && apiKey !== "placeholder-key") {
-      geminiClient = new GoogleGenAI({ apiKey });
+  if (!geminiClientInstance) {
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    if (apiKey && apiKey.length > 0 && apiKey !== "placeholder-key" && !apiKey.includes("MY_GEMINI_API_KEY")) {
+      geminiClientInstance = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build"
+          }
+        }
+      });
     }
   }
-  return geminiClient;
+  return geminiClientInstance;
 }
+function logAIProvenance(meta) {
+  const statusEmoji = meta.source === "GEMINI_RESPONSE" ? "\u2728 [GEMINI_LIVE]" : "\u{1F6E1}\uFE0F [DETERMINISTIC_FALLBACK]";
+  console.log(
+    `[AI Provenance] ${statusEmoji} endpoint=${meta.endpoint} business=${meta.businessId} model=${meta.model} source=${meta.source} latency=${meta.latencyMs}ms${meta.error ? ` err="${meta.error}"` : ""}`
+  );
+}
+
+// server/gemini.service.ts
 var GeminiService = class {
   /**
    * Builds the strict Ursella AI system instruction enforcing the 9-step reasoning workflow.
@@ -1223,7 +1272,7 @@ Respond with a JSON object strictly adhering to this schema:
    * Executes AI Chat reasoning.
    */
   static async generateChatResponse(userMessage, ctx) {
-    const ai2 = getGeminiClient();
+    const ai = getGeminiClient();
     const contextPrompt = `
 === BUSINESS CONTEXT & RELEVANT FACTUAL METRICS ===
 Active Store: ${ctx.businessName} (${ctx.businessType})
@@ -1247,12 +1296,22 @@ ${ctx.conversationHistory?.length ? ctx.conversationHistory.map((m) => `${m.role
 === CURRENT USER QUESTION ===
 "${userMessage}"
 `;
-    if (!ai2) {
+    const model = getActiveGeminiModel();
+    const startTime = Date.now();
+    if (!ai) {
+      logAIProvenance({
+        endpoint: "generateChatResponse",
+        businessId: ctx.businessName,
+        source: "DETERMINISTIC_FALLBACK",
+        model,
+        latencyMs: 0,
+        error: "GEMINI_API_KEY is not configured or client initialization failed"
+      });
       return this.generateDeterministicFallback(userMessage, ctx);
     }
     try {
-      const response = await ai2.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await ai.models.generateContent({
+        model,
         contents: contextPrompt,
         config: {
           systemInstruction: this.buildSystemInstruction(ctx),
@@ -1260,10 +1319,18 @@ ${ctx.conversationHistory?.length ? ctx.conversationHistory.map((m) => `${m.role
           temperature: 0.2
         }
       });
+      const latencyMs = Date.now() - startTime;
       const responseText = response.text || "";
       try {
         const parsed = JSON.parse(responseText);
         if (parsed && typeof parsed.answer === "string") {
+          logAIProvenance({
+            endpoint: "generateChatResponse",
+            businessId: ctx.businessName,
+            source: "GEMINI_RESPONSE",
+            model,
+            latencyMs
+          });
           return {
             answer: parsed.answer,
             intent: parsed.intent || ctx.parsedIntent?.intent || "business_overview",
@@ -1282,7 +1349,15 @@ ${ctx.conversationHistory?.length ? ctx.conversationHistory.map((m) => `${m.role
             responseSource: "GEMINI_RESPONSE"
           };
         }
-      } catch {
+      } catch (parseError) {
+        logAIProvenance({
+          endpoint: "generateChatResponse",
+          businessId: ctx.businessName,
+          source: "GEMINI_RESPONSE",
+          model,
+          latencyMs,
+          error: `JSON parse warning: ${parseError?.message}`
+        });
         return {
           answer: responseText,
           confidence: "moderate_confidence",
@@ -1291,7 +1366,16 @@ ${ctx.conversationHistory?.length ? ctx.conversationHistory.map((m) => `${m.role
         };
       }
     } catch (err) {
-      console.warn("Gemini API call failed, using deterministic business synthesizer:", err);
+      const latencyMs = Date.now() - startTime;
+      console.warn(`[Gemini Chat API Error] Model="${model}" failed after ${latencyMs}ms:`, err?.message || err);
+      logAIProvenance({
+        endpoint: "generateChatResponse",
+        businessId: ctx.businessName,
+        source: "DETERMINISTIC_FALLBACK",
+        model,
+        latencyMs,
+        error: err?.message || String(err)
+      });
     }
     return this.generateDeterministicFallback(userMessage, ctx);
   }
@@ -1299,7 +1383,9 @@ ${ctx.conversationHistory?.length ? ctx.conversationHistory.map((m) => `${m.role
    * Generates Daily Business Brief.
    */
   static async generateDailyBrief(ctx) {
-    const ai2 = getGeminiClient();
+    const ai = getGeminiClient();
+    const model = getActiveGeminiModel();
+    const startTime = Date.now();
     const briefFacts = ctx.toolResults.get_daily_brief_facts || ctx.toolResults.get_today_sales_summary;
     const today = briefFacts?.todayMetrics || {
       revenueToday: briefFacts?.revenue || 0,
@@ -1310,7 +1396,15 @@ ${ctx.conversationHistory?.length ? ctx.conversationHistory.map((m) => `${m.role
       grossMarginPctToday: briefFacts?.grossMarginPct || 0
     };
     const debtors = briefFacts?.debtorAlerts || { debtorsCount: 0, totalOutstandingDebt: 0 };
-    if (!ai2) {
+    if (!ai) {
+      logAIProvenance({
+        endpoint: "generateDailyBrief",
+        businessId: ctx.businessName,
+        source: "DETERMINISTIC_FALLBACK",
+        model,
+        latencyMs: 0,
+        error: "GEMINI_API_KEY not configured"
+      });
       return this.generateDeterministicDailyBrief(ctx, briefFacts);
     }
     try {
@@ -1327,8 +1421,8 @@ Return a valid JSON object matching the schema:
   "recommendedFocusToday": "Clear top strategic priority for today",
   "confidence": "high_confidence" | "moderate_confidence" | "insufficient_data"
 }`;
-      const response = await ai2.models.generateContent({
-        model: GEMINI_MODEL,
+      const response = await ai.models.generateContent({
+        model,
         contents: prompt,
         config: {
           systemInstruction: `You are Ursella AI. Generate an accurate, grounded Daily Business Brief for ${ctx.businessName} in currency ${ctx.currency}. Never invent numbers. Answer performance facts directly.`,
@@ -1336,7 +1430,15 @@ Return a valid JSON object matching the schema:
           temperature: 0.2
         }
       });
+      const latencyMs = Date.now() - startTime;
       const parsed = JSON.parse(response.text || "{}");
+      logAIProvenance({
+        endpoint: "generateDailyBrief",
+        businessId: ctx.businessName,
+        source: "GEMINI_RESPONSE",
+        model,
+        latencyMs
+      });
       return {
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         businessName: ctx.businessName,
@@ -1357,7 +1459,16 @@ Return a valid JSON object matching the schema:
         confidence: parsed.confidence || (today.transactionCountToday >= 5 ? "high_confidence" : "insufficient_data")
       };
     } catch (err) {
-      console.warn("Gemini Daily Brief API failed, using deterministic briefing:", err);
+      const latencyMs = Date.now() - startTime;
+      console.warn(`[Gemini Daily Brief API Error] Model="${model}" failed after ${latencyMs}ms:`, err?.message || err);
+      logAIProvenance({
+        endpoint: "generateDailyBrief",
+        businessId: ctx.businessName,
+        source: "DETERMINISTIC_FALLBACK",
+        model,
+        latencyMs,
+        error: err?.message || String(err)
+      });
       return this.generateDeterministicDailyBrief(ctx, briefFacts);
     }
   }
@@ -2608,15 +2719,6 @@ var ActionExecutorService = class {
 };
 
 // server/proactive-ai.service.ts
-import { GoogleGenAI as GoogleGenAI2 } from "@google/genai";
-var ai = new GoogleGenAI2({
-  apiKey: process.env.GEMINI_API_KEY || "placeholder-key",
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build"
-    }
-  }
-});
 var businessInsightsCache = /* @__PURE__ */ new Map();
 var businessNotificationsCache = /* @__PURE__ */ new Map();
 var businessPreferencesCache = /* @__PURE__ */ new Map();
@@ -2836,75 +2938,25 @@ var ProactiveAIService = class {
 var DEFAULT_PLANS = [
   {
     id: "plan_free",
-    name: "Starter Free",
+    name: "Ursella Free",
     tier: "free",
-    description: "Essential POS, inventory and deterministic analytics for single-operator stores.",
+    description: "Complete all-in-one business operating system with unlimited access to POS, Inventory, AI, and Analytics.",
     monthly_price: 0,
     annual_price: 0,
     currency: "USD",
     features_json: [
-      "Core POS Sales & Digital Receipts",
-      "Deterministic Financial Metrics",
-      "1 Team Member / Operator",
-      "100 AI Queries / Month",
-      "Standard Inventory Tracking",
-      "Basic Sales & Expense Reports"
-    ],
-    max_members: 1,
-    ai_monthly_quota: 100,
-    max_products: 100,
-    allows_csv_import: true,
-    allows_export: true,
-    allows_advanced_reports: false,
-    allows_push_notifications: false,
-    is_active: true
-  },
-  {
-    id: "plan_pro",
-    name: "Ursella Pro",
-    tier: "pro",
-    description: "Proactive AI anomaly detection, team roles, WhatsApp reminders, and multi-device access.",
-    monthly_price: 15,
-    annual_price: 150,
-    currency: "USD",
-    features_json: [
-      "All Starter Free Capabilities",
-      "Continuous Proactive Anomaly Alerts",
-      "Up to 5 Team Members with RBAC",
-      "1,000 AI Queries / Month",
-      "Full Financial Statement Reports & PDF",
-      "CSV Data Import & Bulk Migration",
-      "Customer WhatsApp Debt Reminders"
-    ],
-    max_members: 5,
-    ai_monthly_quota: 1e3,
-    max_products: 2500,
-    allows_csv_import: true,
-    allows_export: true,
-    allows_advanced_reports: true,
-    allows_push_notifications: true,
-    is_active: true
-  },
-  {
-    id: "plan_business",
-    name: "Ursella Scale",
-    tier: "business",
-    description: "High-velocity shops, wholesale distributors, and multi-branch commercial operations.",
-    monthly_price: 45,
-    annual_price: 450,
-    currency: "USD",
-    features_json: [
-      "All Ursella Pro Capabilities",
-      "Unlimited Team Members & Roles",
-      "10,000 AI Queries / Month",
-      "Automated Action Authorizations",
-      "Priority MoMo & Card Webhooks",
-      "Full Audit Trail & Export API",
-      "Dedicated Account Support"
+      "Point of Sale (POS) & Digital Invoices",
+      "FIFO Inventory & Stock Alert Tracking",
+      "Customer Ledgers & WhatsApp Debt Reminders",
+      "Real-time Financial Analytics & Cash Flow",
+      "Ursella AI Co-Pilot & Business Advisor",
+      "Full P&L and Balance Sheet Reports",
+      "CSV Data Import & Cloud Export",
+      "Unlimited Products & Catalogs"
     ],
     max_members: 50,
-    ai_monthly_quota: 1e4,
-    max_products: 1e5,
+    ai_monthly_quota: 5e4,
+    max_products: 5e5,
     allows_csv_import: true,
     allows_export: true,
     allows_advanced_reports: true,
@@ -3161,6 +3213,7 @@ var PaymentProviderService = class {
 // server/ai-cost-control.service.ts
 var MODEL_COSTS = {
   "gemini-3.7-flash": { inputPer1k: 15e-5, outputPer1k: 6e-4 },
+  "gemini-3.6-flash": { inputPer1k: 15e-5, outputPer1k: 6e-4 },
   "gemini-3.1-flash-lite": { inputPer1k: 75e-6, outputPer1k: 3e-4 },
   "gemini-3.1-pro-preview": { inputPer1k: 125e-5, outputPer1k: 5e-3 }
 };
@@ -3169,8 +3222,8 @@ var AICostControlService = class {
    * Determine the most cost-effective and task-appropriate model tier
    */
   static selectModelForTask(taskType) {
-    const configuredModel = process.env.GEMINI_MODEL || "gemini-3.7-flash";
-    const fallbackLiteModel = process.env.GEMINI_FALLBACK_MODEL || "gemini-3.1-flash-lite";
+    const configuredModel = getActiveGeminiModel();
+    const fallbackLiteModel = process.env.GEMINI_FALLBACK_MODEL || FALLBACK_LITE_MODEL;
     if (taskType === "intent_classification") {
       return fallbackLiteModel;
     }
@@ -3782,7 +3835,7 @@ var HealthService = class {
           error: detailed ? dbError : void 0
         },
         aiEngine: {
-          model: process.env.GEMINI_MODEL || "gemini-3.7-flash",
+          model: getActiveGeminiModel(),
           isConfigured: isGeminiConfigured
         },
         paymentGateway: {
@@ -4020,7 +4073,7 @@ app.post("/api/ai/chat", async (req, res) => {
     AICostControlService.logUsage({
       businessId,
       requestType: "chat",
-      model: process.env.GEMINI_MODEL || "gemini-3.7-flash",
+      model: getActiveGeminiModel(),
       latencyMs,
       success: true
     }).catch(() => {
@@ -4031,7 +4084,7 @@ app.post("/api/ai/chat", async (req, res) => {
     AICostControlService.logUsage({
       businessId: req.body?.businessId || "unknown",
       requestType: "chat",
-      model: process.env.GEMINI_MODEL || "gemini-3.7-flash",
+      model: getActiveGeminiModel(),
       latencyMs: Date.now() - startTime,
       success: false,
       errorMessage: error?.message

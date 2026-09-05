@@ -61,23 +61,47 @@ export const AppShell: React.FC<AppShellProps> = ({
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.visualViewport) return;
+    if (typeof window === 'undefined') return;
 
-    const handleViewportChange = () => {
+    const checkKeyboard = () => {
+      const activeTag = document.activeElement?.tagName;
+      const isInputActive = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
       const vv = window.visualViewport;
-      if (!vv) return;
-      // On Android/mobile, keyboard open shrinks visualViewport height significantly (> 100px)
-      const isKb = window.innerHeight - vv.height > 100;
-      setIsKeyboardVisible(isKb);
+      if (vv) {
+        const screenH = window.screen?.height || window.innerHeight;
+        // On iOS: window.innerHeight - vv.height > 100
+        // On Android with interactive-widget=resizes-content: vv.height shrinks significantly relative to screen
+        const isShrunk = (window.innerHeight - vv.height > 100) || (vv.height < screenH * 0.75);
+        setIsKeyboardVisible(isInputActive && isShrunk);
+      } else {
+        setIsKeyboardVisible(isInputActive);
+      }
     };
 
+    const handleFocusOut = () => {
+      setTimeout(() => {
+        const activeTag = document.activeElement?.tagName;
+        const isInputActive = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
+        if (!isInputActive) {
+          setIsKeyboardVisible(false);
+        }
+      }, 100);
+    };
+
+    window.addEventListener('focusin', checkKeyboard);
+    window.addEventListener('focusout', handleFocusOut);
+
     const vv = window.visualViewport;
-    vv.addEventListener('resize', handleViewportChange);
-    vv.addEventListener('scroll', handleViewportChange);
+    if (vv) {
+      vv.addEventListener('resize', checkKeyboard);
+    }
 
     return () => {
-      vv.removeEventListener('resize', handleViewportChange);
-      vv.removeEventListener('scroll', handleViewportChange);
+      window.removeEventListener('focusin', checkKeyboard);
+      window.removeEventListener('focusout', handleFocusOut);
+      if (vv) {
+        vv.removeEventListener('resize', checkKeyboard);
+      }
     };
   }, []);
 
@@ -233,7 +257,12 @@ export const AppShell: React.FC<AppShellProps> = ({
       }`}>
         {/* Mobile Top Bar - Only shown for non-AI routes; AI route has its own integrated top-to-bottom header */}
         {currentRoute !== 'ai' && (
-          <header className="md:hidden sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between shrink-0">
+          <header 
+            className="md:hidden sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between shrink-0"
+            style={{
+              paddingTop: 'calc(0.625rem + env(safe-area-inset-top, 0px))',
+            }}
+          >
             <div className="flex items-center gap-2.5 min-w-0">
               <button
                 onClick={() => setIsMobileMenuOpen(true)}

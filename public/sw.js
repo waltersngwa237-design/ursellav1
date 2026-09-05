@@ -1,10 +1,12 @@
 // Ursella Progressive Web App Service Worker
-const CACHE_NAME = 'ursella-app-v3';
+const CACHE_NAME = 'ursella-app-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/manifest.json',
   '/pwa-192x192.png',
+  '/pwa-maskable-192x192.png',
   '/pwa-512x512.png',
   '/pwa-maskable-512x512.png',
   '/apple-touch-icon.png',

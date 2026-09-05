@@ -91,13 +91,18 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const isAtBottomRef = useRef(true);
+
   // Handle container scroll to check if user is near bottom
   const handleScroll = useCallback(() => {
     if (!scrollContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     const nearBottom = distanceFromBottom < 120;
-    setIsAtBottom(nearBottom);
+    if (isAtBottomRef.current !== nearBottom) {
+      isAtBottomRef.current = nearBottom;
+      setIsAtBottom(nearBottom);
+    }
     if (nearBottom) {
       setHasNewUnseenMessage(false);
     }
@@ -495,9 +500,14 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         }`}
       >
         {/* Sidebar Header */}
-        <div className={`p-3 border-b flex items-center justify-between shrink-0 ${
-          isDark ? 'border-zinc-800' : 'border-slate-200'
-        }`}>
+        <div 
+          className={`p-3 border-b flex items-center justify-between shrink-0 ${
+            isDark ? 'border-zinc-800' : 'border-slate-200'
+          }`}
+          style={{
+            paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))',
+          }}
+        >
           <div className="flex items-center gap-2">
             <History className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
             <span className={`text-xs font-semibold ${isDark ? 'text-zinc-200' : 'text-slate-800'}`}>
@@ -695,9 +705,16 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         isDark ? 'bg-zinc-950' : 'bg-slate-50'
       }`}>
         {/* Full-Length Top Header (Reaches absolute top of viewport with high-contrast visibility) */}
-        <header className={`h-14 min-h-[3.5rem] max-h-14 px-3 sm:px-6 border-b flex items-center justify-between backdrop-blur-md shrink-0 z-30 ${
-          isDark ? 'bg-zinc-950/95 border-zinc-800' : 'bg-white/95 border-slate-200 shadow-xs'
-        }`}>
+        <header 
+          className={`px-3 sm:px-6 border-b flex items-center justify-between backdrop-blur-md shrink-0 z-30 transition-all ${
+            isDark ? 'bg-zinc-950/95 border-zinc-800' : 'bg-white/95 border-slate-200 shadow-xs'
+          }`}
+          style={{
+            paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))',
+            paddingBottom: '0.5rem',
+            minHeight: 'calc(3.5rem + env(safe-area-inset-top, 0px))',
+          }}
+        >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Mobile App Menu Trigger */}
             {onOpenMobileMenu && (
@@ -858,7 +875,11 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         <div 
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 md:px-8 py-4 sm:py-6 space-y-4 touch-pan-y scroll-smooth"
+          className="relative flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 md:px-8 py-4 sm:py-6 space-y-4 touch-pan-y"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehaviorY: 'contain',
+          }}
         >
           {/* Welcome Screen when Chat is empty */}
           {messages.length === 0 && (
@@ -954,9 +975,14 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         {/* ========================================================================= */}
         {/* 3. INPUT BAR - Fixed at bottom of chat workspace                          */}
         {/* ========================================================================= */}
-        <div className={`p-3 sm:p-4 border-t shrink-0 ${
-          isDark ? 'border-zinc-800/80 bg-zinc-950' : 'border-slate-200 bg-white shadow-xs'
-        }`}>
+        <div 
+          className={`p-3 sm:p-4 border-t shrink-0 ${
+            isDark ? 'border-zinc-800/80 bg-zinc-950' : 'border-slate-200 bg-white shadow-xs'
+          }`}
+          style={{
+            paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+          }}
+        >
           <div className="max-w-3xl lg:max-w-4xl mx-auto">
             <div className={`relative flex items-center gap-2 border rounded-xl p-1.5 transition-all shadow-xs ${
               isDark 

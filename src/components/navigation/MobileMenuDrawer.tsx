@@ -91,7 +91,12 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
       {/* Drawer Panel */}
       <div className="relative w-full max-w-[340px] bg-zinc-900 h-full flex flex-col shadow-2xl border-l border-zinc-800 z-10 overflow-hidden animate-in slide-in-from-right duration-200">
         {/* Drawer Header */}
-        <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/60">
+        <div 
+          className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/60"
+          style={{
+            paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))',
+          }}
+        >
           <div className="flex items-center gap-2">
             <UrsellaLogo size="sm" showBetaBadge={true} />
           </div>

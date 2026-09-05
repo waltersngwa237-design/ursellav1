@@ -66,7 +66,12 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
         className="w-full max-w-md bg-zinc-900 text-zinc-100 h-full shadow-2xl border-l border-zinc-800 flex flex-col animate-in slide-in-from-right duration-200"
       >
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between">
+        <div 
+          className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between"
+          style={{
+            paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))',
+          }}
+        >
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-400">
               <Bell className="w-5 h-5" />
