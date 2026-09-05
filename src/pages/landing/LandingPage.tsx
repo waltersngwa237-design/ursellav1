@@ -67,11 +67,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       />
 
       {/* Top Navigation */}
-      <header className={`relative z-30 sticky top-0 w-full border-b backdrop-blur-md transition-colors ${
-        isDark 
-          ? 'border-zinc-800/80 bg-zinc-950/85 shadow-sm' 
-          : 'border-slate-200/80 bg-white/85 shadow-xs'
-      }`}>
+      <header 
+        className={`relative z-30 sticky top-0 w-full border-b backdrop-blur-md transition-colors ${
+          isDark 
+            ? 'border-zinc-800/80 bg-zinc-950/85 shadow-sm' 
+            : 'border-slate-200/80 bg-white/85 shadow-xs'
+        }`}
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingLeft: 'env(safe-area-inset-left, 0px)',
+          paddingRight: 'env(safe-area-inset-right, 0px)',
+        }}
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <UrsellaLogo size="md" />
 
