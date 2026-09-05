@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AIService } from '../../services/ai.service.ts';
 import { UrsellaSymbolMark } from '../common/UrsellaLogo.tsx';
-import { Sun, ArrowRight, Activity } from 'lucide-react';
+import { Newspaper, ArrowRight, Activity } from 'lucide-react';
 import { DailyBriefModal } from './DailyBriefModal.tsx';
 
 interface HomeAIInsightCardProps {
@@ -86,7 +86,7 @@ export const HomeAIInsightCard: React.FC<HomeAIInsightCardProps> = ({
               onClick={() => setIsDailyBriefOpen(true)}
               className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700/80 border border-zinc-700 text-zinc-200 text-xs font-semibold transition-all"
             >
-              <Sun className="w-4 h-4 text-amber-400" />
+              <Newspaper className="w-4 h-4 text-emerald-400" />
               <span>Daily Brief</span>
             </button>
 

@@ -337,27 +337,6 @@ export const CustomersPage: React.FC = () => {
               {tab.label}
             </button>
           ))}
-
-          <button
-            onClick={() =>
-              PDFAndPrintService.exportCustomerListPDF(
-                customers,
-                activeBusiness,
-                currencyConfig,
-                filterType === 'debt_only'
-                  ? 'Customer Debt & Outstanding Balance Statement'
-                  : filterType === 'archived'
-                  ? 'Archived Customer Accounts'
-                  : 'Customer Directory & Accounts'
-              )
-            }
-            disabled={customers.length === 0}
-            className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap disabled:opacity-40"
-            title="Export Customers or Debt Ledger to PDF"
-          >
-            <Download className="w-3.5 h-3.5 text-purple-400" />
-            <span>Export PDF</span>
-          </button>
         </div>
       </div>
 

@@ -17,7 +17,7 @@ import {
   Send,
   Plus,
   Trash2,
-  Sun,
+  Newspaper,
   History,
   MessageSquare,
   X,
@@ -796,8 +796,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                   ? 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-300 hover:text-emerald-300' 
                   : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 hover:text-emerald-700 shadow-2xs'
               }`}
+              title="Daily Business Brief"
             >
-              <Sun className={`w-3.5 h-3.5 ${isDark ? 'text-amber-400' : 'text-amber-500'}`} />
+              <Newspaper className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
               <span className="hidden sm:inline">Daily Brief</span>
             </button>
 

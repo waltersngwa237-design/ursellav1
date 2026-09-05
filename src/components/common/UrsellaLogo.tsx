@@ -37,7 +37,16 @@ export const UrsellaSymbolMark: React.FC<{
   const isLight = theme === 'light';
   const isAI = theme === 'ai';
 
-  // Fill choices
+  // React unique ID to prevent SVG gradient collisions across components and hash routing
+  const rawId = React.useId();
+  const uid = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  const emeraldGradId = `ursella_emerald_grad_${uid}`;
+  const emeraldCoreGradId = `ursella_emerald_core_grad_${uid}`;
+  const aiGradId = `ursella_ai_grad_${uid}`;
+  const aiCoreGradId = `ursella_ai_core_grad_${uid}`;
+
+  // Fill choices with bulletproof fallbacks
   const mainFill = isMonoWhite
     ? '#FFFFFF'
     : isMonoBlack
@@ -45,8 +54,8 @@ export const UrsellaSymbolMark: React.FC<{
     : isLight
     ? '#059669'
     : isAI
-    ? 'url(#ursella_ai_grad)'
-    : 'url(#ursella_emerald_grad)';
+    ? `url(#${aiGradId})`
+    : `url(#${emeraldGradId})`;
 
   const coreFill = isMonoWhite
     ? '#E4E4E7'
@@ -55,57 +64,62 @@ export const UrsellaSymbolMark: React.FC<{
     : isLight
     ? '#10B981'
     : isAI
-    ? 'url(#ursella_ai_core_grad)'
-    : 'url(#ursella_emerald_core_grad)';
+    ? `url(#${aiCoreGradId})`
+    : `url(#${emeraldCoreGradId})`;
 
   const nodeFill = isMonoWhite ? '#FFFFFF' : isMonoBlack ? '#09090B' : '#FFFFFF';
+
+  // Native hardware-accelerated CSS drop-shadow instead of SVG feDropShadow
+  // (which is known to fail and blank out SVGs on Android Chrome and WebViews)
+  const dropShadowStyle = isAI
+    ? 'drop-shadow(0px 1.5px 2px rgba(37, 99, 255, 0.35))'
+    : theme === 'default'
+    ? 'drop-shadow(0px 1.5px 2px rgba(16, 185, 129, 0.30))'
+    : undefined;
 
   return (
     <svg
       viewBox="0 0 32 32"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`${sizeClass} shrink-0 transition-all ${isAnimated ? 'animate-pulse' : ''} ${className}`}
+      width="100%"
+      height="100%"
+      style={{
+        filter: dropShadowStyle,
+        aspectRatio: '1 / 1',
+        maxWidth: '100%',
+        maxHeight: '100%',
+      }}
+      className={`${sizeClass} shrink-0 block transition-all ${isAnimated ? 'animate-pulse' : ''} ${className}`}
       aria-label="Ursella Logo"
     >
       <defs>
         {/* Primary Product Emerald Gradient */}
-        <linearGradient id="ursella_emerald_grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id={emeraldGradId} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#34D399" />
           <stop offset="45%" stopColor="#10B981" />
           <stop offset="100%" stopColor="#059669" />
         </linearGradient>
-        <linearGradient id="ursella_emerald_core_grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id={emeraldCoreGradId} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#A7F3D0" />
           <stop offset="100%" stopColor="#34D399" />
         </linearGradient>
 
-        {/* AI Multi-Spectral Intelligence Gradient (Emerald -> Cyan -> Electric Blue -> Violet) */}
-        <linearGradient id="ursella_ai_grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        {/* AI Multi-Spectral Intelligence Gradient */}
+        <linearGradient id={aiGradId} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#10B981" />
           <stop offset="30%" stopColor="#22D3EE" />
           <stop offset="70%" stopColor="#2563FF" />
           <stop offset="100%" stopColor="#6D3DF5" />
         </linearGradient>
-        <linearGradient id="ursella_ai_core_grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id={aiCoreGradId} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#67E8F9" />
           <stop offset="50%" stopColor="#38BDF8" />
           <stop offset="100%" stopColor="#818CF8" />
         </linearGradient>
-
-        {/* Ambient Subtle Glow */}
-        <filter id="ursella_glow_subtle" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow
-            dx="0"
-            dy="1.5"
-            stdDeviation="2"
-            floodColor={isAI ? '#2563FF' : '#10B981'}
-            floodOpacity={isAI ? 0.35 : 0.25}
-          />
-        </filter>
       </defs>
 
-      <g filter={theme === 'default' || theme === 'ai' ? 'url(#ursella_glow_subtle)' : undefined}>
+      <g>
         {/* ========================================================================= */}
         {/* ABSTRACT GEOMETRIC OCTOPUS ARMS & DOME                                    */}
         {/* Clean flowing tentacles with subtle negative-space 'U' foundation         */}
@@ -329,9 +343,9 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
       className={`inline-flex items-center select-none ${currentSize.gap} ${className}`}
       onClick={onClick}
     >
-      <div className="relative shrink-0 flex items-center justify-center">
+      <div className={`relative shrink-0 flex items-center justify-center ${currentSize.symbol}`}>
         <UrsellaSymbolMark
-          sizeClass={currentSize.symbol}
+          sizeClass="w-full h-full"
           theme={theme}
           isAnimated={isAnimated}
         />

@@ -44,12 +44,7 @@ import {
   Tag,
   Boxes,
   Truck,
-  FileText,
-  Printer,
-  Download,
-  Eye,
 } from 'lucide-react';
-import { PDFAndPrintService } from '../../services/pdf.service.ts';
 
 export const BusinessPage: React.FC = () => {
   const { activeBusiness, currency } = useBusiness();
@@ -584,90 +579,85 @@ export const BusinessPage: React.FC = () => {
       {/* ========================================================================= */}
       {activeTab === 'catalog' && (
         <div className="space-y-4">
-          {/* Header Action Bar */}
-          <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
-            <div className="flex flex-1 flex-wrap items-center gap-2">
-              <div className="relative min-w-[200px] flex-1">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                <input
-                  type="text"
-                  placeholder="Search products by name, SKU, or description..."
-                  value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
-                />
+          {/* Section Action Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-zinc-800/80">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Package className="w-4 h-4 text-blue-400" />
+                  <span>Product Catalog</span>
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+                  {products.length} {products.length === 1 ? 'item' : 'items'}
+                </span>
               </div>
-
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
-              >
-                <option value="all">All Categories</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={stockStatusFilter}
-                onChange={(e) => setStockStatusFilter(e.target.value as any)}
-                className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
-              >
-                <option value="all">All Stock Statuses</option>
-                <option value="in_stock">In Stock</option>
-                <option value="low_stock">Low Stock (≤ Alert level)</option>
-                <option value="out_of_stock">Out of Stock (0)</option>
-              </select>
-
-              <button
-                onClick={() => setShowArchivedProducts(!showArchivedProducts)}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
-                  showArchivedProducts
-                    ? 'bg-amber-950/30 text-amber-300 border-amber-500/40'
-                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
-                }`}
-                title="Toggle showing archived products in catalog"
-              >
-                {showArchivedProducts ? 'Archived Included' : 'Show Archived'}
-              </button>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Manage inventory stock levels, prices, barcodes, and product profit margins
+              </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 self-end lg:self-auto">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  PDFAndPrintService.exportProductCatalogPDF(
-                    products,
-                    activeBusiness,
-                    currencyConfig,
-                    showArchivedProducts ? 'All Products (Incl. Archived)' : 'Active Products Catalog'
-                  )
-                }
-                disabled={products.length === 0}
-                className="flex items-center justify-center gap-1.5 text-xs font-semibold shrink-0"
-                title="Export Product Catalog PDF"
-              >
-                <FileText className="w-3.5 h-3.5 text-blue-400" />
-                <span>Export PDF</span>
-              </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                resetProductForm();
+                setIsAddProductModalOpen(true);
+              }}
+              className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-sm shrink-0 self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Product</span>
+            </Button>
+          </div>
 
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  resetProductForm();
-                  setIsAddProductModalOpen(true);
-                }}
-                className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Product</span>
-              </Button>
+          {/* Filter & Search Toolbar */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Search products by name, SKU, or description..."
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+              />
             </div>
+
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={stockStatusFilter}
+              onChange={(e) => setStockStatusFilter(e.target.value as any)}
+              className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
+            >
+              <option value="all">All Stock Statuses</option>
+              <option value="in_stock">In Stock</option>
+              <option value="low_stock">Low Stock (≤ Alert level)</option>
+              <option value="out_of_stock">Out of Stock (0)</option>
+            </select>
+
+            <button
+              onClick={() => setShowArchivedProducts(!showArchivedProducts)}
+              className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
+                showArchivedProducts
+                  ? 'bg-amber-950/30 text-amber-300 border-amber-500/40'
+                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
+              }`}
+              title="Toggle showing archived products in catalog"
+            >
+              {showArchivedProducts ? 'Archived Included' : 'Show Archived'}
+            </button>
           </div>
 
           {/* Products Grid */}
@@ -681,12 +671,41 @@ export const BusinessPage: React.FC = () => {
               ))}
             </div>
           ) : products.length === 0 ? (
-            <Card className="text-center py-12 space-y-2">
-              <Package className="w-8 h-8 text-zinc-600 mx-auto" />
-              <p className="text-sm font-semibold text-zinc-300">No products found</p>
-              <p className="text-xs text-zinc-500">
-                Click "+ Add Product" to register items into your catalog.
-              </p>
+            <Card className="text-center py-12 space-y-3">
+              <Package className="w-10 h-10 text-zinc-600 mx-auto" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-zinc-200">No products found</p>
+                <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+                  {productSearch || categoryFilter !== 'all' || stockStatusFilter !== 'all'
+                    ? 'No products match your active search or filter criteria. Try clearing filters.'
+                    : 'Get started by adding your first product to activate sales and stock management.'}
+                </p>
+              </div>
+              {productSearch || categoryFilter !== 'all' || stockStatusFilter !== 'all' ? (
+                <button
+                  onClick={() => {
+                    setProductSearch('');
+                    setCategoryFilter('all');
+                    setStockStatusFilter('all');
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-colors cursor-pointer"
+                >
+                  Clear Filters
+                </button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    resetProductForm();
+                    setIsAddProductModalOpen(true);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-500 text-white inline-flex items-center gap-1.5 font-semibold"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add First Product</span>
+                </Button>
+              )}
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -846,42 +865,22 @@ export const BusinessPage: React.FC = () => {
               <History className="w-4 h-4 text-blue-400" /> Stock Audit Ledger
             </h3>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  PDFAndPrintService.exportInventoryLedgerPDF(
-                    inventoryLedger,
-                    activeBusiness,
-                    currencyConfig
-                  )
-                }
-                disabled={inventoryLedger.length === 0}
-                className="flex items-center gap-1.5 text-xs font-semibold"
-                title="Export Stock Audit Movements to PDF"
-              >
-                <FileText className="w-3.5 h-3.5 text-blue-400" />
-                <span>Export Ledger PDF</span>
-              </Button>
-
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  setAdjustProductId(products[0]?.id || '');
-                  setAdjustType('restock');
-                  setAdjustQuantity('1');
-                  setAdjustReason('');
-                  setAdjustNotes('');
-                  setIsAdjustStockModalOpen(true);
-                }}
-                className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Record Stock Movement</span>
-              </Button>
-            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                setAdjustProductId(products[0]?.id || '');
+                setAdjustType('restock');
+                setAdjustQuantity('1');
+                setAdjustReason('');
+                setAdjustNotes('');
+                setIsAdjustStockModalOpen(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5 font-semibold"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Record Stock Movement</span>
+            </Button>
           </div>
 
           {/* Ledger Table */}
@@ -1078,39 +1077,18 @@ export const BusinessPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  PDFAndPrintService.exportExpenseReportPDF(
-                    expenses,
-                    activeBusiness,
-                    currencyConfig,
-                    expenseCatFilter === 'all' ? 'All Operating Expenses' : `${expenseCatFilter} Expenses`
-                  )
-                }
-                disabled={expenses.length === 0}
-                className="flex items-center gap-1.5 text-xs font-semibold"
-                title="Export Expense Ledger to PDF"
-              >
-                <FileText className="w-3.5 h-3.5 text-amber-400" />
-                <span>Export PDF</span>
-              </Button>
-
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  resetExpenseForm();
-                  setIsAddExpenseModalOpen(true);
-                }}
-                className="bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Record Expense</span>
-              </Button>
-            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                resetExpenseForm();
+                setIsAddExpenseModalOpen(true);
+              }}
+              className="bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 self-start sm:self-auto font-semibold"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Record Expense</span>
+            </Button>
           </div>
 
           {/* Filter Bar */}
@@ -1485,33 +1463,15 @@ export const BusinessPage: React.FC = () => {
             )}
 
             {/* Modal Bottom Actions */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-zinc-800">
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-zinc-800">
               <Button
                 type="button"
-                variant="secondary"
+                variant="outline"
                 size="sm"
-                onClick={() =>
-                  PDFAndPrintService.exportProductTracePDF(
-                    selectedProductDetail,
-                    activeBusiness,
-                    currencyConfig
-                  )
-                }
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 text-xs font-semibold"
+                onClick={() => setIsDetailModalOpen(false)}
               >
-                <FileText className="w-4 h-4 text-blue-400" />
-                <span>Export Product Audit PDF</span>
+                Close
               </Button>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsDetailModalOpen(false)}
-                >
-                  Close
-                </Button>
                 <Button
                   type="button"
                   variant="danger"
@@ -1534,15 +1494,14 @@ export const BusinessPage: React.FC = () => {
                     setIsDetailModalOpen(false);
                     openEditProduct(prod as any);
                   }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5"
+                  className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5 font-semibold"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                   <span>Edit Product</span>
                 </Button>
               </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
       </Modal>
 
       {/* ========================================================================= */}
