@@ -796,6 +796,7 @@ export const CustomersPage: React.FC = () => {
           <Input
             label="Payment Amount Received *"
             type="number"
+            inputMode="decimal"
             min="0.01"
             step="any"
             placeholder="0.00"

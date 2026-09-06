@@ -22,18 +22,44 @@ export const Modal: React.FC<ModalProps> = ({
   const { isDark } = useTheme();
 
   useEffect(() => {
+    if (!isOpen) return;
+
+    // Mobile / Android back button support via History API
+    let statePushed = false;
+    try {
+      window.history.pushState({ ursella_modal: true }, '');
+      statePushed = true;
+    } catch {
+      // ignore history restriction in constrained iframe if any
+    }
+
+    const handlePopState = () => {
+      statePushed = false;
+      onClose();
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', handleKeyDown);
-    }
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('popstate', handlePopState);
+
     return () => {
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('popstate', handlePopState);
+
+      if (statePushed && window.history.state?.ursella_modal) {
+        try {
+          window.history.back();
+        } catch {
+          // ignore
+        }
+      }
     };
   }, [isOpen, onClose]);
 
@@ -61,6 +87,9 @@ export const Modal: React.FC<ModalProps> = ({
             ? 'bg-zinc-900 border-zinc-800 text-zinc-100 shadow-zinc-950/80' 
             : 'bg-white border-slate-200 text-slate-900 shadow-slate-900/20'
         } border rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto`}
+        style={{
+          paddingBottom: 'max(1.25rem, calc(1rem + env(safe-area-inset-bottom, 0px)))',
+        }}
         role="dialog"
         aria-modal="true"
       >

@@ -284,10 +284,35 @@ html.light .shadow-lg {
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.04) !important;
 }
 
+/* Safe-area utility helpers for notch, dynamic island, and home indicator */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+.mt-safe {
+  margin-top: env(safe-area-inset-top, 0px);
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* ========================================================================= */
 /* PRINT MEDIA ISOLATION & HIGH-CONTRAST THERMAL / INVOICE STYLES            */
 /* ========================================================================= */
 @media print {
+  @page {
+    margin: 0;
+    size: auto;
+  }
+
   /* Hide all app chrome, sidebars, headers, floating buttons, modal overlays */
   body {
     background: #ffffff !important;
@@ -296,6 +321,7 @@ html.light .shadow-lg {
     margin: 0 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace !important;
   }
 
   nav,
@@ -323,6 +349,8 @@ html.light .shadow-lg {
     color: #000000 !important;
     border: none !important;
     box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   #ursella-printable-receipt *,
@@ -330,6 +358,8 @@ html.light .shadow-lg {
     color: #000000 !important;
     background: transparent !important;
     border-color: #000000 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   #ursella-printable-receipt .text-zinc-400,

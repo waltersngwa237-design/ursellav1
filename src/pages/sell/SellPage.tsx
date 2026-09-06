@@ -661,6 +661,7 @@ export const SellPage: React.FC = () => {
                         </button>
                         <input
                           type="number"
+                          inputMode="decimal"
                           step="any"
                           min="0.0001"
                           value={item.quantity}
@@ -710,6 +711,7 @@ export const SellPage: React.FC = () => {
                     <div className="w-32">
                       <input
                         type="number"
+                        inputMode="decimal"
                         min="0"
                         placeholder="0"
                         value={discountAmount || ''}
@@ -789,6 +791,7 @@ export const SellPage: React.FC = () => {
                     </div>
                     <input
                       type="number"
+                      inputMode="decimal"
                       min="0"
                       step="any"
                       placeholder={String(cartTotal)}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Bell,
@@ -35,6 +35,47 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
 }) => {
   const [filter, setFilter] = useState<'all' | 'unread' | 'critical'>('all');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let statePushed = false;
+    try {
+      window.history.pushState({ ursella_notif_drawer: true }, '');
+      statePushed = true;
+    } catch {
+      // ignore
+    }
+
+    const handlePopState = () => {
+      statePushed = false;
+      onClose();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('popstate', handlePopState);
+
+      if (statePushed && window.history.state?.ursella_notif_drawer) {
+        try {
+          window.history.back();
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -183,7 +224,12 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
         )}
 
         {/* Notification List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+        <div 
+          className="flex-1 overflow-y-auto p-4 space-y-2.5"
+          style={{
+            paddingBottom: 'max(1.25rem, calc(0.75rem + env(safe-area-inset-bottom, 0px)))',
+          }}
+        >
           {filtered.length === 0 ? (
             <div className="py-16 text-center text-zinc-400 text-xs space-y-2">
               <Bell className="w-8 h-8 mx-auto text-zinc-600 opacity-60" />

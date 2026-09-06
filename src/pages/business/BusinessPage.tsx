@@ -1266,6 +1266,7 @@ export const BusinessPage: React.FC = () => {
             <Input
               label="Selling Price *"
               type="number"
+              inputMode="decimal"
               min="0"
               step="any"
               placeholder="0.00"
@@ -1276,6 +1277,7 @@ export const BusinessPage: React.FC = () => {
             <Input
               label="Cost Price *"
               type="number"
+              inputMode="decimal"
               min="0"
               step="any"
               placeholder="0.00"
@@ -1287,6 +1289,7 @@ export const BusinessPage: React.FC = () => {
               <Input
                 label="Initial Stock *"
                 type="number"
+                inputMode="decimal"
                 min="0"
                 placeholder="0"
                 value={prodFormStock}
@@ -1297,6 +1300,7 @@ export const BusinessPage: React.FC = () => {
             <Input
               label="Min Stock Alert *"
               type="number"
+              inputMode="decimal"
               min="0"
               placeholder="5"
               value={prodFormMinStock}
@@ -1605,6 +1609,7 @@ export const BusinessPage: React.FC = () => {
             <Input
               label="Quantity *"
               type="number"
+              inputMode="decimal"
               min="1"
               value={adjustQuantity}
               onChange={(e) => setAdjustQuantity(e.target.value)}

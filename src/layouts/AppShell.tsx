@@ -267,7 +267,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       <div className={`flex-1 flex flex-col min-w-0 ${
         currentRoute === 'ai' 
           ? `h-[100dvh] md:h-screen overflow-hidden ${isKeyboardVisible ? 'pb-0' : 'pb-16'} md:pb-0` 
-          : 'pb-20 md:pb-8'
+          : 'pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8'
       }`}>
         {/* Mobile Top Bar - Only shown for non-AI routes; AI route has its own integrated top-to-bottom header */}
         {currentRoute !== 'ai' && (
@@ -385,9 +385,16 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* ========================================================================= */}
       {/* MOBILE BOTTOM NAVIGATION: 5 Essential Tabs (Comfortable 64px Touch Area)  */}
       {/* ========================================================================= */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-900/95 backdrop-blur-lg border-t border-zinc-800/90 px-1 py-1.5 flex items-center justify-around shadow-2xl safe-area-bottom transition-all duration-200 ${
-        isKeyboardVisible && currentRoute === 'ai' ? 'translate-y-full pointer-events-none opacity-0' : 'translate-y-0 opacity-100'
-      }`}>
+      <nav 
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-900/95 backdrop-blur-lg border-t border-zinc-800/90 px-1 py-1.5 flex items-center justify-around shadow-2xl safe-area-bottom transition-all duration-200 ${
+          isKeyboardVisible && currentRoute === 'ai' ? 'translate-y-full pointer-events-none opacity-0' : 'translate-y-0 opacity-100'
+        }`}
+        style={{
+          paddingBottom: 'max(0.375rem, calc(0.25rem + env(safe-area-inset-bottom, 0px)))',
+          paddingLeft: 'max(0.25rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(0.25rem, env(safe-area-inset-right, 0px))',
+        }}
+      >
         {/* 1. Home Tab */}
         <button
           onClick={() => onNavigate('home')}

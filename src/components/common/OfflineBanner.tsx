@@ -70,6 +70,11 @@ export const OfflineBanner: React.FC = () => {
           ? 'bg-sky-700 text-white'
           : 'bg-emerald-600 text-white'
       }`}
+      style={{
+        paddingTop: 'max(0.5rem, calc(0.35rem + env(safe-area-inset-top, 0px)))',
+        paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
+      }}
     >
       <div className="flex items-center gap-2 max-w-7xl mx-auto w-full justify-between">
         <div className="flex items-center gap-2.5">

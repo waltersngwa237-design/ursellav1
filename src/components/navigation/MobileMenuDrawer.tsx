@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
@@ -43,6 +43,47 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
   const { user, profile, signOut } = useAuth();
   const { activeBusiness, activeRole } = useBusiness();
   const { theme, isDark, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let statePushed = false;
+    try {
+      window.history.pushState({ ursella_drawer: true }, '');
+      statePushed = true;
+    } catch {
+      // ignore
+    }
+
+    const handlePopState = () => {
+      statePushed = false;
+      onClose();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('popstate', handlePopState);
+
+      if (statePushed && window.history.state?.ursella_drawer) {
+        try {
+          window.history.back();
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -181,7 +222,12 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
         </div>
 
         {/* Footer: User Profile, Theme & Sign Out */}
-        <div className="p-3.5 border-t border-zinc-800 bg-zinc-950/70 space-y-3">
+        <div 
+          className="p-3.5 border-t border-zinc-800 bg-zinc-950/70 space-y-3"
+          style={{
+            paddingBottom: 'max(0.875rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)))',
+          }}
+        >
           {/* Quick theme pill switch */}
           <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-zinc-800/60 border border-zinc-700/60 text-xs">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">

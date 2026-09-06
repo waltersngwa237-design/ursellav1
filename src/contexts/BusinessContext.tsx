@@ -113,6 +113,17 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [user?.id, fetchBusinesses]);
 
+  // Multi-tab synchronization: keep active business aligned across tabs
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === ACTIVE_BIZ_KEY && e.newValue && e.newValue !== activeBusinessId) {
+        setActiveBusinessIdState(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [activeBusinessId]);
+
   const setActiveBusinessId = (id: string) => {
     setActiveBusinessIdState(id);
     localStorage.setItem(ACTIVE_BIZ_KEY, id);

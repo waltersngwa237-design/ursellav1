@@ -886,9 +886,9 @@ app.get('/api/data/export/:entity', async (req, res) => {
     }
 
     const csvData = await DataIOService.exportDataToCSV(businessId, entity);
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="ursella_${entity}_${Date.now()}.csv"`);
-    return res.send(csvData);
+    return res.send('\uFEFF' + csvData);
   } catch (error: any) {
     return res.status(500).json({ error: 'Data export failed' });
   }
