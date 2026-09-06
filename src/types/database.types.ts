@@ -881,11 +881,13 @@ export type Database = {
         Args: {
           p_business_id: string;
           p_product_id: string;
-          p_type: InventoryTransactionType;
+          p_type?: InventoryTransactionType;
+          p_transaction_type?: InventoryTransactionType;
           p_quantity: number;
           p_reference_type?: string;
           p_reference_id?: string | null;
           p_notes?: string | null;
+          p_unit_cost?: number | null;
         };
         Returns: string;
       };

@@ -122,8 +122,7 @@ export const UrsellaEngineLoader: React.FC<UrsellaEngineLoaderProps> = ({
               strokeWidth="1.5"
               fill="none"
             />
-
-            {/* Active Data Pulse Arc (Rotates smoothly & continuously) */}
+            {/* Animated Horizon Sweep Ring */}
             <circle
               cx="36"
               cy="36"
@@ -131,7 +130,6 @@ export const UrsellaEngineLoader: React.FC<UrsellaEngineLoaderProps> = ({
               stroke="url(#loader_ring_grad)"
               strokeWidth="1.75"
               strokeLinecap="round"
-              fill="none"
               strokeDasharray="60 141"
               className="ursella-orbit-ring origin-center"
             />

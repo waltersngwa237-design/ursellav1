@@ -36,6 +36,7 @@ import {
 
 interface UrsellaAIPageProps {
   initialPrompt?: string;
+  onPromptConsumed?: () => void;
   onOpenMobileMenu?: () => void;
   onOpenNotifications?: () => void;
   onOpenFeedback?: () => void;
@@ -43,6 +44,7 @@ interface UrsellaAIPageProps {
 
 export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   initialPrompt,
+  onPromptConsumed,
   onOpenMobileMenu,
 }) => {
   const { user } = useAuth();
@@ -205,15 +207,18 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     });
   };
 
-  // Handle Initial Prompt
+  // Handle Initial Prompt (Single-use consumption)
   const processedPromptRef = useRef<string | null>(null);
   useEffect(() => {
     if (initialPrompt && initialPrompt.trim().length > 0 && activeBusiness?.id) {
       if (processedPromptRef.current === initialPrompt) return;
       processedPromptRef.current = initialPrompt;
-      handleSendMessage(initialPrompt);
+      const promptToRun = initialPrompt;
+      // Immediately notify parent to clear stored prompt so it does not re-trigger on subsequent tab visits
+      onPromptConsumed?.();
+      handleSendMessage(promptToRun);
     }
-  }, [initialPrompt, activeBusiness?.id]);
+  }, [initialPrompt, activeBusiness?.id, onPromptConsumed]);
 
   // Send message
   const handleSendMessage = async (customText?: string) => {

@@ -623,10 +623,11 @@ CREATE OR REPLACE FUNCTION public.record_inventory_movement(
     p_business_id UUID,
     p_product_id UUID,
     p_type inventory_transaction_type,
-    p_quantity INTEGER,
-    p_reference_type TEXT DEFAULT 'manual',
+    p_quantity NUMERIC(14,4),
     p_reference_id UUID DEFAULT NULL,
-    p_notes TEXT DEFAULT NULL
+    p_reference_type TEXT DEFAULT 'manual',
+    p_notes TEXT DEFAULT NULL,
+    p_unit_cost NUMERIC(14,2) DEFAULT NULL
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -635,26 +636,26 @@ SET search_path = public, auth
 AS $$
 DECLARE
     v_user_id UUID;
-    v_member_role member_role;
-    v_product RECORD;
-    v_new_stock INTEGER;
+    v_current_stock NUMERIC(14,4);
+    v_new_stock NUMERIC(14,4);
+    v_delta NUMERIC(14,4);
+    v_product_cost NUMERIC(14,2);
+    v_product_type TEXT;
     v_tx_id UUID;
 BEGIN
     v_user_id := auth.uid();
-    
-    SELECT role INTO v_member_role
-    FROM public.business_members
-    WHERE business_id = p_business_id AND user_id = v_user_id;
 
-    IF v_member_role IS NULL THEN
-        RAISE EXCEPTION 'Access denied. You are not an authorized member of this business.';
+    IF v_user_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM public.business_members 
+            WHERE business_id = p_business_id AND user_id = v_user_id
+        ) THEN
+            RAISE EXCEPTION 'Access denied: You do not belong to this business.';
+        END IF;
     END IF;
 
-    IF p_quantity <= 0 THEN
-        RAISE EXCEPTION 'Inventory movement quantity must be strictly positive.';
-    END IF;
-
-    SELECT id, name, stock_quantity INTO v_product
+    SELECT stock_quantity, cost_price, product_type
+    INTO v_current_stock, v_product_cost, v_product_type
     FROM public.products
     WHERE id = p_product_id AND business_id = p_business_id
     FOR UPDATE;
@@ -663,14 +664,36 @@ BEGIN
         RAISE EXCEPTION 'Product % does not exist in business %', p_product_id, p_business_id;
     END IF;
 
+    IF v_product_type = 'service' THEN
+        RAISE EXCEPTION 'Cannot record inventory movements for services. Services do not track physical stock.';
+    END IF;
+
     IF p_type IN ('purchase', 'restock', 'return') THEN
-        v_new_stock := v_product.stock_quantity + p_quantity;
-    ELSIF p_type IN ('sale', 'damage') THEN
-        IF v_product.stock_quantity < p_quantity THEN
-            RAISE EXCEPTION 'Cannot deduct % units from product "%". Current stock is %.', p_quantity, v_product.name, v_product.stock_quantity;
+        IF p_quantity <= 0 THEN
+            RAISE EXCEPTION 'Quantity for % must be positive.', p_type;
         END IF;
-        v_new_stock := v_product.stock_quantity - p_quantity;
-    ELSIF p_type = 'adjustment' OR p_type = 'initial_stock' THEN
+        v_delta := p_quantity;
+        v_new_stock := v_current_stock + v_delta;
+    ELSIF p_type IN ('sale', 'damage') THEN
+        IF p_quantity <= 0 THEN
+            RAISE EXCEPTION 'Quantity must be positive.';
+        END IF;
+        IF v_current_stock < p_quantity THEN
+            RAISE EXCEPTION 'Insufficient stock. Requested: %, Available: %', p_quantity, v_current_stock;
+        END IF;
+        v_delta := -p_quantity;
+        v_new_stock := v_current_stock - p_quantity;
+    ELSIF p_type = 'adjustment' THEN
+        IF p_quantity < 0 THEN
+            RAISE EXCEPTION 'Target stock count cannot be negative.';
+        END IF;
+        v_delta := p_quantity - v_current_stock;
+        v_new_stock := p_quantity;
+    ELSIF p_type = 'initial_stock' THEN
+        IF p_quantity < 0 THEN
+            RAISE EXCEPTION 'Initial stock cannot be negative.';
+        END IF;
+        v_delta := p_quantity;
         v_new_stock := p_quantity;
     ELSE
         RAISE EXCEPTION 'Unknown transaction type: %', p_type;
@@ -681,9 +704,9 @@ BEGIN
     WHERE id = p_product_id AND business_id = p_business_id;
 
     INSERT INTO public.inventory_transactions (
-        business_id, product_id, transaction_type, quantity, reference_type, reference_id, notes, created_by
+        business_id, product_id, transaction_type, quantity, reference_type, reference_id, notes, created_by, unit_cost
     ) VALUES (
-        p_business_id, p_product_id, p_type, p_quantity, p_reference_type, p_reference_id, p_notes, v_user_id
+        p_business_id, p_product_id, p_type, v_delta, p_reference_type, p_reference_id, p_notes, v_user_id, COALESCE(p_unit_cost, v_product_cost)
     ) RETURNING id INTO v_tx_id;
 
     RETURN v_tx_id;

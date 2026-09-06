@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 import { generateUUID, isValidUUID } from '../lib/uuid.ts';
 import { OfflineSyncService } from './offline-sync.service.ts';
+import { InventoryService } from './inventory.service.ts';
 import type {
   PaymentMethodType,
   PaymentStatusType,
@@ -501,14 +502,14 @@ export const SalesService = {
       for (const item of saleData.sale_items || []) {
         if (item.product_id && isValidUUID(item.product_id)) {
           try {
-            await (supabase as any).rpc('record_inventory_movement', {
-              p_business_id: businessId,
-              p_product_id: item.product_id,
-              p_type: 'return',
-              p_quantity: item.quantity,
-              p_reference_type: 'sale_cancellation',
-              p_reference_id: saleId,
-              p_notes: `Stock returned due to cancellation of Sale #${saleId.substring(0, 8)}`,
+            await InventoryService.recordMovement({
+              business_id: businessId,
+              product_id: item.product_id,
+              type: 'return',
+              quantity: item.quantity,
+              reference_type: 'sale_cancellation',
+              reference_id: saleId,
+              notes: `Stock returned due to cancellation of Sale #${saleId.substring(0, 8)}`,
             });
           } catch (err) {
             console.error('Inventory return reversal warning:', err);

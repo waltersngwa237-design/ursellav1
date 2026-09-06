@@ -55,11 +55,14 @@ const MainRouter: React.FC = () => {
   }, []);
 
   const navigateTo = (route: AppNavRoute, prompt?: string) => {
-    if (prompt) {
-      setAiPrompt(prompt);
-    }
+    // Only set aiPrompt if an explicit prompt is provided; otherwise clear any lingering prompt
+    setAiPrompt(prompt || undefined);
     setCurrentRoute(route);
     window.location.hash = `#/${route}`;
+  };
+
+  const handlePromptConsumed = () => {
+    setAiPrompt(undefined);
   };
 
   const navigateAuth = (view: AuthView) => {
@@ -145,7 +148,12 @@ const MainRouter: React.FC = () => {
         {currentRoute === 'data-io' && <DataImportExportPage businessId={activeBusiness.id} />}
         {currentRoute === 'billing' && <BillingPage businessId={activeBusiness.id} />}
         {currentRoute === 'insights' && <InsightsView />}
-        {currentRoute === 'ai' && <UrsellaAIPage initialPrompt={aiPrompt} />}
+        {currentRoute === 'ai' && (
+          <UrsellaAIPage
+            initialPrompt={aiPrompt}
+            onPromptConsumed={handlePromptConsumed}
+          />
+        )}
         {currentRoute === 'more' && <MoreMenuPage onNavigate={navigateTo} />}
       </AppShell>
       <PWAInstallPrompt />

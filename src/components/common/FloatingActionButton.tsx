@@ -73,7 +73,12 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
       )}
 
       {/* Floating Speed Dial Container */}
-      <div className="fixed bottom-18 md:bottom-6 right-4 sm:right-6 z-40 flex flex-col items-end gap-2.5">
+      <div
+        className="fixed z-40 flex flex-col items-end gap-2.5 right-4 sm:right-6 md:!bottom-7 transition-all duration-200"
+        style={{
+          bottom: 'max(5.25rem, calc(4.75rem + env(safe-area-inset-bottom, 0px)))',
+        }}
+      >
         {/* Expanded Quick Action Items */}
         {isOpen && (
           <div className="flex flex-col items-end gap-2 mb-2 animate-in fade-in slide-in-from-bottom-3 duration-200">
@@ -104,17 +109,17 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
           onClick={() => setIsOpen(!isOpen)}
           aria-expanded={isOpen}
           aria-label="Quick Business Actions"
-          className={`relative group flex items-center justify-center w-13 h-13 sm:w-14 sm:h-14 rounded-full shadow-2xl transition-all duration-300 active:scale-95 ${
+          className={`relative group flex items-center justify-center w-12 h-12 sm:w-13 sm:h-13 rounded-full shadow-2xl transition-all duration-300 active:scale-95 ${
             isOpen
               ? 'bg-zinc-800 text-zinc-200 rotate-90 border border-zinc-700'
-              : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/50 hover:shadow-emerald-500/25 hover:scale-105 ring-4 ring-emerald-500/20'
+              : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/60 hover:shadow-emerald-500/25 hover:scale-105 ring-4 ring-emerald-500/20 border border-emerald-400/30'
           }`}
         >
           {isOpen ? (
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
           ) : (
             <>
-              <Plus className="w-6 h-6 transition-transform group-hover:rotate-90 duration-300" />
+              <Plus className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:rotate-90 duration-300" />
               <span className="sr-only">Quick Action</span>
             </>
           )}

@@ -46,7 +46,8 @@ export const InventoryService = {
         ? params.reference_id
         : null;
 
-      const { data, error } = await (supabase as any).rpc('record_inventory_movement', {
+      // Canonical payload with verified parameter keys (p_product_id, p_reference_id, p_type)
+      const rpcPayload = {
         p_business_id: params.business_id,
         p_product_id: params.product_id,
         p_type: params.type,
@@ -55,7 +56,28 @@ export const InventoryService = {
         p_reference_id: sanitizedRefId,
         p_notes: params.notes || null,
         p_unit_cost: params.unit_cost ?? null,
-      });
+      };
+
+      let { data, error } = await (supabase as any).rpc('record_inventory_movement', rpcPayload);
+
+      // Fallback: If database schema uses p_transaction_type instead of p_type (e.g. migration 016)
+      if (error && (error.message?.includes('schema cache') || error.message?.includes('p_transaction_type') || error.message?.includes('p_type'))) {
+        const altPayload = {
+          p_business_id: params.business_id,
+          p_product_id: params.product_id,
+          p_transaction_type: params.type,
+          p_quantity: params.quantity,
+          p_reference_type: params.reference_type || 'manual',
+          p_reference_id: sanitizedRefId,
+          p_notes: params.notes || null,
+          p_unit_cost: params.unit_cost ?? null,
+        };
+        const fallbackRes = await (supabase as any).rpc('record_inventory_movement', altPayload);
+        if (!fallbackRes.error) {
+          data = fallbackRes.data;
+          error = null;
+        }
+      }
 
       if (error) {
         throw new Error(error.message);
