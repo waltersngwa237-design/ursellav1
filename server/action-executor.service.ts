@@ -308,7 +308,7 @@ export class ActionExecutorService {
     userId: string,
     payload: Record<string, any>
   ): Promise<Record<string, any>> {
-    const { customerId, amount, paymentMethod = 'cash', notes = 'Debt settlement' } = payload;
+    const { customerId, amount, paymentMethod = 'cash', notes = 'Debt settlement', reference } = payload;
     if (!customerId || !amount || Number(amount) <= 0) {
       throw new Error('Invalid payment payload: customerId and valid positive amount required.');
     }
@@ -316,7 +316,7 @@ export class ActionExecutorService {
     // Verify Customer in business
     const { data: customer, error: custErr } = await serverSupabase
       .from('customers')
-      .select('id, name, outstanding_debt, business_id')
+      .select('id, name, business_id')
       .eq('id', customerId)
       .eq('business_id', businessId)
       .maybeSingle();
@@ -325,37 +325,83 @@ export class ActionExecutorService {
       throw new Error('Customer not found or access denied in business.');
     }
 
-    const currentDebt = Number(customer.outstanding_debt || 0);
-    const newDebt = Math.max(0, currentDebt - Number(amount));
+    // 1. Fetch customer's unpaid completed sales FIFO
+    const { data: sales } = await serverSupabase
+      .from('sales')
+      .select('id, total, amount_paid, amount_due')
+      .eq('business_id', businessId)
+      .eq('customer_id', customerId)
+      .eq('sale_status', 'completed')
+      .gt('amount_due', 0)
+      .order('sold_at', { ascending: true });
 
-    // Update Customer Debt
-    await serverSupabase
-      .from('customers')
-      .update({ outstanding_debt: newDebt, updated_at: new Date().toISOString() })
-      .eq('id', customerId)
-      .eq('business_id', businessId);
+    let remainingPayment = Number(amount);
+    let targetSaleId: string | null = null;
 
-    // Record Payment
+    if (sales && sales.length > 0) {
+      targetSaleId = sales[0].id;
+      for (const s of sales) {
+        if (remainingPayment <= 0) break;
+        const due = Number(s.amount_due) || 0;
+        const paid = Number(s.amount_paid) || 0;
+        const total = Number(s.total) || 0;
+        const applyAmt = Math.min(due, remainingPayment);
+
+        const newPaid = paid + applyAmt;
+        const newDue = Math.max(0, total - newPaid);
+        const newStatus = newDue === 0 ? 'paid' : 'partial';
+
+        await serverSupabase
+          .from('sales')
+          .update({
+            amount_paid: newPaid,
+            amount_due: newDue,
+            payment_status: newStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', s.id);
+
+        remainingPayment -= applyAmt;
+      }
+    }
+
+    // 2. Insert into payments record
     const { data: payment } = await serverSupabase
       .from('payments')
       .insert({
         business_id: businessId,
         customer_id: customerId,
+        sale_id: targetSaleId,
         amount: Number(amount),
         payment_method: paymentMethod,
-        notes: notes,
+        reference: reference || null,
+        notes: notes || 'Customer debt payment',
         received_by: userId,
         paid_at: new Date().toISOString(),
       })
       .select('id')
       .maybeSingle();
 
+    // 3. Compute remaining total debt
+    const { data: updatedSales } = await serverSupabase
+      .from('sales')
+      .select('amount_due')
+      .eq('business_id', businessId)
+      .eq('customer_id', customerId)
+      .eq('sale_status', 'completed')
+      .gt('amount_due', 0);
+
+    const remainingDebt = (updatedSales || []).reduce(
+      (acc, s) => acc + (Number(s.amount_due) || 0),
+      0
+    );
+
     return {
       paymentId: payment?.id || `pay_${Date.now()}`,
       customerId,
       customerName: customer.name,
       amountPaid: Number(amount),
-      remainingDebt: newDebt,
+      remainingDebt,
       message: `Recorded payment of ${Number(amount).toLocaleString()} from ${customer.name}.`,
     };
   }
