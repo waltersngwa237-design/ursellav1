@@ -42,6 +42,9 @@ interface UrsellaAIPageProps {
   onOpenFeedback?: () => void;
 }
 
+// Module-level cache to guarantee prompt strings are never re-run multiple times across component unmounts/remounts
+const executedPromptTokens = new Set<string>();
+
 export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   initialPrompt,
   onPromptConsumed,
@@ -207,15 +210,19 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     });
   };
 
-  // Handle Initial Prompt (Single-use consumption)
+  // Handle Initial Prompt (Single-use consumption across entire session)
   const processedPromptRef = useRef<string | null>(null);
   useEffect(() => {
     if (initialPrompt && initialPrompt.trim().length > 0 && activeBusiness?.id) {
-      if (processedPromptRef.current === initialPrompt) return;
-      processedPromptRef.current = initialPrompt;
-      const promptToRun = initialPrompt;
-      // Immediately notify parent to clear stored prompt so it does not re-trigger on subsequent tab visits
+      const promptToRun = initialPrompt.trim();
+      // Ensure parent state is immediately cleared so it never sits in parent memory
       onPromptConsumed?.();
+
+      if (processedPromptRef.current === promptToRun || executedPromptTokens.has(promptToRun)) {
+        return;
+      }
+      processedPromptRef.current = promptToRun;
+      executedPromptTokens.add(promptToRun);
       handleSendMessage(promptToRun);
     }
   }, [initialPrompt, activeBusiness?.id, onPromptConsumed]);

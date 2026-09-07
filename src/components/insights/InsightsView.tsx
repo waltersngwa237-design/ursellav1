@@ -84,6 +84,15 @@ export const InsightsView: React.FC = () => {
 
   useEffect(() => {
     loadData(false);
+
+    const handleDataChanged = () => {
+      loadData(false);
+    };
+
+    window.addEventListener('ursella_data_changed', handleDataChanged);
+    return () => {
+      window.removeEventListener('ursella_data_changed', handleDataChanged);
+    };
   }, [currentBusiness]);
 
   const handleDismiss = async (id: string) => {
@@ -94,7 +103,12 @@ export const InsightsView: React.FC = () => {
   };
 
   const handleActionExecuted = (result: any) => {
-    showToast('Action executed successfully & logged to audit trail');
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    const customMsg = result?.result?.message;
+    const defaultMsg = isOnline
+      ? 'Action executed successfully & logged to audit trail'
+      : 'Action executed locally and queued for cloud synchronization';
+    showToast(customMsg || defaultMsg);
     loadData(false);
   };
 

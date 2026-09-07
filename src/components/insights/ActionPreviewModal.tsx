@@ -38,22 +38,38 @@ export const ActionPreviewModal: React.FC<ActionPreviewModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
   // Editable fields depending on action
   const [draftMessage, setDraftMessage] = useState(
     insight.action_payload?.draftMessage || ''
   );
   const [taskTitle, setTaskTitle] = useState(
-    insight.action_payload?.title || insight.title
+    insight.action_payload?.title || (insight.action_type === 'create_customer_followup' ? `Follow up with ${insight.action_payload?.customerName || 'customer'}` : insight.title)
   );
   const [taskDescription, setTaskDescription] = useState(
     insight.action_payload?.description || insight.summary
   );
   const [adjustmentQty, setAdjustmentQty] = useState<number>(
-    insight.action_payload?.suggestedQuantity || 10
+    insight.action_payload?.suggestedQuantity ?? insight.action_payload?.targetQuantity ?? insight.action_payload?.currentStock ?? 10
+  );
+  const [inventoryReason, setInventoryReason] = useState<string>(
+    insight.action_payload?.reason || 'Proactive safety stock adjustment'
+  );
+  const [expenseCategory, setExpenseCategory] = useState<string>(
+    insight.action_payload?.category || 'Operations'
+  );
+  const [expenseAmount, setExpenseAmount] = useState<number>(
+    insight.action_payload?.amount || 0
+  );
+  const [expenseDesc, setExpenseDesc] = useState<string>(
+    insight.action_payload?.description || insight.summary || 'Proactive expense log'
+  );
+  const [followupDate, setFollowupDate] = useState<string>(
+    new Date(Date.now() + 86400000).toISOString().split('T')[0]
   );
   const [paymentAmount, setPaymentAmount] = useState<number>(
-    insight.action_payload?.debtAmount || 0
+    insight.action_payload?.debtAmount || insight.action_payload?.amount || 0
   );
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mobile_money' | 'bank_transfer'>(
     'cash'
@@ -85,9 +101,20 @@ export const ActionPreviewModal: React.FC<ActionPreviewModalProps> = ({
       payload.suggestedQuantity = adjustmentQty;
     } else if (actionType === 'create_inventory_adjustment') {
       payload.adjustmentQuantity = Number(adjustmentQty);
+      payload.quantity = Number(adjustmentQty);
+      payload.reason = inventoryReason;
     } else if (actionType === 'record_payment') {
       payload.amount = Number(paymentAmount);
       payload.paymentMethod = paymentMethod;
+    } else if (actionType === 'create_expense') {
+      payload.category = expenseCategory;
+      payload.amount = Number(expenseAmount);
+      payload.description = expenseDesc;
+      payload.paymentMethod = paymentMethod;
+    } else if (actionType === 'create_customer_followup') {
+      payload.title = taskTitle;
+      payload.description = taskDescription;
+      payload.dueDate = followupDate;
     }
 
     try {
@@ -246,6 +273,147 @@ export const ActionPreviewModal: React.FC<ActionPreviewModalProps> = ({
             </div>
           )}
 
+          {actionType === 'create_inventory_adjustment' && (
+            <div className="space-y-3">
+              {insight.action_payload?.productName && (
+                <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs">
+                  <span className="text-slate-500 block text-[10px] uppercase font-mono">Target Product</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{insight.action_payload.productName}</span>
+                  {insight.action_payload?.currentStock !== undefined && (
+                    <span className="text-slate-500 ml-2">(Current Stock: {insight.action_payload.currentStock})</span>
+                  )}
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Adjusted Stock Quantity (Units)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={adjustmentQty}
+                  onChange={(e) => setAdjustmentQty(Math.max(0, Number(e.target.value)))}
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Adjustment Reason / Notes
+                </label>
+                <input
+                  type="text"
+                  value={inventoryReason}
+                  onChange={(e) => setInventoryReason(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  placeholder="e.g. Physical inventory audit, damaged stock, safety buffer"
+                />
+              </div>
+            </div>
+          )}
+
+          {actionType === 'create_expense' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Expense Category
+                  </label>
+                  <select
+                    value={expenseCategory}
+                    onChange={(e) => setExpenseCategory(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="Operations">Operations</option>
+                    <option value="Utilities">Utilities (Power, Water)</option>
+                    <option value="Supplies">Supplies / Packaging</option>
+                    <option value="Logistics">Transport & Delivery</option>
+                    <option value="Rent">Rent & Facilities</option>
+                    <option value="Salaries">Staff / Wages</option>
+                    <option value="Marketing">Marketing / Promotion</option>
+                    <option value="Other">Other Miscellaneous</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Amount
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={expenseAmount}
+                    onChange={(e) => setExpenseAmount(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Payment Method
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as any)}
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                >
+                  <option value="cash">Cash in Hand</option>
+                  <option value="mobile_money">Mobile Money (MoMo / Orange)</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Description / Reference
+                </label>
+                <input
+                  type="text"
+                  value={expenseDesc}
+                  onChange={(e) => setExpenseDesc(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  placeholder="e.g. Utility bill payment or vendor invoice"
+                />
+              </div>
+            </div>
+          )}
+
+          {actionType === 'create_customer_followup' && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Follow-up Action Title
+                </label>
+                <input
+                  type="text"
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={followupDate}
+                  onChange={(e) => setFollowupDate(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Notes & Details
+                </label>
+                <textarea
+                  value={taskDescription}
+                  onChange={(e) => setTaskDescription(e.target.value)}
+                  rows={2}
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 resize-none"
+                  placeholder="Call notes or customer agreement..."
+                />
+              </div>
+            </div>
+          )}
+
           {actionType === 'record_payment' && (
             <div className="space-y-3">
               <div>
@@ -277,12 +445,23 @@ export const ActionPreviewModal: React.FC<ActionPreviewModalProps> = ({
             </div>
           )}
 
-          {/* Impact Warning */}
-          <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-            <div>
-              <strong>Audit Safety:</strong> This action will be executed in your business records and permanently logged in your activity audit trail.
-            </div>
+          {/* Connection & Audit Notice */}
+          <div className="space-y-2">
+            {!isOnline ? (
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <div>
+                  <strong>Offline Mode:</strong> This action will update your local records instantly and automatically sync with the cloud once your connection is restored.
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                <div>
+                  <strong>Live Database Sync:</strong> Changes will be committed directly to your business database and logged to the permanent audit trail.
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -312,7 +491,7 @@ export const ActionPreviewModal: React.FC<ActionPreviewModalProps> = ({
             ) : (
               <>
                 <CheckCircle className="w-4 h-4" />
-                Approve & Execute
+                {isOnline ? 'Approve & Execute' : 'Approve & Save Offline'}
               </>
             )}
           </button>

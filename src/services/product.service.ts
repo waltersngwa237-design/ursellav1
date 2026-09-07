@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 import { generateUUID, isValidUUID } from '../lib/uuid.ts';
+import { OfflineSyncService } from './offline-sync.service.ts';
 import type {
   Product,
   ProductCategory,
@@ -442,6 +443,10 @@ export const ProductService = {
           created_at: now,
         });
         localStorage.setItem(invKey, JSON.stringify(invList));
+      }
+
+      if (isSupabaseConfigured && isValidUUID(input.business_id)) {
+        OfflineSyncService.enqueue('product', input.business_id, newProd);
       }
 
       return newProd;

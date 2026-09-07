@@ -72,12 +72,9 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
         />
       )}
 
-      {/* Floating Speed Dial Container */}
+      {/* Floating Speed Dial Container: Displayed cleanly on desktop view where there is no bottom bar */}
       <div
-        className="fixed z-40 flex flex-col items-end gap-2.5 right-4 sm:right-6 md:!bottom-7 transition-all duration-200"
-        style={{
-          bottom: 'max(5.25rem, calc(4.75rem + env(safe-area-inset-bottom, 0px)))',
-        }}
+        className="hidden md:flex fixed z-40 flex-col items-end gap-2.5 right-6 bottom-7 transition-all duration-200"
       >
         {/* Expanded Quick Action Items */}
         {isOpen && (

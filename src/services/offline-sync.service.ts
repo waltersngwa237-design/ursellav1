@@ -5,6 +5,7 @@ import type { CompleteSaleParams } from './sales.service.ts';
 export type SyncItemType =
   | 'sale'
   | 'customer'
+  | 'product'
   | 'expense'
   | 'product_stock'
   | 'inventory_movement'
@@ -164,6 +165,8 @@ class OfflineSyncServiceClass {
           await this.syncSaleItem(item);
         } else if (item.type === 'customer') {
           await this.syncCustomerItem(item);
+        } else if (item.type === 'product') {
+          await this.syncProductItem(item);
         } else if (item.type === 'expense') {
           await this.syncExpenseItem(item);
         } else if (item.type === 'inventory_movement') {
@@ -237,6 +240,60 @@ class OfflineSyncServiceClass {
 
     if (error && !error.message?.includes('duplicate key')) {
       throw new Error(error.message);
+    }
+  }
+
+  private async syncProductItem(item: SyncQueueItem): Promise<void> {
+    const payload = item.payload;
+    if (!isValidUUID(payload.business_id)) return;
+
+    const sanitizedCategoryId = payload.category_id && isValidUUID(payload.category_id) ? payload.category_id : null;
+    const sanitizedSupplierId = payload.supplier_id && isValidUUID(payload.supplier_id) ? payload.supplier_id : null;
+
+    const { data, error } = await (supabase as any)
+      .from('products')
+      .insert({
+        id: payload.id && isValidUUID(payload.id) ? payload.id : undefined,
+        business_id: payload.business_id,
+        category_id: sanitizedCategoryId,
+        supplier_id: sanitizedSupplierId,
+        name: payload.name,
+        description: payload.description || null,
+        sku: payload.sku || null,
+        product_type: payload.product_type || 'physical',
+        unit_of_measure: payload.unit_of_measure || 'piece',
+        selling_price: Number(payload.selling_price) || 0,
+        cost_price: Number(payload.cost_price) || 0,
+        stock_quantity: Number(payload.stock_quantity) || 0,
+        minimum_stock_level: Number(payload.minimum_stock_level) || 5,
+        image_url: payload.image_url || null,
+        is_active: payload.is_active !== undefined ? payload.is_active : true,
+      })
+      .select('id')
+      .maybeSingle();
+
+    if (error && !error.message?.includes('duplicate key') && !error.message?.includes('unique constraint')) {
+      throw new Error(error.message);
+    }
+
+    // Record initial stock transaction if positive quantity
+    if (payload.product_type !== 'service' && Number(payload.stock_quantity) > 0) {
+      const prodId = data?.id || payload.id;
+      if (prodId && isValidUUID(prodId)) {
+        try {
+          await (supabase as any).from('inventory_transactions').insert({
+            business_id: payload.business_id,
+            product_id: prodId,
+            transaction_type: 'initial_stock',
+            quantity: Number(payload.stock_quantity),
+            unit_cost: Number(payload.cost_price) || null,
+            reference_type: 'initialization',
+            notes: 'Initial inventory quantity logged at product creation [Synced from Offline]',
+          });
+        } catch {
+          // non-critical
+        }
+      }
     }
   }
 

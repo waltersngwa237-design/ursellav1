@@ -425,19 +425,16 @@ export const AppShell: React.FC<AppShellProps> = ({
           <span className="text-[10px] mt-0.5 leading-none">Sell (POS)</span>
         </button>
 
-        {/* 3. Stock / Catalog Tab */}
+        {/* 3. Center Quick Action (+) Button - Perfectly docked in center navigation */}
         <button
-          onClick={() => onNavigate('business')}
-          className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
-            currentRoute === 'business'
-              ? 'text-emerald-400 font-bold'
-              : 'text-zinc-400 hover:text-zinc-200'
-          }`}
+          onClick={() => setIsQuickActionModalOpen(true)}
+          className="flex-1 flex flex-col items-center justify-center -mt-3 relative group"
+          aria-label="Quick Business Actions"
         >
-          <div className={`p-1 rounded-lg ${currentRoute === 'business' ? 'bg-emerald-500/10' : ''}`}>
-            <Store className="w-5 h-5" />
+          <div className="w-11 h-11 rounded-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 flex items-center justify-center shadow-lg shadow-emerald-500/30 border-2 border-zinc-950 dark:border-zinc-900 ring-2 ring-emerald-500/20 group-active:scale-95 transition-all">
+            <Plus className="w-5 h-5 stroke-[2.5]" />
           </div>
-          <span className="text-[10px] mt-0.5 leading-none">Stock</span>
+          <span className="text-[10px] mt-0.5 leading-none font-semibold text-emerald-400">Actions</span>
         </button>
 
         {/* 4. AI Advisor Tab */}

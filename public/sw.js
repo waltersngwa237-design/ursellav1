@@ -1,5 +1,5 @@
 // Ursella Progressive Web App Service Worker
-const CACHE_NAME = 'ursella-app-v5';
+const CACHE_NAME = 'ursella-app-v6';
 const FONT_CACHE_NAME = 'ursella-fonts-v1';
 
 const STATIC_ASSETS = [
@@ -117,7 +117,11 @@ self.addEventListener('fetch', (event) => {
   // 3. Static Vite JS/CSS bundles and image assets -> Stale-While-Revalidate
   const isStaticAsset =
     url.pathname.startsWith('/assets/') ||
+    url.pathname.startsWith('/src/') ||
     url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.jsx') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.endsWith('.tsx') ||
     url.pathname.endsWith('.css') ||
     url.pathname.endsWith('.svg') ||
     url.pathname.endsWith('.png') ||

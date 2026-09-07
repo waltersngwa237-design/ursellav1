@@ -310,17 +310,43 @@ export class EventDetectionService {
     const events: RawBusinessEvent[] = [];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
 
-    const { data: customers } = await serverSupabase
-      .from('customers')
-      .select('id, name, phone, email, outstanding_debt, total_spent, total_orders, last_order_at')
-      .eq('business_id', businessId)
-      .eq('is_active', true);
+    const [{ data: customers }, { data: sales }] = await Promise.all([
+      serverSupabase
+        .from('customers')
+        .select('id, name, phone, email')
+        .eq('business_id', businessId)
+        .eq('is_active', true),
+      serverSupabase
+        .from('sales')
+        .select('id, customer_id, total, amount_due, sale_status, sold_at')
+        .eq('business_id', businessId)
+        .eq('sale_status', 'completed'),
+    ]);
 
-    if (!customers) return events;
+    if (!customers || customers.length === 0) return events;
 
-    // Detect large outstanding balances (> 0)
+    // Group sales by customer
+    const salesByCustomer: Record<string, any[]> = {};
+    for (const s of sales || []) {
+      if (s.customer_id) {
+        if (!salesByCustomer[s.customer_id]) {
+          salesByCustomer[s.customer_id] = [];
+        }
+        salesByCustomer[s.customer_id].push(s);
+      }
+    }
+
+    // Detect large outstanding balances (> 0) and inactive customers
     for (const c of customers) {
-      const debt = Number(c.outstanding_debt || 0);
+      const custSales = salesByCustomer[c.id] || [];
+      const debt = custSales.reduce((acc, s) => acc + (Number(s.amount_due) || 0), 0);
+      const totalSpent = custSales.reduce((acc, s) => acc + (Number(s.total) || 0), 0);
+      const totalOrders = custSales.length;
+      const sortedSales = [...custSales].sort(
+        (a, b) => new Date(b.sold_at).getTime() - new Date(a.sold_at).getTime()
+      );
+      const lastOrderAt = sortedSales[0]?.sold_at || null;
+
       if (debt > 0) {
         const severity: InsightSeverity = debt >= 100000 ? 'high' : 'medium';
         events.push({
@@ -341,7 +367,7 @@ export class EventDetectionService {
             phone: c.phone,
             email: c.email,
             outstandingDebt: debt,
-            totalSpent: Number(c.total_spent || 0),
+            totalSpent,
           },
           dedupKey: `overdue_balance_${c.id}`,
           actionType: 'send_customer_message',
@@ -357,11 +383,10 @@ export class EventDetectionService {
       }
 
       // Detect high-value customer inactivity (Spent > 50,000 but no orders in 30+ days)
-      const totalSpent = Number(c.total_spent || 0);
       if (
         totalSpent >= 50000 &&
-        c.last_order_at &&
-        c.last_order_at < thirtyDaysAgo &&
+        lastOrderAt &&
+        lastOrderAt < thirtyDaysAgo &&
         debt === 0
       ) {
         events.push({
@@ -372,7 +397,7 @@ export class EventDetectionService {
           title: `VIP Follow-up: ${c.name} hasn't purchased recently`,
           summary: `Customer with ${totalSpent.toLocaleString()} lifetime spend has been inactive for over 30 days.`,
           explanation: {
-            whatHappened: `${c.name}, a valuable customer with ${c.total_orders || 'multiple'} past purchases, has not visited in 30+ days.`,
+            whatHappened: `${c.name}, a valuable customer with ${totalOrders || 'multiple'} past purchases, has not visited in 30+ days.`,
             whyItMatters: `Re-engaging lapsed loyal customers is 5x cheaper than acquiring new foot traffic.`,
             whatYouCanDo: `Reach out with a friendly check-in or share details on new arrivals and offers.`,
           },
@@ -381,7 +406,7 @@ export class EventDetectionService {
             customerName: c.name,
             phone: c.phone,
             totalSpent,
-            lastOrderAt: c.last_order_at,
+            lastOrderAt,
           },
           dedupKey: `inactive_customer_${c.id}`,
           actionType: 'send_customer_message',

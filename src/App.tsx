@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext.tsx';
 import { AuthProvider, useAuth } from './contexts/AuthContext.tsx';
 import { BusinessProvider, useBusiness } from './contexts/BusinessContext.tsx';
@@ -43,6 +43,8 @@ const MainRouter: React.FC = () => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#/', '').replace('#', '');
       if (['home', 'sell', 'analytics', 'reports', 'business', 'customers', 'data-io', 'billing', 'ai', 'insights', 'more'].includes(hash)) {
+        // Any hash change navigation should clear one-time prompt state
+        setAiPrompt(undefined);
         setCurrentRoute(hash as AppNavRoute);
       } else if (['landing', 'signin', 'signup', 'forgot-password'].includes(hash)) {
         setAuthView(hash as AuthView);
@@ -56,14 +58,14 @@ const MainRouter: React.FC = () => {
 
   const navigateTo = (route: AppNavRoute, prompt?: string) => {
     // Only set aiPrompt if an explicit prompt is provided; otherwise clear any lingering prompt
-    setAiPrompt(prompt || undefined);
+    setAiPrompt(prompt ? prompt.trim() : undefined);
     setCurrentRoute(route);
     window.location.hash = `#/${route}`;
   };
 
-  const handlePromptConsumed = () => {
+  const handlePromptConsumed = useCallback(() => {
     setAiPrompt(undefined);
-  };
+  }, []);
 
   const navigateAuth = (view: AuthView) => {
     setAuthView(view);
