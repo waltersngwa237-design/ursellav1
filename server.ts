@@ -261,6 +261,7 @@ app.post('/api/ai/chat', async (req, res) => {
         timePeriod: intentResult.timePeriod,
         primaryGoal: intentResult.primaryGoal,
       },
+      testSimulation: (req.body.testSimulation || req.headers['x-simulate-ai-failure']) as any,
     });
 
     structuredResponse.intent = intentResult.intent;

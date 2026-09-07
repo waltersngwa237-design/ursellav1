@@ -5,8 +5,10 @@ import {
 import {
   getGeminiClient,
   getActiveGeminiModel,
+  GROQ_PRODUCTION_MODEL,
   logAIProvenance,
 } from './ai-config.ts';
+import { GroqService } from './groq.service.ts';
 
 export interface ChatReasoningContext {
   businessName: string;
@@ -25,6 +27,7 @@ export interface ChatReasoningContext {
     timePeriod: string;
     primaryGoal: string;
   };
+  testSimulation?: 'gemini-503' | 'gemini-429' | 'gemini-timeout' | 'all-fail';
 }
 
 /**
@@ -140,90 +143,254 @@ ${
 
     const model = getActiveGeminiModel();
     const startTime = Date.now();
+    const systemInstruction = this.buildSystemInstruction(ctx);
 
-    if (!ai) {
-      logAIProvenance({
-        endpoint: 'generateChatResponse',
-        businessId: ctx.businessName,
-        source: 'DETERMINISTIC_FALLBACK',
-        model,
-        latencyMs: 0,
-        error: 'GEMINI_API_KEY is not configured or client initialization failed',
-      });
-      return this.generateDeterministicFallback(userMessage, ctx);
-    }
+    // 1. PRIMARY PROVIDER: Gemini
+    let geminiError: any = null;
 
-    try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: contextPrompt,
-        config: {
-          systemInstruction: this.buildSystemInstruction(ctx),
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-        },
-      });
-
-      const latencyMs = Date.now() - startTime;
-      const responseText = response.text || '';
+    if (
+      ai &&
+      ctx.testSimulation !== 'gemini-503' &&
+      ctx.testSimulation !== 'gemini-429' &&
+      ctx.testSimulation !== 'gemini-timeout' &&
+      ctx.testSimulation !== 'all-fail'
+    ) {
       try {
-        const parsed = JSON.parse(responseText);
-        if (parsed && typeof parsed.answer === 'string') {
+        const responsePromise = ai.models.generateContent({
+          model,
+          contents: contextPrompt,
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            temperature: 0.2,
+          },
+        });
+
+        const response = await this.withTimeout(
+          responsePromise,
+          12000,
+          'Gemini request timed out after 12000ms'
+        );
+
+        const latencyMs = Date.now() - startTime;
+        const responseText = response.text || '';
+
+        if (responseText) {
+          console.log('[AI Routing] provider: gemini');
           logAIProvenance({
             endpoint: 'generateChatResponse',
             businessId: ctx.businessName,
             source: 'GEMINI_RESPONSE',
+            provider: 'gemini',
             model,
             latencyMs,
           });
-          return {
-            answer: parsed.answer,
-            intent: (parsed.intent as any) || ctx.parsedIntent?.intent || 'business_overview',
-            keyMetrics: parsed.keyMetrics || [],
-            observations: parsed.observations || [],
-            recommendations: parsed.recommendations || [],
-            anomaliesDetected: parsed.anomaliesDetected || [],
-            confidence: parsed.confidence || 'high_confidence',
-            dataSufficiencyNote: parsed.dataSufficiencyNote,
-            followUpSuggestions: parsed.followUpSuggestions || [
-              'How are my sales today?',
-              'Which products are low on stock?',
-              'Who owes me money?',
-            ],
-            proposedAction: parsed.proposedAction,
-            responseSource: 'GEMINI_RESPONSE',
-          };
+
+          return this.parseChatStructuredResponse(responseText, ctx, 'GEMINI_RESPONSE', 'gemini');
         }
-      } catch (parseError: any) {
-        logAIProvenance({
-          endpoint: 'generateChatResponse',
-          businessId: ctx.businessName,
-          source: 'GEMINI_RESPONSE',
-          model,
-          latencyMs,
-          error: `JSON parse warning: ${parseError?.message}`,
-        });
-        return {
-          answer: responseText,
-          confidence: 'moderate_confidence',
-          followUpSuggestions: ['What else should I focus on?'],
-          responseSource: 'GEMINI_RESPONSE',
-        };
+      } catch (err: any) {
+        geminiError = err;
       }
-    } catch (err: any) {
-      const latencyMs = Date.now() - startTime;
-      console.warn(`[Gemini Chat API Error] Model="${model}" failed after ${latencyMs}ms:`, err?.message || err);
-      logAIProvenance({
-        endpoint: 'generateChatResponse',
-        businessId: ctx.businessName,
-        source: 'DETERMINISTIC_FALLBACK',
-        model,
-        latencyMs,
-        error: err?.message || String(err),
-      });
+    } else {
+      if (ctx.testSimulation === 'gemini-503') {
+        const err = new Error('503 Service Unavailable: High upstream model load (simulated)');
+        (err as any).status = 503;
+        geminiError = err;
+      } else if (ctx.testSimulation === 'gemini-429') {
+        const err = new Error('429 Too Many Requests: Rate limit exceeded (simulated)');
+        (err as any).status = 429;
+        geminiError = err;
+      } else if (ctx.testSimulation === 'gemini-timeout') {
+        const err = new Error('Gemini request timed out after 12000ms (simulated)');
+        (err as any).name = 'TimeoutError';
+        (err as any).status = 504;
+        geminiError = err;
+      } else if (ctx.testSimulation === 'all-fail') {
+        geminiError = new Error('Simulated upstream failure (all-fail)');
+      } else {
+        geminiError = new Error('GEMINI_API_KEY is not configured or client initialization failed');
+      }
     }
 
+    // 2. BOUNDED RETRY for Gemini if temporary failure (503, 429, timeout, network error)
+    if (this.isTemporaryGeminiError(geminiError) && ctx.testSimulation !== 'all-fail') {
+      console.warn(
+        `[AI Routing] Gemini temporary failure (${geminiError?.message || geminiError}). Initiating 1 bounded retry...`
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      if (ai && !ctx.testSimulation?.startsWith('gemini-')) {
+        try {
+          const retryPromise = ai.models.generateContent({
+            model,
+            contents: contextPrompt,
+            config: {
+              systemInstruction,
+              responseMimeType: 'application/json',
+              temperature: 0.2,
+            },
+          });
+
+          const response = await this.withTimeout(
+            retryPromise,
+            8000,
+            'Gemini retry timed out after 8000ms'
+          );
+
+          const latencyMs = Date.now() - startTime;
+          const responseText = response.text || '';
+
+          if (responseText) {
+            console.log('[AI Routing] provider: gemini (succeeded on retry)');
+            logAIProvenance({
+              endpoint: 'generateChatResponse',
+              businessId: ctx.businessName,
+              source: 'GEMINI_RESPONSE',
+              provider: 'gemini',
+              model,
+              latencyMs,
+            });
+
+            return this.parseChatStructuredResponse(responseText, ctx, 'GEMINI_RESPONSE', 'gemini');
+          }
+        } catch (retryErr: any) {
+          console.warn(
+            `[AI Routing] Gemini retry attempt failed (${retryErr?.message || retryErr}). Proceeding to Groq fallback.`
+          );
+          geminiError = retryErr;
+        }
+      } else {
+        console.warn(`[AI Routing] Simulated Gemini temporary failure verified. Proceeding to Groq fallback.`);
+      }
+    }
+
+    // 3. SECONDARY PROVIDER: Groq (production model: openai/gpt-oss-120b)
+    console.log(`[AI Routing] Calling secondary provider: groq (${GROQ_PRODUCTION_MODEL})...`);
+    try {
+      const groqResponse = await GroqService.generateChatResponse(
+        systemInstruction,
+        contextPrompt,
+        ctx,
+        12000
+      );
+
+      if (groqResponse) {
+        console.log('[AI Routing] provider: groq');
+        return groqResponse;
+      }
+    } catch (groqErr: any) {
+      console.warn(`[AI Routing] Groq provider failed:`, groqErr?.message || groqErr);
+    }
+
+    // 4. TERTIARY PROVIDER: Deterministic Fallback
+    console.log('[AI Routing] provider: deterministic_fallback');
+    const totalLatency = Date.now() - startTime;
+    logAIProvenance({
+      endpoint: 'generateChatResponse',
+      businessId: ctx.businessName,
+      source: 'DETERMINISTIC_FALLBACK',
+      provider: 'deterministic_fallback',
+      model: 'deterministic_engine',
+      latencyMs: totalLatency,
+      error: geminiError?.message || 'Both primary and secondary AI providers unavailable',
+    });
+
     return this.generateDeterministicFallback(userMessage, ctx);
+  }
+
+  /**
+   * Helper to safely parse AI JSON response and conform to AIStructuredResponse.
+   */
+  private static parseChatStructuredResponse(
+    responseText: string,
+    ctx: ChatReasoningContext,
+    source: 'GEMINI_RESPONSE' | 'GROQ_RESPONSE',
+    provider: 'gemini' | 'groq'
+  ): AIStructuredResponse {
+    try {
+      const parsed = JSON.parse(responseText);
+      if (parsed && typeof parsed.answer === 'string') {
+        return {
+          answer: parsed.answer,
+          intent: (parsed.intent as any) || ctx.parsedIntent?.intent || 'business_overview',
+          keyMetrics: parsed.keyMetrics || [],
+          observations: parsed.observations || [],
+          recommendations: parsed.recommendations || [],
+          anomaliesDetected: parsed.anomaliesDetected || [],
+          confidence: parsed.confidence || 'high_confidence',
+          dataSufficiencyNote: parsed.dataSufficiencyNote,
+          followUpSuggestions: parsed.followUpSuggestions || [
+            'How are my sales today?',
+            'Which products are low on stock?',
+            'Who owes me money?',
+          ],
+          proposedAction: parsed.proposedAction,
+          responseSource: source,
+          provider,
+        };
+      }
+    } catch {
+      // Fallback for non-JSON content
+    }
+
+    return {
+      answer: responseText,
+      confidence: 'moderate_confidence',
+      followUpSuggestions: ['What else should I focus on?'],
+      responseSource: source,
+      provider,
+    };
+  }
+
+  /**
+   * Executes a promise bounded by a strict timeout in milliseconds.
+   */
+  private static async withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    errorMessage = 'Operation timed out'
+  ): Promise<T> {
+    let timer: NodeJS.Timeout;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new Error(errorMessage);
+        (err as any).name = 'TimeoutError';
+        (err as any).status = 504;
+        reject(err);
+      }, timeoutMs);
+    });
+
+    return Promise.race([promise, timeoutPromise]).finally(() => {
+      clearTimeout(timer);
+    });
+  }
+
+  /**
+   * Detects whether an error from Gemini is temporary and eligible for a bounded retry.
+   */
+  private static isTemporaryGeminiError(err: any): boolean {
+    if (!err) return false;
+    const status = Number(err.status || err.statusCode || err.code || 0);
+    if (status === 503 || status === 429 || status === 502 || status === 504 || status === 500) {
+      return true;
+    }
+    const msg = String(err.message || err.toString() || '').toLowerCase();
+    return (
+      msg.includes('503') ||
+      msg.includes('429') ||
+      msg.includes('502') ||
+      msg.includes('504') ||
+      msg.includes('resource_exhausted') ||
+      msg.includes('unavailable') ||
+      msg.includes('overloaded') ||
+      msg.includes('deadline_exceeded') ||
+      msg.includes('timeout') ||
+      msg.includes('timed out') ||
+      msg.includes('fetch failed') ||
+      msg.includes('econnreset') ||
+      msg.includes('etimedout')
+    );
   }
 
   /**
@@ -244,20 +411,7 @@ ${
     };
     const debtors = briefFacts?.debtorAlerts || { debtorsCount: 0, totalOutstandingDebt: 0 };
 
-    if (!ai) {
-      logAIProvenance({
-        endpoint: 'generateDailyBrief',
-        businessId: ctx.businessName,
-        source: 'DETERMINISTIC_FALLBACK',
-        model,
-        latencyMs: 0,
-        error: 'GEMINI_API_KEY not configured',
-      });
-      return this.generateDeterministicDailyBrief(ctx, briefFacts);
-    }
-
-    try {
-      const prompt = `Generate a concise, professional executive Daily Business Brief for "${ctx.businessName}" based on today's factual metrics in timezone ${ctx.timezone}:
+    const prompt = `Generate a concise, professional executive Daily Business Brief for "${ctx.businessName}" based on today's factual metrics in timezone ${ctx.timezone}:
 ${JSON.stringify(briefFacts, null, 2)}
 
 Return a valid JSON object matching the schema:
@@ -271,57 +425,152 @@ Return a valid JSON object matching the schema:
   "confidence": "high_confidence" | "moderate_confidence" | "insufficient_data"
 }`;
 
-      const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          systemInstruction: `You are Ursella AI. Generate an accurate, grounded Daily Business Brief for ${ctx.businessName} in currency ${ctx.currency}. Never invent numbers. Answer performance facts directly.`,
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-        },
-      });
+    const systemInstruction = `You are Ursella AI. Generate an accurate, grounded Daily Business Brief for ${ctx.businessName} in currency ${ctx.currency}. Never invent numbers. Answer performance facts directly.`;
 
-      const latencyMs = Date.now() - startTime;
-      const parsed = JSON.parse(response.text || '{}');
-      logAIProvenance({
-        endpoint: 'generateDailyBrief',
-        businessId: ctx.businessName,
-        source: 'GEMINI_RESPONSE',
-        model,
-        latencyMs,
-      });
-      return {
-        generatedAt: new Date().toISOString(),
-        businessName: ctx.businessName,
-        currency: ctx.currency,
-        headline: parsed.headline || `Daily Briefing for ${ctx.businessName}`,
-        executiveSummary: parsed.executiveSummary || `Today's performance overview for ${ctx.businessName}.`,
-        performanceSnapshot: {
-          revenue: today.revenueToday,
-          transactions: today.transactionCountToday,
-          amountCollected: today.cashCollectedToday,
-          expenses: today.expensesToday,
-          outstandingReceivables: debtors.totalOutstandingDebt,
-        },
-        keyTakeaways: parsed.keyTakeaways || [],
-        inventoryAlerts: parsed.inventoryAlerts || [],
-        debtFollowUps: parsed.debtFollowUps || [],
-        recommendedFocusToday: parsed.recommendedFocusToday || 'Review daily sales and inventory levels.',
-        confidence: parsed.confidence || (today.transactionCountToday >= 5 ? 'high_confidence' : 'insufficient_data'),
-      };
-    } catch (err: any) {
-      const latencyMs = Date.now() - startTime;
-      console.warn(`[Gemini Daily Brief API Error] Model="${model}" failed after ${latencyMs}ms:`, err?.message || err);
-      logAIProvenance({
-        endpoint: 'generateDailyBrief',
-        businessId: ctx.businessName,
-        source: 'DETERMINISTIC_FALLBACK',
-        model,
-        latencyMs,
-        error: err?.message || String(err),
-      });
-      return this.generateDeterministicDailyBrief(ctx, briefFacts);
+    // 1. Primary Gemini attempt
+    let geminiError: any = null;
+    if (
+      ai &&
+      ctx.testSimulation !== 'gemini-503' &&
+      ctx.testSimulation !== 'gemini-429' &&
+      ctx.testSimulation !== 'gemini-timeout' &&
+      ctx.testSimulation !== 'all-fail'
+    ) {
+      try {
+        const responsePromise = ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            temperature: 0.2,
+          },
+        });
+
+        const response = await this.withTimeout(responsePromise, 12000, 'Gemini daily brief timed out');
+        const latencyMs = Date.now() - startTime;
+        const parsed = JSON.parse(response.text || '{}');
+
+        console.log('[AI Routing] provider: gemini (daily brief)');
+        logAIProvenance({
+          endpoint: 'generateDailyBrief',
+          businessId: ctx.businessName,
+          source: 'GEMINI_RESPONSE',
+          provider: 'gemini',
+          model,
+          latencyMs,
+        });
+
+        return {
+          generatedAt: new Date().toISOString(),
+          businessName: ctx.businessName,
+          currency: ctx.currency,
+          headline: parsed.headline || `Daily Briefing for ${ctx.businessName}`,
+          executiveSummary: parsed.executiveSummary || `Today's performance overview for ${ctx.businessName}.`,
+          performanceSnapshot: {
+            revenue: today.revenueToday,
+            transactions: today.transactionCountToday,
+            amountCollected: today.cashCollectedToday,
+            expenses: today.expensesToday,
+            outstandingReceivables: debtors.totalOutstandingDebt,
+          },
+          keyTakeaways: parsed.keyTakeaways || [],
+          inventoryAlerts: parsed.inventoryAlerts || [],
+          debtFollowUps: parsed.debtFollowUps || [],
+          recommendedFocusToday: parsed.recommendedFocusToday || 'Review daily sales and inventory levels.',
+          confidence: parsed.confidence || (today.transactionCountToday >= 5 ? 'high_confidence' : 'insufficient_data'),
+        };
+      } catch (err: any) {
+        geminiError = err;
+      }
+    } else {
+      geminiError = new Error('Gemini bypassed or unconfigured for daily brief');
     }
+
+    // 2. Retry Gemini if temporary
+    if (this.isTemporaryGeminiError(geminiError) && ai && !ctx.testSimulation?.startsWith('gemini-') && ctx.testSimulation !== 'all-fail') {
+      try {
+        await new Promise((r) => setTimeout(r, 500));
+        const retryPromise = ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            temperature: 0.2,
+          },
+        });
+        const response = await this.withTimeout(retryPromise, 8000, 'Gemini daily brief retry timed out');
+        const latencyMs = Date.now() - startTime;
+        const parsed = JSON.parse(response.text || '{}');
+
+        console.log('[AI Routing] provider: gemini (daily brief retry)');
+        logAIProvenance({
+          endpoint: 'generateDailyBrief',
+          businessId: ctx.businessName,
+          source: 'GEMINI_RESPONSE',
+          provider: 'gemini',
+          model,
+          latencyMs,
+        });
+
+        return {
+          generatedAt: new Date().toISOString(),
+          businessName: ctx.businessName,
+          currency: ctx.currency,
+          headline: parsed.headline || `Daily Briefing for ${ctx.businessName}`,
+          executiveSummary: parsed.executiveSummary || `Today's performance overview for ${ctx.businessName}.`,
+          performanceSnapshot: {
+            revenue: today.revenueToday,
+            transactions: today.transactionCountToday,
+            amountCollected: today.cashCollectedToday,
+            expenses: today.expensesToday,
+            outstandingReceivables: debtors.totalOutstandingDebt,
+          },
+          keyTakeaways: parsed.keyTakeaways || [],
+          inventoryAlerts: parsed.inventoryAlerts || [],
+          debtFollowUps: parsed.debtFollowUps || [],
+          recommendedFocusToday: parsed.recommendedFocusToday || 'Review daily sales and inventory levels.',
+          confidence: parsed.confidence || (today.transactionCountToday >= 5 ? 'high_confidence' : 'insufficient_data'),
+        };
+      } catch (retryErr: any) {
+        console.warn(`[AI Routing] Gemini daily brief retry failed:`, retryErr?.message || retryErr);
+      }
+    }
+
+    // 3. Groq fallback for daily brief
+    try {
+      console.log(`[AI Routing] Calling secondary provider: groq for daily brief (${GROQ_PRODUCTION_MODEL})...`);
+      const groqBrief = await GroqService.generateDailyBrief(
+        prompt,
+        systemInstruction,
+        ctx,
+        today,
+        debtors,
+        12000
+      );
+      if (groqBrief) {
+        console.log('[AI Routing] provider: groq (daily brief)');
+        return groqBrief;
+      }
+    } catch (groqErr: any) {
+      console.warn(`[AI Routing] Groq daily brief fallback failed:`, groqErr?.message || groqErr);
+    }
+
+    // 4. Deterministic fallback for daily brief
+    console.log('[AI Routing] provider: deterministic_fallback (daily brief)');
+    const latencyMs = Date.now() - startTime;
+    logAIProvenance({
+      endpoint: 'generateDailyBrief',
+      businessId: ctx.businessName,
+      source: 'DETERMINISTIC_FALLBACK',
+      provider: 'deterministic_fallback',
+      model: 'deterministic_engine',
+      latencyMs,
+      error: geminiError?.message || 'Both AI providers failed',
+    });
+
+    return this.generateDeterministicDailyBrief(ctx, briefFacts);
   }
 
   /**

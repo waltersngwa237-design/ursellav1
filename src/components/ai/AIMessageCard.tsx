@@ -284,11 +284,11 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
                 {formattedTime}
               </span>
 
-              {/* Provenance Tag */}
-              {responseSource === 'GEMINI_RESPONSE' ? (
+              {/* Provenance Tag - Merchants only see Ursella AI */}
+              {responseSource === 'GEMINI_RESPONSE' || responseSource === 'GROQ_RESPONSE' ? (
                 <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                   <Cpu className="w-2.5 h-2.5" />
-                  <span>Gemini AI</span>
+                  <span>Ursella AI</span>
                 </span>
               ) : responseSource === 'DETERMINISTIC_FALLBACK' ? (
                 <span className={`hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border ${

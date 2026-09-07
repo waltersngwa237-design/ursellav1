@@ -63,6 +63,25 @@ export function getGeminiClient(): GoogleGenAI | null {
 }
 
 /**
+ * Secondary AI Provider Configuration: Groq API
+ * Production model strictly set to openai/gpt-oss-120b.
+ */
+export const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1';
+export const GROQ_PRODUCTION_MODEL = 'openai/gpt-oss-120b';
+
+/**
+ * Returns the Groq API key from server environment.
+ * Never exposed to the browser.
+ */
+export function getGroqApiKey(): string | null {
+  const key = process.env.GROQ_API_KEY?.trim();
+  if (key && key.length > 0 && key !== 'placeholder-key' && !key.includes('MY_GROQ_API_KEY')) {
+    return key;
+  }
+  return null;
+}
+
+/**
  * Observability helper to log execution provenance and runtime metrics.
  */
 export function logAIProvenance(meta: {
@@ -71,10 +90,27 @@ export function logAIProvenance(meta: {
   source: AIResponseSource;
   model: string;
   latencyMs: number;
+  provider?: 'gemini' | 'groq' | 'deterministic_fallback';
   error?: string;
 }) {
-  const statusEmoji = meta.source === 'GEMINI_RESPONSE' ? '✨ [GEMINI_LIVE]' : '🛡️ [DETERMINISTIC_FALLBACK]';
+  const provider =
+    meta.provider ||
+    (meta.source === 'GEMINI_RESPONSE'
+      ? 'gemini'
+      : meta.source === 'GROQ_RESPONSE'
+      ? 'groq'
+      : 'deterministic_fallback');
+
+  const statusEmoji =
+    provider === 'gemini'
+      ? '✨ [GEMINI_LIVE]'
+      : provider === 'groq'
+      ? '⚡ [GROQ_SECONDARY]'
+      : '🛡️ [DETERMINISTIC_FALLBACK]';
+
   console.log(
-    `[AI Provenance] ${statusEmoji} endpoint=${meta.endpoint} business=${meta.businessId} model=${meta.model} source=${meta.source} latency=${meta.latencyMs}ms${meta.error ? ` err="${meta.error}"` : ''}`
+    `[AI Provenance] ${statusEmoji} provider: ${provider} endpoint=${meta.endpoint} business=${meta.businessId} model=${meta.model} source=${meta.source} latency=${meta.latencyMs}ms${
+      meta.error ? ` err="${meta.error}"` : ''
+    }`
   );
 }

@@ -2176,10 +2176,29 @@ var EventDetectionService = class {
   static async detectCustomerEvents(businessId) {
     const events = [];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 864e5).toISOString();
-    const { data: customers } = await serverSupabase.from("customers").select("id, name, phone, email, outstanding_debt, total_spent, total_orders, last_order_at").eq("business_id", businessId).eq("is_active", true);
-    if (!customers) return events;
+    const [{ data: customers }, { data: sales }] = await Promise.all([
+      serverSupabase.from("customers").select("id, name, phone, email").eq("business_id", businessId).eq("is_active", true),
+      serverSupabase.from("sales").select("id, customer_id, total, amount_due, sale_status, sold_at").eq("business_id", businessId).eq("sale_status", "completed")
+    ]);
+    if (!customers || customers.length === 0) return events;
+    const salesByCustomer = {};
+    for (const s of sales || []) {
+      if (s.customer_id) {
+        if (!salesByCustomer[s.customer_id]) {
+          salesByCustomer[s.customer_id] = [];
+        }
+        salesByCustomer[s.customer_id].push(s);
+      }
+    }
     for (const c of customers) {
-      const debt = Number(c.outstanding_debt || 0);
+      const custSales = salesByCustomer[c.id] || [];
+      const debt = custSales.reduce((acc, s) => acc + (Number(s.amount_due) || 0), 0);
+      const totalSpent = custSales.reduce((acc, s) => acc + (Number(s.total) || 0), 0);
+      const totalOrders = custSales.length;
+      const sortedSales = [...custSales].sort(
+        (a, b) => new Date(b.sold_at).getTime() - new Date(a.sold_at).getTime()
+      );
+      const lastOrderAt = sortedSales[0]?.sold_at || null;
       if (debt > 0) {
         const severity = debt >= 1e5 ? "high" : "medium";
         events.push({
@@ -2200,7 +2219,7 @@ var EventDetectionService = class {
             phone: c.phone,
             email: c.email,
             outstandingDebt: debt,
-            totalSpent: Number(c.total_spent || 0)
+            totalSpent
           },
           dedupKey: `overdue_balance_${c.id}`,
           actionType: "send_customer_message",
@@ -2214,8 +2233,7 @@ var EventDetectionService = class {
           }
         });
       }
-      const totalSpent = Number(c.total_spent || 0);
-      if (totalSpent >= 5e4 && c.last_order_at && c.last_order_at < thirtyDaysAgo && debt === 0) {
+      if (totalSpent >= 5e4 && lastOrderAt && lastOrderAt < thirtyDaysAgo && debt === 0) {
         events.push({
           eventType: "customer_inactive",
           category: "customers",
@@ -2224,7 +2242,7 @@ var EventDetectionService = class {
           title: `VIP Follow-up: ${c.name} hasn't purchased recently`,
           summary: `Customer with ${totalSpent.toLocaleString()} lifetime spend has been inactive for over 30 days.`,
           explanation: {
-            whatHappened: `${c.name}, a valuable customer with ${c.total_orders || "multiple"} past purchases, has not visited in 30+ days.`,
+            whatHappened: `${c.name}, a valuable customer with ${totalOrders || "multiple"} past purchases, has not visited in 30+ days.`,
             whyItMatters: `Re-engaging lapsed loyal customers is 5x cheaper than acquiring new foot traffic.`,
             whatYouCanDo: `Reach out with a friendly check-in or share details on new arrivals and offers.`
           },
@@ -2233,7 +2251,7 @@ var EventDetectionService = class {
             customerName: c.name,
             phone: c.phone,
             totalSpent,
-            lastOrderAt: c.last_order_at
+            lastOrderAt
           },
           dedupKey: `inactive_customer_${c.id}`,
           actionType: "send_customer_message",
@@ -2580,32 +2598,59 @@ var ActionExecutorService = class {
    * Action: Record Payment against Customer Debt (Atomic)
    */
   static async executeRecordPayment(businessId, userId, payload) {
-    const { customerId, amount, paymentMethod = "cash", notes = "Debt settlement" } = payload;
+    const { customerId, amount, paymentMethod = "cash", notes = "Debt settlement", reference } = payload;
     if (!customerId || !amount || Number(amount) <= 0) {
       throw new Error("Invalid payment payload: customerId and valid positive amount required.");
     }
-    const { data: customer, error: custErr } = await serverSupabase.from("customers").select("id, name, outstanding_debt, business_id").eq("id", customerId).eq("business_id", businessId).maybeSingle();
+    const { data: customer, error: custErr } = await serverSupabase.from("customers").select("id, name, business_id").eq("id", customerId).eq("business_id", businessId).maybeSingle();
     if (custErr || !customer) {
       throw new Error("Customer not found or access denied in business.");
     }
-    const currentDebt = Number(customer.outstanding_debt || 0);
-    const newDebt = Math.max(0, currentDebt - Number(amount));
-    await serverSupabase.from("customers").update({ outstanding_debt: newDebt, updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", customerId).eq("business_id", businessId);
+    const { data: sales } = await serverSupabase.from("sales").select("id, total, amount_paid, amount_due").eq("business_id", businessId).eq("customer_id", customerId).eq("sale_status", "completed").gt("amount_due", 0).order("sold_at", { ascending: true });
+    let remainingPayment = Number(amount);
+    let targetSaleId = null;
+    if (sales && sales.length > 0) {
+      targetSaleId = sales[0].id;
+      for (const s of sales) {
+        if (remainingPayment <= 0) break;
+        const due = Number(s.amount_due) || 0;
+        const paid = Number(s.amount_paid) || 0;
+        const total = Number(s.total) || 0;
+        const applyAmt = Math.min(due, remainingPayment);
+        const newPaid = paid + applyAmt;
+        const newDue = Math.max(0, total - newPaid);
+        const newStatus = newDue === 0 ? "paid" : "partial";
+        await serverSupabase.from("sales").update({
+          amount_paid: newPaid,
+          amount_due: newDue,
+          payment_status: newStatus,
+          updated_at: (/* @__PURE__ */ new Date()).toISOString()
+        }).eq("id", s.id);
+        remainingPayment -= applyAmt;
+      }
+    }
     const { data: payment } = await serverSupabase.from("payments").insert({
       business_id: businessId,
       customer_id: customerId,
+      sale_id: targetSaleId,
       amount: Number(amount),
       payment_method: paymentMethod,
-      notes,
+      reference: reference || null,
+      notes: notes || "Customer debt payment",
       received_by: userId,
       paid_at: (/* @__PURE__ */ new Date()).toISOString()
     }).select("id").maybeSingle();
+    const { data: updatedSales } = await serverSupabase.from("sales").select("amount_due").eq("business_id", businessId).eq("customer_id", customerId).eq("sale_status", "completed").gt("amount_due", 0);
+    const remainingDebt = (updatedSales || []).reduce(
+      (acc, s) => acc + (Number(s.amount_due) || 0),
+      0
+    );
     return {
       paymentId: payment?.id || `pay_${Date.now()}`,
       customerId,
       customerName: customer.name,
       amountPaid: Number(amount),
-      remainingDebt: newDebt,
+      remainingDebt,
       message: `Recorded payment of ${Number(amount).toLocaleString()} from ${customer.name}.`
     };
   }
@@ -4554,9 +4599,9 @@ app.get("/api/data/export/:entity", async (req, res) => {
       return res.status(authCheck.status || 403).json({ error: authCheck.error });
     }
     const csvData = await DataIOService.exportDataToCSV(businessId, entity);
-    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="ursella_${entity}_${Date.now()}.csv"`);
-    return res.send(csvData);
+    return res.send("\uFEFF" + csvData);
   } catch (error) {
     return res.status(500).json({ error: "Data export failed" });
   }

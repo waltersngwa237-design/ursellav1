@@ -52,7 +52,7 @@ export interface AIProposedAction {
   phaseStatus: 'phase4_preview_only' | 'ready_for_execution';
 }
 
-export type AIResponseSource = 'GEMINI_RESPONSE' | 'DETERMINISTIC_FALLBACK';
+export type AIResponseSource = 'GEMINI_RESPONSE' | 'GROQ_RESPONSE' | 'DETERMINISTIC_FALLBACK';
 
 export interface AIStructuredResponse {
   answer: string;
@@ -67,6 +67,7 @@ export interface AIStructuredResponse {
   toolsUsed?: string[];
   proposedAction?: AIProposedAction;
   responseSource?: AIResponseSource;
+  provider?: 'gemini' | 'groq' | 'deterministic_fallback';
 }
 
 export interface AIConversationSummary {
