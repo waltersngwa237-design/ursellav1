@@ -50,7 +50,11 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   const [activeBusinessId, setActiveBusinessIdState] = useState<string | null>(() => {
-    return localStorage.getItem(ACTIVE_BIZ_KEY);
+    try {
+      return localStorage.getItem(ACTIVE_BIZ_KEY);
+    } catch {
+      return null;
+    }
   });
 
   const [loading, setLoading] = useState<boolean>(() => businesses.length === 0);

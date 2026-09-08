@@ -12,6 +12,16 @@ export const OfflineBanner: React.FC = () => {
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
   useEffect(() => {
+    const isShowing = (!isOnline || wasOffline || pendingCount > 0 || !!syncFeedback);
+    if (typeof document !== 'undefined') {
+      document.documentElement.style.setProperty(
+        '--offline-banner-height',
+        isShowing ? '36px' : '0px'
+      );
+    }
+  }, [isOnline, wasOffline, pendingCount, syncFeedback]);
+
+  useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
       setWasOffline(true);

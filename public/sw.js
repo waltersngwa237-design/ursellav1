@@ -212,3 +212,16 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+
+// Background Sync API: Flush offline transactions when browser regains connectivity
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'ursella-offline-sync') {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window' }).then((clientList) => {
+        clientList.forEach((client) => {
+          client.postMessage({ type: 'TRIGGER_OFFLINE_SYNC' });
+        });
+      })
+    );
+  }
+});

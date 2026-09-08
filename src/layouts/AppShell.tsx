@@ -168,7 +168,21 @@ export const AppShell: React.FC<AppShellProps> = ({
     { route: 'more', label: 'Settings', icon: <MoreHorizontal className="w-5 h-5" /> },
   ];
 
+  const handleNavWithHaptic = (routeTarget: AppNavRoute) => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(8);
+      } catch {}
+    }
+    onNavigate(routeTarget);
+  };
+
   const handleQuickAction = (routeTarget: AppNavRoute) => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(10);
+      } catch {}
+    }
     setIsQuickActionModalOpen(false);
     onNavigate(routeTarget);
   };
@@ -177,9 +191,15 @@ export const AppShell: React.FC<AppShellProps> = ({
   const isMenuSectionActive = ['insights', 'analytics', 'reports', 'customers', 'data-io', 'billing', 'more'].includes(currentRoute);
 
   return (
-    <div className={`min-h-screen bg-zinc-950 text-zinc-100 flex flex-col md:flex-row ${
-      currentRoute === 'ai' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : ''
-    }`}>
+    <div
+      className={`min-h-screen bg-zinc-950 text-zinc-100 flex flex-col md:flex-row ${
+        currentRoute === 'ai' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : ''
+      }`}
+      style={{
+        paddingTop: 'var(--offline-banner-height, 0px)',
+        transition: 'padding-top 0.2s ease-out',
+      }}
+    >
       {/* ========================================================================= */}
       {/* DESKTOP SIDEBAR (Visible on md: screens and above)                        */}
       {/* ========================================================================= */}
@@ -397,7 +417,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       >
         {/* 1. Home Tab */}
         <button
-          onClick={() => onNavigate('home')}
+          onClick={() => handleNavWithHaptic('home')}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             currentRoute === 'home'
               ? 'text-emerald-400 font-bold'
@@ -412,7 +432,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
         {/* 2. Sell / POS Tab */}
         <button
-          onClick={() => onNavigate('sell')}
+          onClick={() => handleNavWithHaptic('sell')}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             currentRoute === 'sell'
               ? 'text-emerald-400 font-bold'
@@ -427,7 +447,12 @@ export const AppShell: React.FC<AppShellProps> = ({
 
         {/* 3. Center Quick Action (+) Button - Perfectly docked in center navigation */}
         <button
-          onClick={() => setIsQuickActionModalOpen(true)}
+          onClick={() => {
+            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+              try { navigator.vibrate(10); } catch {}
+            }
+            setIsQuickActionModalOpen(true);
+          }}
           className="flex-1 flex flex-col items-center justify-center -mt-3 relative group"
           aria-label="Quick Business Actions"
         >
@@ -439,7 +464,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
         {/* 4. AI Advisor Tab */}
         <button
-          onClick={() => onNavigate('ai')}
+          onClick={() => handleNavWithHaptic('ai')}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             currentRoute === 'ai'
               ? 'text-emerald-500 font-bold'
@@ -458,7 +483,12 @@ export const AppShell: React.FC<AppShellProps> = ({
 
         {/* 5. Menu Bar Drawer Trigger */}
         <button
-          onClick={() => setIsMobileMenuOpen(true)}
+          onClick={() => {
+            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+              try { navigator.vibrate(8); } catch {}
+            }
+            setIsMobileMenuOpen(true);
+          }}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             isMenuSectionActive
               ? 'text-emerald-400 font-bold'

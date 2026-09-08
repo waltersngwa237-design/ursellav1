@@ -41,6 +41,16 @@ class OfflineSyncServiceClass {
         this.processQueue();
       });
 
+      // Listen for message from service worker Background Sync
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data?.type === 'TRIGGER_OFFLINE_SYNC') {
+            console.log('[OfflineSyncService] Triggered by Service Worker Background Sync');
+            this.processQueue();
+          }
+        });
+      }
+
       // Periodic check every 45s when online
       window.addEventListener('load', () => {
         this.syncTimer = setInterval(() => {
@@ -109,6 +119,11 @@ class OfflineSyncServiceClass {
     // If online, attempt immediate background processing
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       setTimeout(() => this.processQueue(), 500);
+    } else if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && 'SyncManager' in window) {
+      // Register native Background Sync
+      navigator.serviceWorker.ready
+        .then((reg: any) => reg.sync?.register('ursella-offline-sync'))
+        .catch(() => {});
     }
 
     return newItem;
