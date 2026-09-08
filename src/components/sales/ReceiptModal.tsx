@@ -4,6 +4,8 @@ import { Badge } from '../common/Badge.tsx';
 import { Button } from '../common/Button.tsx';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
 import { PDFAndPrintService } from '../../services/pdf.service.ts';
+import { HardwarePrinterService } from '../../services/hardware-printer.service.ts';
+import { HardwareSettingsModal } from '../hardware/HardwareSettingsModal.tsx';
 import { CURRENCY_MAP, type SaleWithDetails } from '../../types/index.ts';
 import {
   Printer,
@@ -16,6 +18,9 @@ import {
   X,
   PlusCircle,
   FileDown,
+  Sliders,
+  DollarSign,
+  Sparkles,
 } from 'lucide-react';
 
 interface ReceiptModalProps {
@@ -34,11 +39,31 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const { activeBusiness, currency } = useBusiness();
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
   const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [isHardwareModalOpen, setIsHardwareModalOpen] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   if (!sale) return null;
 
   const handlePrint = () => {
     PDFAndPrintService.printReceiptDirectly(sale, activeBusiness, currencyConfig);
+  };
+
+  const handleThermalPrint = async () => {
+    const res = await HardwarePrinterService.printThermalReceipt(
+      sale,
+      activeBusiness,
+      currencyConfig
+    );
+    if (res.message) {
+      setActionFeedback(res.message);
+      setTimeout(() => setActionFeedback(null), 3500);
+    }
+  };
+
+  const handleKickDrawer = async () => {
+    const res = await HardwarePrinterService.kickCashDrawer();
+    setActionFeedback(res.message);
+    setTimeout(() => setActionFeedback(null), 3500);
   };
 
   const handleDownloadPDF = () => {
@@ -195,51 +220,101 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           )}
         </div>
 
-        {/* Action Controls */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Button
-              variant="secondary"
-              onClick={handlePrint}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2"
-            >
-              <Printer className="w-4 h-4 text-zinc-400" />
-              <span>Print</span>
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={handleDownloadPDF}
-              isLoading={isExportingPDF}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2"
-            >
-              <Download className="w-4 h-4 text-emerald-400" />
-              <span>PDF Receipt</span>
-            </Button>
+        {/* Feedback Message */}
+        {actionFeedback && (
+          <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              {actionFeedback}
+            </span>
           </div>
+        )}
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            {onNewSale && (
+        {/* Action Controls */}
+        <div className="space-y-2 pt-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <Button
                 variant="primary"
-                onClick={() => {
-                  onClose();
-                  onNewSale();
-                }}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5"
+                onClick={handleThermalPrint}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-xs"
               >
-                <PlusCircle className="w-4 h-4" />
-                <span>Next Sale</span>
+                <Printer className="w-3.5 h-3.5" />
+                <span>Thermal Print (ESC/POS)</span>
               </Button>
-            )}
-            <Button
-              variant="outline"
-              onClick={onClose}
-              className="w-full sm:w-auto"
-            >
-              Done
-            </Button>
+
+              <Button
+                variant="secondary"
+                onClick={handlePrint}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 text-xs"
+              >
+                <Printer className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Full Page</span>
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={handleDownloadPDF}
+                isLoading={isExportingPDF}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 text-xs"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>PDF</span>
+              </Button>
+
+              {sale.payment_method === 'cash' && (
+                <Button
+                  variant="outline"
+                  onClick={handleKickDrawer}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 text-xs text-zinc-300"
+                  title="Pulse Cash Drawer Trigger"
+                >
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Open Drawer</span>
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={() => setIsHardwareModalOpen(true)}
+                className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                title="Configure Thermal Hardware"
+              >
+                <Sliders className="w-4 h-4" />
+              </button>
+
+              {onNewSale && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    onClose();
+                    onNewSale();
+                  }}
+                  className="flex items-center justify-center gap-1.5 text-xs"
+                >
+                  <PlusCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Next Sale</span>
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                onClick={onClose}
+                className="text-xs"
+              >
+                Done
+              </Button>
+            </div>
           </div>
         </div>
+
+        {/* Hardware Settings Modal */}
+        <HardwareSettingsModal
+          isOpen={isHardwareModalOpen}
+          onClose={() => setIsHardwareModalOpen(false)}
+        />
       </div>
     </Modal>
   );

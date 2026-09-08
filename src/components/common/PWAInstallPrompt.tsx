@@ -13,7 +13,6 @@ import {
   ChevronRight,
   Apple,
 } from 'lucide-react';
-import { UrsellaLogo } from './UrsellaLogo.tsx';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;

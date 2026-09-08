@@ -15,6 +15,8 @@ import { Button } from '../../components/common/Button.tsx';
 import { Modal } from '../../components/common/Modal.tsx';
 import { OnboardingPage } from '../onboarding/OnboardingPage.tsx';
 import { FeedbackModal } from '../../components/feedback/FeedbackModal.tsx';
+import { HardwareSettingsModal } from '../../components/hardware/HardwareSettingsModal.tsx';
+import { HardwarePrinterService } from '../../services/hardware-printer.service.ts';
 import {
   Store,
   User,
@@ -44,6 +46,8 @@ import {
   Phone,
   Mail,
   MapPin,
+  Printer,
+  Sliders,
 } from 'lucide-react';
 
 interface MoreMenuPageProps {
@@ -71,6 +75,8 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate }) => {
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [isEditBusinessModalOpen, setIsEditBusinessModalOpen] = useState(false);
+  const [isHardwareModalOpen, setIsHardwareModalOpen] = useState(false);
+  const [hwSettings, setHwSettings] = useState(HardwarePrinterService.getSettings());
 
   const [isDemoLoading, setIsDemoLoading] = useState(false);
   const [isResetLoading, setIsResetLoading] = useState(false);
@@ -570,7 +576,58 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate }) => {
         </div>
       </Card>
 
-      {/* 5. Database Security & Infrastructure Status */}
+      {/* 5. POS Hardware, Thermal Printers & Peripherals */}
+      <Card className="space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+          <div className="flex items-center gap-2">
+            <Printer className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
+              POS Hardware & Thermal Receipt Printing
+            </h3>
+          </div>
+          <Badge variant="emerald">{hwSettings.paperWidth} Thermal</Badge>
+        </div>
+
+        <p className="text-xs text-zinc-400">
+          Configure direct ESC/POS thermal printers (58mm/80mm), wireless Bluetooth pairing, and automatic cash drawer kick triggers on cash tender.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-xs">
+          <div className="p-2.5 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
+            <span className="text-zinc-500 block text-[10px] uppercase font-bold">Paper Format</span>
+            <span className="text-zinc-200 font-semibold">{hwSettings.paperWidth} Roll</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
+            <span className="text-zinc-500 block text-[10px] uppercase font-bold">Cash Drawer</span>
+            <span className="text-zinc-200 font-semibold">
+              {hwSettings.autoKickDrawerOnCash ? 'Auto-Kick Active' : 'Manual Only'}
+            </span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
+            <span className="text-zinc-500 block text-[10px] uppercase font-bold">Interface</span>
+            <span className="text-zinc-200 font-semibold truncate">
+              {hwSettings.pairedDeviceName || 'Browser / Native'}
+            </span>
+          </div>
+        </div>
+
+        <div className="pt-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setHwSettings(HardwarePrinterService.getSettings());
+              setIsHardwareModalOpen(true);
+            }}
+            leftIcon={<Sliders className="w-3.5 h-3.5 text-emerald-400" />}
+            className="text-xs"
+          >
+            Configure Printers & Peripherals
+          </Button>
+        </div>
+      </Card>
+
+      {/* 6. Database Security & Infrastructure Status */}
       <Card className="space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
           <div className="flex items-center gap-2">
@@ -867,6 +924,14 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate }) => {
         isOpen={isFeedbackModalOpen}
         onClose={() => setIsFeedbackModalOpen(false)}
         businessId={activeBusiness?.id || ''}
+      />
+
+      <HardwareSettingsModal
+        isOpen={isHardwareModalOpen}
+        onClose={() => {
+          setIsHardwareModalOpen(false);
+          setHwSettings(HardwarePrinterService.getSettings());
+        }}
       />
     </div>
   );

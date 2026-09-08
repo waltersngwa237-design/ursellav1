@@ -45,12 +45,18 @@ import {
   Printer,
 } from 'lucide-react';
 import { PDFAndPrintService } from '../../services/pdf.service.ts';
+import { HardwarePrinterService } from '../../services/hardware-printer.service.ts';
+import { HardwareSettingsModal } from '../../components/hardware/HardwareSettingsModal.tsx';
+import { IndexedDBService } from '../../services/indexed-db.service.ts';
+import { calculateCartTotals, calculateChangeDue, roundToDecimals } from '../../utils/currency-math.ts';
+import { Sliders, DollarSign } from 'lucide-react';
 
 export const SellPage: React.FC = () => {
   const { activeBusiness, currency } = useBusiness();
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
 
   const [activeTab, setActiveTab] = useState<'pos' | 'history'>('pos');
+  const [isHardwareModalOpen, setIsHardwareModalOpen] = useState(false);
 
   // Products & Categories
   const [products, setProducts] = useState<ProductWithCategory[]>([]);
@@ -105,6 +111,35 @@ export const SellPage: React.FC = () => {
       setProducts(prods);
       setCategories(cats);
       setCustomers(custs);
+
+      // Async index to IndexedDB for instant sub-millisecond barcode & text searches
+      IndexedDBService.cacheProducts(
+        activeBusiness.id,
+        prods.map((p) => ({
+          id: p.id,
+          business_id: activeBusiness.id,
+          name: p.name,
+          sku: p.sku,
+          selling_price: p.selling_price,
+          cost_price: p.cost_price,
+          stock_quantity: p.stock_quantity,
+          category_id: p.category_id,
+          category_name: p.category?.name,
+          updated_at: p.updated_at,
+        }))
+      );
+      IndexedDBService.cacheCustomers(
+        activeBusiness.id,
+        custs.map((c) => ({
+          id: c.id,
+          business_id: activeBusiness.id,
+          name: c.name,
+          phone: c.phone,
+          email: c.email,
+          outstanding_balance: c.outstanding_balance,
+          updated_at: c.updated_at,
+        }))
+      );
     } catch (err) {
       console.error('Failed to load POS data:', err);
     } finally {
@@ -154,36 +189,38 @@ export const SellPage: React.FC = () => {
     });
   }, [products, searchQuery, selectedCategory]);
 
-  // Cart Calculations
-  const cartSubtotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
-  }, [cart]);
+  // Cart Calculations with Floating-Point Precision Guard
+  const cartTotals = useMemo(() => {
+    return calculateCartTotals(
+      cart.map((i) => ({
+        id: i.product.id,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        discount: i.discount || 0,
+      })),
+      0, // Tax handled at line/sale level
+      Number(discountAmount) || 0,
+      2
+    );
+  }, [cart, discountAmount]);
 
-  const cartTotal = useMemo(() => {
-    return Math.max(0, cartSubtotal - (Number(discountAmount) || 0));
-  }, [cartSubtotal, discountAmount]);
+  const cartSubtotal = cartTotals.subtotal;
+  const cartTotal = cartTotals.total;
 
   // Auto set amount paid to total if empty or user clicks exact
   const effectiveAmountPaid = useMemo(() => {
     if (amountPaidInput === '') {
       return cartTotal;
     }
-    return Number(amountPaidInput) || 0;
+    return roundToDecimals(Number(amountPaidInput) || 0, 2);
   }, [amountPaidInput, cartTotal]);
 
-  const changeDue = useMemo(() => {
-    if (effectiveAmountPaid > cartTotal) {
-      return effectiveAmountPaid - cartTotal;
-    }
-    return 0;
-  }, [effectiveAmountPaid, cartTotal]);
+  const changeCalculation = useMemo(() => {
+    return calculateChangeDue(cartTotal, effectiveAmountPaid, 2);
+  }, [cartTotal, effectiveAmountPaid]);
 
-  const balanceDue = useMemo(() => {
-    if (effectiveAmountPaid < cartTotal) {
-      return cartTotal - effectiveAmountPaid;
-    }
-    return 0;
-  }, [effectiveAmountPaid, cartTotal]);
+  const changeDue = changeCalculation.change;
+  const balanceDue = changeCalculation.remainingDue;
 
   // Cart Handlers
   const addToCart = (product: ProductWithCategory) => {
@@ -292,6 +329,15 @@ export const SellPage: React.FC = () => {
       setCompletedSale(detail);
       setIsReceiptOpen(true);
 
+      // Peripheral hardware automations
+      const hwSettings = HardwarePrinterService.getSettings();
+      if (hwSettings.autoKickDrawerOnCash && paymentMethod === 'cash') {
+        HardwarePrinterService.kickCashDrawer();
+      }
+      if (hwSettings.autoPrintOnSale && detail) {
+        HardwarePrinterService.printThermalReceipt(detail, activeBusiness, currencyConfig);
+      }
+
       // Refresh catalog stock
       loadData();
       clearCart();
@@ -359,29 +405,40 @@ export const SellPage: React.FC = () => {
           </p>
         </div>
 
-        {/* View Switcher Tabs */}
-        <div className="flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800 self-start sm:self-auto">
+        {/* View Switcher Tabs & Hardware Configuration */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800">
+            <button
+              onClick={() => setActiveTab('pos')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'pos'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              <span>Terminal</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'history'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Sales History</span>
+            </button>
+          </div>
+
           <button
-            onClick={() => setActiveTab('pos')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'pos'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
+            type="button"
+            onClick={() => setIsHardwareModalOpen(true)}
+            className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
+            title="Configure Thermal Printer & Cash Drawer"
           >
-            <ShoppingCart className="w-3.5 h-3.5" />
-            <span>Terminal</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'history'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <History className="w-3.5 h-3.5" />
-            <span>Sales History</span>
+            <Printer className="w-4 h-4 text-emerald-400" />
           </button>
         </div>
       </div>
@@ -1093,6 +1150,12 @@ export const SellPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* POS Hardware & Thermal Printer Settings Modal */}
+      <HardwareSettingsModal
+        isOpen={isHardwareModalOpen}
+        onClose={() => setIsHardwareModalOpen(false)}
+      />
     </div>
   );
 };
