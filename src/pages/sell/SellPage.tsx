@@ -43,7 +43,6 @@ import {
   X,
   UserPlus,
   Printer,
-  ArrowRight,
 } from 'lucide-react';
 import { PDFAndPrintService } from '../../services/pdf.service.ts';
 
@@ -867,39 +866,6 @@ export const SellPage: React.FC = () => {
                 </Button>
               </div>
             </Card>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile Floating Cart Summary Bar for Quick Checkout */}
-      {activeTab === 'pos' && cart.length > 0 && (
-        <div className="lg:hidden fixed bottom-16 left-3 right-3 z-30 animate-in slide-in-from-bottom-3 duration-200">
-          <div className="bg-zinc-900/95 backdrop-blur-md border border-emerald-500/40 rounded-2xl p-3 shadow-2xl shadow-emerald-950/60 flex items-center justify-between gap-3 ring-1 ring-emerald-500/20">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-                <ShoppingCart className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-white">
-                    {cart.reduce((sum, item) => sum + item.quantity, 0)} {cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'item' : 'items'}
-                  </span>
-                  <span className="text-[10px] text-zinc-400">in order</span>
-                </div>
-                <p className="text-sm font-extrabold text-emerald-400 truncate">
-                  {currencyConfig.format(cartTotal)}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                document.getElementById('pos_cart_container')?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-950/50 cursor-pointer transition-all active:scale-95 shrink-0"
-            >
-              <span>Review & Pay</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       )}
