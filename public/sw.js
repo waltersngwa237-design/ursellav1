@@ -1,5 +1,5 @@
 // Ursella Progressive Web App Service Worker
-const CACHE_NAME = 'ursella-app-v6';
+const CACHE_NAME = 'ursella-app-v7';
 const FONT_CACHE_NAME = 'ursella-fonts-v1';
 
 const STATIC_ASSETS = [
@@ -53,13 +53,18 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Skip non-GET, API endpoints, Supabase cloud queries, and hot-reloaders
+  // Skip non-GET, API endpoints, Supabase cloud queries, dev modules, and hot-reloaders
   if (
     event.request.method !== 'GET' ||
     url.pathname.startsWith('/api/') ||
     url.hostname.includes('supabase.co') ||
     url.pathname.includes('/@vite') ||
-    url.pathname.includes('/@react-refresh')
+    url.pathname.includes('/@react-refresh') ||
+    url.pathname.includes('/node_modules/') ||
+    url.pathname.startsWith('/src/') ||
+    url.searchParams.has('v') ||
+    url.searchParams.has('t') ||
+    url.searchParams.has('import')
   ) {
     return;
   }
@@ -114,15 +119,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Static Vite JS/CSS bundles and image assets -> Stale-While-Revalidate
+  // 3. Static production Vite JS/CSS bundles and image assets -> Stale-While-Revalidate
   const isStaticAsset =
     url.pathname.startsWith('/assets/') ||
-    url.pathname.startsWith('/src/') ||
-    url.pathname.endsWith('.js') ||
-    url.pathname.endsWith('.jsx') ||
-    url.pathname.endsWith('.ts') ||
-    url.pathname.endsWith('.tsx') ||
-    url.pathname.endsWith('.css') ||
     url.pathname.endsWith('.svg') ||
     url.pathname.endsWith('.png') ||
     url.pathname.endsWith('.jpg') ||

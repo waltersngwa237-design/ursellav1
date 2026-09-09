@@ -145,11 +145,17 @@ export const UrsellaSymbolMark: React.FC<{
         </filter>
       </defs>
       <g filter={`url(#${glowFilterId})`}>
-        <path
-          d="M10.8 11.8 C10.8 6.6 13.1 4.5 16 4.5 C18.9 4.5 21.2 6.6 21.2 11.8 C21.2 14.2 19.8 16 16 16 C12.2 16 10.8 14.2 10.8 11.8 Z"
-          fill={`url(#${gradPrimaryId})`}
-          className={isAnimated ? 'ursella-part-mantle' : ''}
-        />
+        <g className={isAnimated ? 'ursella-part-mantle' : ''}>
+          <path
+            d="M10.8 11.8 C10.8 6.6 13.1 4.5 16 4.5 C18.9 4.5 21.2 6.6 21.2 11.8 C21.2 14.2 19.8 16 16 16 C12.2 16 10.8 14.2 10.8 11.8 Z"
+            fill={`url(#${gradPrimaryId})`}
+          />
+          <path
+            d="M16 7.5 L18.4 9.9 L16 12.3 L13.6 9.9 Z"
+            fill={`url(#${gradCoreId})`}
+          />
+          <circle cx="16" cy="9.9" r="0.75" fill="#FFFFFF" opacity="0.95" />
+        </g>
         <path
           d="M11 9 C7.5 9.5 4.5 12 4.5 15.5 C4.5 19 6.8 21.5 8 21.5 C9.2 21.5 9.5 20.2 9 19 C8.2 17.2 7 15.8 7 14.2 C7 12.5 9.2 11 11.8 10.5 Z"
           fill={`url(#${gradPrimaryId})`}
@@ -175,11 +181,6 @@ export const UrsellaSymbolMark: React.FC<{
           fill={`url(#${gradPrimaryId})`}
           className={isAnimated ? 'ursella-part-tentacle ursella-t3' : ''}
         />
-        <path
-          d="M16 7.5 L18.4 9.9 L16 12.3 L13.6 9.9 Z"
-          fill={`url(#${gradCoreId})`}
-        />
-        <circle cx="16" cy="9.9" r="0.75" fill="#FFFFFF" opacity="0.95" />
         <circle cx="8" cy="21.5" r="0.75" fill={nodeFillColor} className={isAnimated ? 'ursella-node ursella-n1' : ''} />
         <circle cx="11.5" cy="26.5" r="0.75" fill={nodeFillColor} className={isAnimated ? 'ursella-node ursella-n2' : ''} />
         <circle cx="16" cy="27.5" r="0.75" fill={nodeFillColor} className={isAnimated ? 'ursella-node ursella-n3' : ''} />

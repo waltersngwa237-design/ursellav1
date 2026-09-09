@@ -383,18 +383,15 @@ html.light .shadow-lg {
 
 @keyframes ursella-beam-sweep {
   0% {
-    left: -35%;
-    width: 30%;
-    opacity: 0.6;
+    transform: translateX(-100%);
+    opacity: 0.65;
   }
   50% {
-    width: 45%;
     opacity: 1;
   }
   100% {
-    left: 105%;
-    width: 30%;
-    opacity: 0.6;
+    transform: translateX(300%);
+    opacity: 0.65;
   }
 }
 
@@ -410,10 +407,10 @@ html.light .shadow-lg {
 @keyframes ursella-pulse-mantle {
   0%, 100% {
     transform: scale(1);
-    opacity: 0.9;
+    opacity: 0.94;
   }
   50% {
-    transform: scale(1.05);
+    transform: scale(1.025);
     opacity: 1;
   }
 }
@@ -440,11 +437,14 @@ html.light .shadow-lg {
 
 .ursella-orbit-ring {
   animation: ursella-ring-orbit 3.2s linear infinite;
-  transform-origin: 36px 36px;
+  transform-origin: center;
+  transform-box: fill-box;
+  will-change: transform;
 }
 
 .ursella-loading-beam {
   animation: ursella-beam-sweep 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
 }
 
 .ursella-status-text {
@@ -453,7 +453,9 @@ html.light .shadow-lg {
 
 .ursella-part-mantle {
   animation: ursella-pulse-mantle 2.6s ease-in-out infinite;
-  transform-origin: 16px 10px;
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform, opacity;
 }
 
 .ursella-part-tentacle {
@@ -478,7 +480,9 @@ html.light .shadow-lg {
 
 .ursella-node {
   animation: ursella-node-pulse 2.6s ease-in-out infinite;
+  transform-box: fill-box;
   transform-origin: center;
+  will-change: transform, opacity;
 }
 
 .ursella-n1 { animation-delay: 0.2s; }
@@ -500,6 +504,11 @@ html.light .shadow-lg {
   }
   .ursella-node {
     opacity: 0.75 !important;
+    transform: none !important;
+  }
+  .ursella-part-mantle {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 

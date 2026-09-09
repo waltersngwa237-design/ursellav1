@@ -31,10 +31,10 @@ export const UrsellaEngineLoader: React.FC<UrsellaEngineLoaderProps> = ({
         isExiting ? 'opacity-0 scale-[0.98] pointer-events-none' : 'opacity-100 scale-100'
       } ${className}`}
       style={{
-        paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
-        paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
-        paddingLeft: 'max(1.5rem, env(safe-area-inset-left))',
-        paddingRight: 'max(1.5rem, env(safe-area-inset-right))',
+        paddingTop: 'max(1.5rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'max(1.5rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(1.5rem, env(safe-area-inset-right, 0px))',
       }}
     >
       <div
@@ -51,7 +51,8 @@ export const UrsellaEngineLoader: React.FC<UrsellaEngineLoaderProps> = ({
           <svg
             viewBox="0 0 72 72"
             fill="none"
-            className="absolute inset-0 w-full h-full ursella-orbit-ring pointer-events-none"
+            className="absolute inset-0 w-full h-full ursella-orbit-ring pointer-events-none origin-center"
+            style={{ transformOrigin: 'center' }}
           >
             <circle
               cx="36"
