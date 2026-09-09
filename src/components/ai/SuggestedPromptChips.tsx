@@ -1,27 +1,32 @@
 import React, { useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
 import {
-  ArrowRight,
+  Send,
+  Edit3,
   TrendingUp,
   Package,
   Users,
   PieChart,
   Sparkles,
+  HelpCircle,
+  ArrowRight,
 } from 'lucide-react';
 
 interface SuggestedPromptChipsProps {
   onSelectPrompt: (prompt: string) => void;
+  onInsertPrompt?: (prompt: string) => void;
   onOpenDailyBriefModal?: () => void;
 }
 
 export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
   onSelectPrompt,
+  onInsertPrompt,
 }) => {
   const { isDark } = useTheme();
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
   const categories = [
-    { id: 'all', label: 'All Topics' },
+    { id: 'all', label: 'All Questions' },
     { id: 'advisory', label: 'Strategy', icon: Sparkles },
     { id: 'sales', label: 'Sales', icon: TrendingUp },
     { id: 'inventory', label: 'Inventory', icon: Package },
@@ -29,61 +34,61 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
     { id: 'profit', label: 'Profit', icon: PieChart },
   ];
 
-  const prompts = [
+  const suggestedQuestions = [
     {
       category: 'advisory',
-      title: 'Actionable Recommendations',
-      subtitle: 'Prioritized operational steps based on latest telemetry',
-      prompt: 'Any recommendations?',
+      question: 'What actionable steps should I take to grow and protect my business today?',
+      topic: 'Strategic Recommendations',
+      subtitle: 'Prioritized operational steps based on live ledger telemetry',
     },
     {
       category: 'sales',
-      title: 'Sales & Revenue Summary',
+      question: 'How are my sales and revenue performing today?',
+      topic: 'Sales & Revenue Telemetry',
       subtitle: 'Total volume, customer orders, and cash collected today',
-      prompt: 'How are my sales today?',
     },
     {
       category: 'profit',
-      title: 'Profitability Diagnostics',
+      question: 'What is my profit margin and how can I improve my profitability?',
+      topic: 'Profitability Analysis',
       subtitle: 'Gross profit margins and net cash performance breakdown',
-      prompt: 'How profitable am I?',
     },
     {
       category: 'sales',
-      title: 'Top-Selling Products',
-      subtitle: 'Highest volume and revenue contributing inventory',
-      prompt: 'What are my best-selling products?',
+      question: 'What are my best-selling products right now?',
+      topic: 'Top Performing Inventory',
+      subtitle: 'Highest volume and revenue contributing products',
     },
     {
       category: 'profit',
-      title: 'High-Margin Catalog Items',
-      subtitle: 'Products that yield the strongest gross margins',
-      prompt: 'Which products have the best margins?',
+      question: 'Which products yield the highest profit margins for my store?',
+      topic: 'High-Margin Catalog Items',
+      subtitle: 'Products that generate the strongest gross return per unit',
     },
     {
       category: 'inventory',
-      title: 'Critical Low Stock Alerts',
-      subtitle: 'Identify products nearing depletion or safety threshold',
-      prompt: 'Do I have any low-stock products?',
+      question: 'Do I have any critical low-stock products that need reordering?',
+      topic: 'Stockout Prevention',
+      subtitle: 'Identify items nearing depletion or safety replenishment thresholds',
     },
     {
       category: 'debts',
-      title: 'Outstanding Customer Debts',
+      question: 'Which customers currently owe me money and what are their balances?',
+      topic: 'Receivables & Credit',
       subtitle: 'Unpaid customer receivables and overdue balances',
-      prompt: 'Who owes me money?',
     },
     {
       category: 'sales',
-      title: '30-Day Executive Performance',
-      subtitle: 'Comprehensive monthly revenue, expenses, and cashflow',
-      prompt: 'How is my business performing this month?',
+      question: 'How is my business performing this month compared to our target?',
+      topic: 'Monthly Executive Review',
+      subtitle: 'Comprehensive 30-day revenue, expenses, and cashflow comparison',
     },
   ];
 
-  const filteredPrompts =
+  const filteredQuestions =
     activeCategory === 'all'
-      ? prompts
-      : prompts.filter((p) => p.category === activeCategory);
+      ? suggestedQuestions
+      : suggestedQuestions.filter((q) => q.category === activeCategory);
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
@@ -96,7 +101,7 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
                 isActive
                   ? isDark
                     ? 'bg-zinc-800 text-white border border-zinc-700 shadow-xs'
@@ -106,46 +111,85 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
               }`}
             >
-              {Icon && <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-amber-500' : isDark ? 'text-zinc-500' : 'text-slate-400'}`} />}
+              {Icon && (
+                <Icon
+                  className={`w-3.5 h-3.5 ${
+                    isActive ? 'text-amber-500' : isDark ? 'text-zinc-500' : 'text-slate-400'
+                  }`}
+                />
+              )}
               <span>{cat.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Prompts Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-2.5 sm:gap-3">
-        {filteredPrompts.map((item, idx) => (
-          <button
+      {/* Suggested Questions Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3">
+        {filteredQuestions.map((item, idx) => (
+          <div
             key={idx}
-            onClick={() => onSelectPrompt(item.prompt)}
-            className={`text-left p-3.5 sm:p-4 rounded-xl border transition-all flex flex-col justify-between group shadow-xs cursor-pointer ${
-              isDark 
-                ? 'bg-zinc-900/40 border-zinc-800/80 hover:border-amber-500/40 hover:bg-zinc-900/80' 
-                : 'bg-white border-slate-200 hover:border-amber-500/60 hover:bg-amber-50/30 shadow-xs'
+            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between group shadow-xs ${
+              isDark
+                ? 'bg-zinc-900/50 border-zinc-800 hover:border-amber-500/40 hover:bg-zinc-900/90'
+                : 'bg-white border-slate-200 hover:border-amber-500/60 hover:bg-amber-50/20'
             }`}
           >
-            <div className="flex items-start justify-between gap-2 w-full">
-              <div className="space-y-1 min-w-0 flex-1">
-                <div className={`text-xs sm:text-[13px] font-semibold transition-colors ${
-                  isDark ? 'text-zinc-100 group-hover:text-amber-300' : 'text-slate-900 group-hover:text-amber-700'
-                }`}>
-                  {item.title}
-                </div>
-                <p className={`text-[11px] line-clamp-1 leading-normal ${
-                  isDark ? 'text-zinc-400' : 'text-slate-500'
-                }`}>
-                  {item.subtitle}
-                </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase font-bold tracking-wider font-mono px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                  {item.topic}
+                </span>
+                {onInsertPrompt && (
+                  <button
+                    type="button"
+                    onClick={() => onInsertPrompt(item.question)}
+                    className={`p-1 rounded-md text-xs transition-colors ${
+                      isDark ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                    }`}
+                    title="Insert question into chat box to edit"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
-              <ArrowRight className={`w-3.5 h-3.5 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5 ${
-                isDark ? 'text-zinc-600 group-hover:text-amber-400' : 'text-slate-400 group-hover:text-amber-600'
-              }`} />
+
+              {/* The Actual Question - Prominent & Conversational */}
+              <p
+                onClick={() => onSelectPrompt(item.question)}
+                className={`text-xs sm:text-[13px] font-semibold leading-relaxed cursor-pointer transition-colors ${
+                  isDark
+                    ? 'text-zinc-100 group-hover:text-amber-300'
+                    : 'text-slate-900 group-hover:text-amber-800'
+                }`}
+              >
+                "{item.question}"
+              </p>
+
+              <p className={`text-[11px] leading-normal line-clamp-1 ${
+                isDark ? 'text-zinc-400' : 'text-slate-500'
+              }`}>
+                {item.subtitle}
+              </p>
             </div>
-          </button>
+
+            {/* Direct Send Action */}
+            <div className="pt-3 mt-3 border-t border-zinc-800/40 dark:border-zinc-800/80 flex items-center justify-between">
+              <span className={`text-[10px] font-medium ${isDark ? 'text-zinc-500' : 'text-slate-400'}`}>
+                Tap to ask advisor
+              </span>
+              <button
+                type="button"
+                onClick={() => onSelectPrompt(item.question)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold transition-all shadow-xs group-hover:shadow-amber-500/20 cursor-pointer"
+              >
+                <span>Ask</span>
+                <Send className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+          </div>
         ))}
       </div>
     </div>
   );
 };
-

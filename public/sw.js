@@ -175,18 +175,27 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Push notification handling
+// Push notification handling (Out-of-app notifications)
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   try {
-    const data = event.data.json();
+    let data;
+    try {
+      data = event.data.json();
+    } catch {
+      data = { title: 'Ursella Business Alert', body: event.data.text() };
+    }
+
     const title = data.title || 'Ursella Business Alert';
     const options = {
-      body: data.body || 'You have a new operational update.',
-      icon: '/pwa-192x192.png',
-      badge: '/pwa-192x192.png',
+      body: data.body || 'You have an operational update.',
+      icon: data.icon || '/pwa-192x192.png',
+      badge: data.badge || '/pwa-192x192.png',
+      tag: data.tag || 'ursella-alert',
+      renotify: true,
+      vibrate: [100, 50, 100],
       data: {
-        url: data.url || '/#/insights',
+        url: data.url || '/#/home',
       },
     };
     event.waitUntil(self.registration.showNotification(title, options));

@@ -53,7 +53,7 @@ export const PWAInstallPrompt: React.FC = () => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       
-      const dismissed = sessionStorage.getItem('ursella_install_banner_dismissed');
+      const dismissed = localStorage.getItem('ursella_install_banner_dismissed');
       if (!dismissed) {
         setShowPrompt(true);
       }
@@ -61,13 +61,13 @@ export const PWAInstallPrompt: React.FC = () => {
 
     window.addEventListener('beforeinstallprompt', handler);
 
-    // If on iOS or mobile browsers where beforeinstallprompt doesn't fire, show initial install helper
+    // If on iOS or mobile browsers where beforeinstallprompt doesn't fire, show initial install helper only if never dismissed
     const timer = setTimeout(() => {
-      const dismissed = sessionStorage.getItem('ursella_install_banner_dismissed');
+      const dismissed = localStorage.getItem('ursella_install_banner_dismissed');
       if (!dismissed && !isAppStandalone) {
         setShowPrompt(true);
       }
-    }, 1800);
+    }, 2500);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
@@ -81,6 +81,7 @@ export const PWAInstallPrompt: React.FC = () => {
       const choice = await deferredPrompt.userChoice;
       if (choice.outcome === 'accepted') {
         setShowPrompt(false);
+        localStorage.setItem('ursella_install_banner_dismissed', 'true');
       }
       setDeferredPrompt(null);
     } else {
@@ -91,7 +92,7 @@ export const PWAInstallPrompt: React.FC = () => {
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    sessionStorage.setItem('ursella_install_banner_dismissed', 'true');
+    localStorage.setItem('ursella_install_banner_dismissed', 'true');
   };
 
   if (isStandalone) return null;

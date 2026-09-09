@@ -15,6 +15,7 @@ import { ReportingService, type ReportFilterOptions } from './server/reporting.s
 import { FeedbackService } from './server/feedback.service.ts';
 import { HealthService } from './server/health.service.ts';
 import { getActiveGeminiModel } from './server/ai-config.ts';
+import { PushNotificationService } from './server/push-notification.service.ts';
 import { type AIChatRequestPayload, type AIChatResponsePayload } from './src/types/ai.ts';
 
 const app = express();
@@ -773,6 +774,90 @@ app.post('/api/preferences/notifications', (req, res) => {
     return res.json(updated);
   } catch (error: any) {
     return res.status(500).json({ error: 'Failed to save preferences' });
+  }
+});
+
+// 10.1 Web Push Out-of-App Notification APIs (VAPID)
+app.get('/api/push/config', (req, res) => {
+  return res.json({
+    configured: PushNotificationService.isConfigured(),
+    publicKey: PushNotificationService.getPublicKey(),
+  });
+});
+
+app.post('/api/push/subscribe', (req, res) => {
+  try {
+    const { businessId, subscription, userId } = req.body;
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({ error: 'Invalid PushSubscription payload' });
+    }
+
+    const saved = PushNotificationService.registerSubscription(businessId || 'default', subscription, userId);
+    return res.json({ success: saved });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to register push subscription' });
+  }
+});
+
+app.post('/api/push/unsubscribe', (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Endpoint required' });
+    }
+
+    const removed = PushNotificationService.unregisterSubscription(endpoint);
+    return res.json({ success: removed });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to unregister push subscription' });
+  }
+});
+
+app.post('/api/push/send-test', async (req, res) => {
+  try {
+    const { businessId, subscription } = req.body;
+
+    if (subscription && subscription.endpoint) {
+      const result = await PushNotificationService.sendToSubscription(subscription, {
+        title: '🔔 Ursella Out-of-App Push Alert',
+        body: 'Out-of-app push notifications are active! You will receive daily morning briefs and urgent stock alerts.',
+        url: '/#/insights',
+        tag: 'ursella-test-notification',
+      });
+      return res.json(result);
+    }
+
+    if (businessId) {
+      const result = await PushNotificationService.sendToBusiness(businessId, {
+        title: '🔔 Ursella Out-of-App Push Alert',
+        body: 'Out-of-app push notifications are active! You will receive daily morning briefs and urgent stock alerts.',
+        url: '/#/insights',
+        tag: 'ursella-test-notification',
+      });
+      return res.json({ success: result.sentCount > 0, ...result });
+    }
+
+    return res.status(400).json({ error: 'businessId or subscription is required' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to send test push' });
+  }
+});
+
+app.post('/api/push/send-morning-brief', async (req, res) => {
+  try {
+    const { businessId, businessName = 'My Business' } = req.body;
+    if (!businessId) return res.status(400).json({ error: 'businessId required' });
+
+    const result = await PushNotificationService.sendToBusiness(businessId, {
+      title: `☀️ Morning Executive Brief: ${businessName}`,
+      body: `Your daily business briefing is ready. Tap to review yesterday's revenue and today's top priorities.`,
+      url: '/#/home',
+      tag: 'ursella-morning-brief',
+    });
+
+    return res.json({ success: result.sentCount > 0, ...result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to send morning brief push' });
   }
 });
 

@@ -921,6 +921,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
               <div className="pt-2">
                 <SuggestedPromptChips
                   onSelectPrompt={(prompt) => handleSendMessage(prompt)}
+                  onInsertPrompt={(prompt) => {
+                    setInputText(prompt);
+                    textareaRef.current?.focus();
+                  }}
                   onOpenDailyBriefModal={() => setIsDailyBriefOpen(true)}
                 />
               </div>

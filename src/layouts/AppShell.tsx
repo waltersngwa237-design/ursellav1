@@ -8,6 +8,7 @@ import { BusinessSwitcher } from '../components/business/BusinessSwitcher.tsx';
 import { Modal } from '../components/common/Modal.tsx';
 import { OnboardingPage } from '../pages/onboarding/OnboardingPage.tsx';
 import { NotificationDrawer } from '../components/notifications/NotificationDrawer.tsx';
+import { MorningReminderBanner } from '../components/notifications/MorningReminderBanner.tsx';
 import { MobileMenuDrawer } from '../components/navigation/MobileMenuDrawer.tsx';
 import { FloatingActionButton } from '../components/common/FloatingActionButton.tsx';
 import { FeedbackModal } from '../components/feedback/FeedbackModal.tsx';
@@ -360,6 +361,15 @@ export const AppShell: React.FC<AppShellProps> = ({
         )}
 
         {/* Page Body */}
+        {currentRoute !== 'ai' && activeBusiness && (
+          <MorningReminderBanner
+            businessId={activeBusiness.id}
+            businessName={activeBusiness.name}
+            notifications={notifications}
+            onOpenNotifications={() => setIsNotificationDrawerOpen(true)}
+          />
+        )}
+
         <main className={`flex-1 w-full min-h-0 ${
           currentRoute === 'ai' 
             ? 'p-0 max-w-none flex flex-col overflow-hidden h-full' 
@@ -383,6 +393,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         isOpen={isNotificationDrawerOpen}
         onClose={() => setIsNotificationDrawerOpen(false)}
         notifications={notifications}
+        businessId={activeBusiness?.id}
         onMarkAllRead={handleMarkAllRead}
         onDeleteNotification={handleDeleteNotification}
         onClearAll={handleClearAllNotifications}

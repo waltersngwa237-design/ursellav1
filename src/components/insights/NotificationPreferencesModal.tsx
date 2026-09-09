@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sliders, Bell, Moon, Check, Save } from 'lucide-react';
+import { X, Sliders, Bell, Moon, Check, Save, Smartphone, Send, AlertCircle } from 'lucide-react';
 import type { NotificationPreferences, InsightCategory } from '../../types/proactive.ts';
 import { ProactiveService } from '../../services/proactive.service.ts';
+import { PushClientService, type PushStatus } from '../../services/push-notification.service.ts';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
 
 interface NotificationPreferencesModalProps {
@@ -26,14 +27,57 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
   });
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushMessage, setPushMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && currentBusiness) {
       ProactiveService.getPreferences(currentBusiness.id).then((p) => {
         if (p) setPrefs(p);
       });
+      PushClientService.getStatus(currentBusiness.id).then(setPushStatus);
     }
   }, [isOpen, currentBusiness]);
+
+  const handleTogglePush = async () => {
+    if (!currentBusiness) return;
+    setPushLoading(true);
+    setPushMessage(null);
+
+    if (pushStatus?.isSubscribed) {
+      const res = await PushClientService.unsubscribe(currentBusiness.id);
+      if (res.success) {
+        setPushMessage('Out-of-app push notifications disabled.');
+      } else {
+        setPushMessage(res.error || 'Failed to unsubscribe');
+      }
+    } else {
+      const res = await PushClientService.subscribe(currentBusiness.id);
+      if (res.success) {
+        setPushMessage('Out-of-app push notifications enabled with VAPID keys!');
+      } else {
+        setPushMessage(res.error || 'Failed to enable push notifications');
+      }
+    }
+
+    const updated = await PushClientService.getStatus(currentBusiness.id);
+    setPushStatus(updated);
+    setPushLoading(false);
+  };
+
+  const handleSendTestPush = async () => {
+    if (!currentBusiness) return;
+    setPushLoading(true);
+    setPushMessage(null);
+    const res = await PushClientService.sendTestNotification(currentBusiness.id);
+    if (res.success) {
+      setPushMessage('Test push notification sent! Check your device notifications.');
+    } else {
+      setPushMessage(res.error || 'Failed to dispatch test push');
+    }
+    setPushLoading(false);
+  };
 
   if (!isOpen) return null;
 
@@ -144,21 +188,87 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
           </div>
 
           {/* Daily Brief */}
-          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-            <div>
-              <span className="font-semibold text-slate-900 dark:text-white block">
-                Morning Executive Brief
-              </span>
-              <span className="text-[11px] text-slate-500">
-                Daily synthesis of yesterday's sales & today's key priorities
-              </span>
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-semibold text-slate-900 dark:text-white block">
+                  Morning Executive Brief
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  Delivered once a day, every morning (revenue summary & priority stock signals)
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={prefs.dailyBriefEnabled}
+                onChange={(e) => setPrefs({ ...prefs, dailyBriefEnabled: e.target.checked })}
+                className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+              />
             </div>
-            <input
-              type="checkbox"
-              checked={prefs.dailyBriefEnabled}
-              onChange={(e) => setPrefs({ ...prefs, dailyBriefEnabled: e.target.checked })}
-              className="w-4 h-4 text-indigo-600 rounded"
-            />
+            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+              ✓ In-app reminders are limited to once a day in the morning.
+            </div>
+          </div>
+
+          {/* Out-of-App Push Notifications (VAPID) */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/20 via-slate-50 dark:via-slate-800/60 to-purple-950/20 border border-indigo-200 dark:border-indigo-900/60 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-500/15 text-indigo-500 shrink-0 mt-0.5">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
+                      Out-of-App Push Notifications
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-400 font-semibold uppercase">
+                      VAPID Connected
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
+                    Receive operational stockout alerts and morning briefings on your device lockscreen even when Ursella is closed.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleTogglePush}
+                disabled={pushLoading || !pushStatus?.isSupported}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  pushStatus?.isSubscribed
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                }`}
+              >
+                {pushLoading ? 'Updating...' : pushStatus?.isSubscribed ? 'Active' : 'Enable Push'}
+              </button>
+            </div>
+
+            {pushMessage && (
+              <div className="text-[11px] px-2.5 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
+                <span>{pushMessage}</span>
+              </div>
+            )}
+
+            {pushStatus?.isSubscribed && (
+              <div className="pt-1 flex items-center justify-between border-t border-slate-200/60 dark:border-slate-700/60">
+                <span className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  Test device push delivery:
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSendTestPush}
+                  disabled={pushLoading}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 text-[11px] font-semibold text-slate-800 dark:text-zinc-200 transition-colors"
+                >
+                  <Send className="w-3 h-3 text-indigo-400" />
+                  <span>Send Test Push</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

@@ -9,8 +9,11 @@ import {
   Sparkles,
   Trash2,
   Check,
+  Smartphone,
+  Send,
 } from 'lucide-react';
 import type { AppNotification } from '../../types/proactive.ts';
+import { PushClientService, type PushStatus } from '../../services/push-notification.service.ts';
 
 interface NotificationDrawerProps {
   isOpen: boolean;
@@ -21,6 +24,7 @@ interface NotificationDrawerProps {
   onDeleteNotification?: (id: string) => void;
   onClearAll?: () => void;
   onToggleRead?: (id: string, e: React.MouseEvent) => void;
+  businessId?: string;
 }
 
 export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
@@ -32,9 +36,58 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
   onDeleteNotification,
   onClearAll,
   onToggleRead,
+  businessId,
 }) => {
   const [filter, setFilter] = useState<'all' | 'unread' | 'critical'>('all');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushFeedback, setPushFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      PushClientService.getStatus(businessId).then(setPushStatus);
+    }
+  }, [isOpen, businessId]);
+
+  const handleTogglePush = async () => {
+    if (!businessId) return;
+    setPushLoading(true);
+    setPushFeedback(null);
+
+    if (pushStatus?.isSubscribed) {
+      const res = await PushClientService.unsubscribe(businessId);
+      if (res.success) {
+        setPushFeedback('Out-of-app push disabled.');
+      } else {
+        setPushFeedback(res.error || 'Failed to unsubscribe');
+      }
+    } else {
+      const res = await PushClientService.subscribe(businessId);
+      if (res.success) {
+        setPushFeedback('Out-of-app push notifications active!');
+      } else {
+        setPushFeedback(res.error || 'Failed to enable push');
+      }
+    }
+
+    const updated = await PushClientService.getStatus(businessId);
+    setPushStatus(updated);
+    setPushLoading(false);
+  };
+
+  const handleSendTestPush = async () => {
+    if (!businessId) return;
+    setPushLoading(true);
+    setPushFeedback(null);
+    const res = await PushClientService.sendTestNotification(businessId);
+    if (res.success) {
+      setPushFeedback('Test push sent to your device!');
+    } else {
+      setPushFeedback(res.error || 'Failed to send test push');
+    }
+    setPushLoading(false);
+  };
 
   const onCloseRef = React.useRef(onClose);
   useEffect(() => {
@@ -213,6 +266,51 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
             paddingBottom: 'max(1.25rem, calc(0.75rem + env(safe-area-inset-bottom, 0px)))',
           }}
         >
+          {/* Out-of-App Push Notification Card */}
+          <div className="p-3 rounded-xl bg-zinc-800/70 border border-zinc-700/80 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-indigo-400" />
+                <span className="text-xs font-semibold text-zinc-200">
+                  Out-of-App Notifications
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleTogglePush}
+                disabled={pushLoading}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                  pushStatus?.isSubscribed
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                }`}
+              >
+                {pushLoading ? 'Updating...' : pushStatus?.isSubscribed ? 'Active' : 'Enable Push'}
+              </button>
+            </div>
+            <p className="text-[11px] text-zinc-400 leading-normal">
+              Receive morning briefing and critical stock alerts on your device lockscreen even when Ursella is closed.
+            </p>
+            {pushFeedback && (
+              <p className="text-[11px] text-indigo-300 font-medium">
+                {pushFeedback}
+              </p>
+            )}
+            {pushStatus?.isSubscribed && (
+              <div className="pt-1 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={handleSendTestPush}
+                  disabled={pushLoading}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-zinc-300 hover:text-white bg-zinc-700/60 hover:bg-zinc-700 transition-colors"
+                >
+                  <Send className="w-3 h-3 text-indigo-400" />
+                  <span>Send Test Push</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           {filtered.length === 0 ? (
             <div className="py-16 text-center text-zinc-400 text-xs space-y-2">
               <Bell className="w-8 h-8 mx-auto text-zinc-600 opacity-60" />
