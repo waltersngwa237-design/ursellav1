@@ -159,7 +159,10 @@ export class ProactiveAIService {
   ): boolean {
     const list = businessInsightsCache.get(businessId)?.insights;
     if (!list) return false;
-    const found = list.find((i) => i.id === insightId);
+    const cleanId = insightId.replace(/^(prio_|dp_)/, '');
+    const found = list.find(
+      (i) => i.id === insightId || i.id === cleanId || i.id.replace(/^(prio_|dp_)/, '') === cleanId
+    );
     if (!found) return false;
     found.status = status;
     found.updated_at = new Date().toISOString();
