@@ -36,46 +36,29 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
   const [filter, setFilter] = useState<'all' | 'unread' | 'critical'>('all');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
+  const onCloseRef = React.useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!isOpen) return;
 
-    let statePushed = false;
-    try {
-      window.history.pushState({ ursella_notif_drawer: true }, '');
-      statePushed = true;
-    } catch {
-      // ignore
-    }
-
-    const handlePopState = () => {
-      statePushed = false;
-      onClose();
-    };
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
       }
     };
 
+    const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('popstate', handlePopState);
 
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = originalOverflow;
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('popstate', handlePopState);
-
-      if (statePushed && window.history.state?.ursella_notif_drawer) {
-        try {
-          window.history.back();
-        } catch {
-          // ignore
-        }
-      }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

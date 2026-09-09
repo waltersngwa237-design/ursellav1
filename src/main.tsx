@@ -2,6 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { initZoomPrevention } from './utils/zoom-prevention.ts';
+
+// Enforce non-scalable viewport and disable zoom gestures
+initZoomPrevention();
 
 // Register PWA Service Worker for offline capability in production only
 if ('serviceWorker' in navigator) {
