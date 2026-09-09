@@ -2,7 +2,11 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { initBrowserCompatibility } from './utils/browser-compat.ts';
 import { initZoomPrevention } from './utils/zoom-prevention.ts';
+
+// Initialize cross-browser resiliency (Safari Private Browsing, Firefox, Chrome, Edge)
+initBrowserCompatibility();
 
 // Enforce non-scalable viewport and disable zoom gestures
 initZoomPrevention();

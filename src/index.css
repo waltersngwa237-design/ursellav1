@@ -37,6 +37,38 @@
     touch-action: pan-x pan-y;
     -webkit-text-size-adjust: 100%;
     overscroll-behavior-y: contain;
+    -webkit-tap-highlight-color: transparent;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+
+  html.light body {
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  }
+
+  /* Cross-browser momentum touch scrolling */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Safari & WebKit backdrop-filter compatibility */
+  [class*="backdrop-blur"] {
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+
+  /* Cross-browser input normalization (removes iOS default shadow & glossy styling) */
+  input[type="text"],
+  input[type="number"],
+  input[type="password"],
+  input[type="search"],
+  input[type="email"],
+  input[type="tel"],
+  textarea,
+  select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
   }
 
   /* Prevent automatic iOS input zoom by ensuring minimum 16px font size on touch devices */

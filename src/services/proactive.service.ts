@@ -596,6 +596,36 @@ export class ProactiveService {
           }
         }
       }
+
+      // 3. Morning Executive Briefing in Notification Center (Bell Icon)
+      const now = new Date();
+      const currentHour = now.getHours();
+      const todayStr = now.toISOString().split('T')[0];
+
+      let dailyBriefEnabled = true;
+      try {
+        const prefRaw = localStorage.getItem(`ursella_notif_prefs_${businessId}`);
+        if (prefRaw) {
+          const parsed = JSON.parse(prefRaw);
+          if (typeof parsed.dailyBriefEnabled === 'boolean') {
+            dailyBriefEnabled = parsed.dailyBriefEnabled;
+          }
+        }
+      } catch {}
+
+      if (dailyBriefEnabled && currentHour < 12) {
+        alerts.unshift({
+          id: `alert_brief_morning_${businessId}_${todayStr}`,
+          business_id: businessId,
+          title: `☀️ Morning Executive Brief`,
+          message: `Your morning business briefing is ready. Tap to review cash collection, stockout risks, and today's priorities.`,
+          priority: 'medium',
+          category: 'sales',
+          is_read: false,
+          action_type: 'view_daily_brief',
+          created_at: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 7, 30, 0).toISOString(),
+        });
+      }
     } catch {
       // ignore local scan error
     }

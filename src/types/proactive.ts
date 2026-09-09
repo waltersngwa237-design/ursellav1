@@ -71,7 +71,8 @@ export type ActionType =
   | 'create_expense'
   | 'create_customer_followup'
   | 'send_customer_message'
-  | 'create_restock_task';
+  | 'create_restock_task'
+  | 'view_daily_brief';
 
 export type ActionStatus =
   | 'pending_approval'

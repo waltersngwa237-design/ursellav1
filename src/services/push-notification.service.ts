@@ -86,8 +86,31 @@ export class PushClientService {
     }
 
     try {
-      // 1. Request permission
-      const permission = await Notification.requestPermission();
+      // Check iOS Safari standalone requirement
+      const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      const isStandalone = typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as any).standalone));
+      if (isIOS && !isStandalone) {
+        return {
+          success: false,
+          error: 'On iOS Safari, Apple requires adding Ursella to your Home Screen to enable push notifications. Tap Share in Safari, then "Add to Home Screen".',
+        };
+      }
+
+      // 1. Request permission with dual Promise / Callback support for universal browser compatibility
+      let permission: NotificationPermission = Notification.permission;
+      if (permission !== 'granted') {
+        permission = await new Promise<NotificationPermission>((resolve) => {
+          try {
+            const res = Notification.requestPermission((perm) => resolve(perm));
+            if (res && typeof (res as any).then === 'function') {
+              (res as Promise<NotificationPermission>).then(resolve).catch(() => resolve(Notification.permission));
+            }
+          } catch {
+            resolve(Notification.permission);
+          }
+        });
+      }
+
       if (permission !== 'granted') {
         return {
           success: false,
