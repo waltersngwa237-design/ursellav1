@@ -46,6 +46,57 @@ import {
   Truck,
 } from 'lucide-react';
 
+export const UNIT_OF_MEASURE_GROUPS = [
+  {
+    group: 'Count & Packaging',
+    units: [
+      { value: 'piece', label: 'Piece / Item (pcs)' },
+      { value: 'pack', label: 'Pack (pk)' },
+      { value: 'box', label: 'Box / Carton (box)' },
+      { value: 'bottle', label: 'Bottle (btl)' },
+      { value: 'can', label: 'Can' },
+      { value: 'bag', label: 'Bag / Sack' },
+      { value: 'pair', label: 'Pair (pr)' },
+      { value: 'dozen', label: 'Dozen (dz)' },
+      { value: 'roll', label: 'Roll' },
+      { value: 'set', label: 'Set' },
+    ],
+  },
+  {
+    group: 'Weight',
+    units: [
+      { value: 'kg', label: 'Kilogram (kg)' },
+      { value: 'g', label: 'Gram (g)' },
+      { value: 'lb', label: 'Pound (lb)' },
+      { value: 'oz', label: 'Ounce (oz)' },
+    ],
+  },
+  {
+    group: 'Volume & Liquid',
+    units: [
+      { value: 'L', label: 'Liter (L)' },
+      { value: 'ml', label: 'Milliliter (ml)' },
+      { value: 'gal', label: 'Gallon (gal)' },
+      { value: 'cup', label: 'Cup' },
+    ],
+  },
+  {
+    group: 'Length & Dimension',
+    units: [
+      { value: 'm', label: 'Meter (m)' },
+      { value: 'cm', label: 'Centimeter (cm)' },
+      { value: 'yard', label: 'Yard (yd)' },
+      { value: 'ft', label: 'Foot (ft)' },
+    ],
+  },
+  {
+    group: 'Other',
+    units: [
+      { value: 'custom', label: 'Other / Custom Unit...' },
+    ],
+  },
+];
+
 export const BusinessPage: React.FC = () => {
   const { activeBusiness, currency } = useBusiness();
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
@@ -75,6 +126,8 @@ export const BusinessPage: React.FC = () => {
   const [prodFormCostPrice, setProdFormCostPrice] = useState<string>('');
   const [prodFormStock, setProdFormStock] = useState<string>('0');
   const [prodFormMinStock, setProdFormMinStock] = useState<string>('5');
+  const [prodFormUnit, setProdFormUnit] = useState<string>('piece');
+  const [prodFormCustomUnit, setProdFormCustomUnit] = useState<string>('');
   const [prodFormSupplier, setProdFormSupplier] = useState('');
   const [prodFormDesc, setProdFormDesc] = useState('');
   const [savingProduct, setSavingProduct] = useState(false);
@@ -245,12 +298,17 @@ export const BusinessPage: React.FC = () => {
         throw new Error('Cost price must be a non-negative number.');
       }
 
+      const resolvedUnit = prodFormUnit === 'custom'
+        ? (prodFormCustomUnit.trim() || 'piece')
+        : (prodFormUnit.trim() || 'piece');
+
       if (editingProductId) {
         await ProductService.updateProduct(activeBusiness.id, editingProductId, {
           name: prodFormName.trim(),
           sku: prodFormSku.trim() || null,
           category_id: prodFormCategory || null,
           supplier_id: prodFormSupplier || null,
+          unit_of_measure: resolvedUnit,
           selling_price: sellingPrice,
           cost_price: costPrice,
           minimum_stock_level: minStock,
@@ -263,6 +321,7 @@ export const BusinessPage: React.FC = () => {
           sku: prodFormSku.trim() || null,
           category_id: prodFormCategory || null,
           supplier_id: prodFormSupplier || null,
+          unit_of_measure: resolvedUnit,
           selling_price: sellingPrice,
           cost_price: costPrice,
           stock_quantity: stock,
@@ -290,6 +349,8 @@ export const BusinessPage: React.FC = () => {
     setProdFormCostPrice('');
     setProdFormStock('0');
     setProdFormMinStock('5');
+    setProdFormUnit('piece');
+    setProdFormCustomUnit('');
     setProdFormSupplier('');
     setProdFormDesc('');
     setProductFormError(null);
@@ -304,6 +365,17 @@ export const BusinessPage: React.FC = () => {
     setProdFormCostPrice(String(prod.cost_price));
     setProdFormStock(String(prod.stock_quantity));
     setProdFormMinStock(String(prod.minimum_stock_level));
+    
+    const allKnownUnits = UNIT_OF_MEASURE_GROUPS.flatMap((g) => g.units.map((u) => u.value)).filter((v) => v !== 'custom');
+    const existingUnit = prod.unit_of_measure?.trim() || 'piece';
+    if (allKnownUnits.includes(existingUnit)) {
+      setProdFormUnit(existingUnit);
+      setProdFormCustomUnit('');
+    } else {
+      setProdFormUnit('custom');
+      setProdFormCustomUnit(existingUnit);
+    }
+
     setProdFormSupplier(prod.supplier_id || '');
     setProdFormDesc(prod.description || '');
     setIsAddProductModalOpen(true);
@@ -772,11 +844,11 @@ export const BusinessPage: React.FC = () => {
                       <div className="flex items-center justify-between pt-1">
                         <div>
                           {isOutOfStock ? (
-                            <Badge variant="rose">0 in stock</Badge>
+                            <Badge variant="rose">0 {product.unit_of_measure || 'pcs'} in stock</Badge>
                           ) : isLowStock ? (
-                            <Badge variant="amber">{product.stock_quantity} in stock (Low)</Badge>
+                            <Badge variant="amber">{product.stock_quantity} {product.unit_of_measure || 'pcs'} (Low)</Badge>
                           ) : (
-                            <Badge variant="emerald">{product.stock_quantity} in stock</Badge>
+                            <Badge variant="emerald">{product.stock_quantity} {product.unit_of_measure || 'pcs'}</Badge>
                           )}
                         </div>
 
@@ -1262,7 +1334,7 @@ export const BusinessPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Selling Price *"
               type="number"
@@ -1285,9 +1357,12 @@ export const BusinessPage: React.FC = () => {
               onChange={(e) => setProdFormCostPrice(e.target.value)}
               required
             />
+          </div>
+
+          <div className={`grid ${!editingProductId ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'} gap-3`}>
             {!editingProductId && (
               <Input
-                label="Initial Stock *"
+                label={`Initial Stock (${prodFormUnit === 'custom' ? (prodFormCustomUnit.trim() || 'units') : prodFormUnit}) *`}
                 type="number"
                 inputMode="decimal"
                 min="0"
@@ -1297,8 +1372,28 @@ export const BusinessPage: React.FC = () => {
                 required
               />
             )}
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-300">Unit of Measure *</label>
+              <select
+                value={prodFormUnit}
+                onChange={(e) => setProdFormUnit(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-blue-500"
+              >
+                {UNIT_OF_MEASURE_GROUPS.map((grp) => (
+                  <optgroup key={grp.group} label={grp.group}>
+                    {grp.units.map((u) => (
+                      <option key={u.value} value={u.value}>
+                        {u.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
             <Input
-              label="Min Stock Alert *"
+              label={`Min Stock Alert (${prodFormUnit === 'custom' ? (prodFormCustomUnit.trim() || 'units') : prodFormUnit}) *`}
               type="number"
               inputMode="decimal"
               min="0"
@@ -1308,6 +1403,16 @@ export const BusinessPage: React.FC = () => {
               required
             />
           </div>
+
+          {prodFormUnit === 'custom' && (
+            <Input
+              label="Custom Unit Name *"
+              placeholder="e.g. crate, bundle, bucket, portion, drum"
+              value={prodFormCustomUnit}
+              onChange={(e) => setProdFormCustomUnit(e.target.value)}
+              required
+            />
+          )}
 
           <Input
             label="Description"
@@ -1389,7 +1494,7 @@ export const BusinessPage: React.FC = () => {
               <div>
                 <span className="text-zinc-400">Current Stock:</span>
                 <p className="font-extrabold text-sm text-white">
-                  {selectedProductDetail.product.stock_quantity} Units
+                  {selectedProductDetail.product.stock_quantity} {selectedProductDetail.product.unit_of_measure || 'units'}
                 </p>
               </div>
             </div>
@@ -1585,7 +1690,7 @@ export const BusinessPage: React.FC = () => {
               <option value="">Select product to adjust...</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} (Current: {p.stock_quantity} units)
+                  {p.name} (Current: {p.stock_quantity} {p.unit_of_measure || 'units'})
                 </option>
               ))}
             </select>
@@ -1607,7 +1712,7 @@ export const BusinessPage: React.FC = () => {
             </div>
 
             <Input
-              label="Quantity *"
+              label={`Quantity (${products.find((p) => p.id === adjustProductId)?.unit_of_measure || 'units'}) *`}
               type="number"
               inputMode="decimal"
               min="1"
