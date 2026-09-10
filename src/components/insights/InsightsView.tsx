@@ -109,6 +109,26 @@ export const InsightsView: React.FC = () => {
       ? 'Action executed successfully & logged to audit trail'
       : 'Action executed locally and queued for cloud synchronization';
     showToast(customMsg || defaultMsg);
+
+    // Instantly remove acted-on priority from state and update active insight status
+    if (selectedInsightForAction) {
+      const cleanId = selectedInsightForAction.id.replace(/^(prio_|dp_)/, '');
+      setPriorities((prev) =>
+        prev.filter(
+          (p) => p.id.replace(/^(prio_|dp_)/, '') !== cleanId && p.id !== selectedInsightForAction.id
+        )
+      );
+      setInsights((prev) =>
+        prev.map((ins) => {
+          const insClean = ins.id.replace(/^(prio_|dp_)/, '');
+          if (ins.id === selectedInsightForAction.id || insClean === cleanId) {
+            return { ...ins, status: 'acted_on' as const };
+          }
+          return ins;
+        })
+      );
+    }
+
     loadData(false);
   };
 
@@ -198,20 +218,39 @@ export const InsightsView: React.FC = () => {
       <PrioritiesBanner
         priorities={priorities}
         onSelectPriority={(prio) => {
-          const matchingInsight = insights.find((i) => i.id === prio.id.replace('prio_', ''));
+          const cleanId = prio.id.replace(/^(prio_|dp_)/, '');
+          const matchingInsight = insights.find(
+            (i) =>
+              i.id === prio.id ||
+              i.id === cleanId ||
+              i.id.replace(/^(prio_|dp_)/, '') === cleanId ||
+              i.dedup_key === prio.id ||
+              i.dedup_key === cleanId
+          );
+
           if (matchingInsight) {
             setSelectedInsightForAction(matchingInsight);
           } else {
             setSelectedInsightForAction({
-              id: prio.id,
+              id: cleanId,
               business_id: currentBusiness?.id || '',
-              event_type: 'sales_spike',
+              event_type:
+                prio.category === 'inventory'
+                  ? 'low_stock'
+                  : prio.category === 'customers'
+                  ? 'customer_balance_overdue'
+                  : 'sales_spike',
               category: prio.category,
               severity: prio.severity,
               confidence: 'high',
               title: prio.title,
               summary: prio.reason,
-              data: {},
+              explanation: {
+                whatHappened: prio.title,
+                whyItMatters: prio.reason,
+                whatYouCanDo: prio.impactDescription || 'Take recommended action to maintain business continuity.',
+              },
+              data: prio.actionPayload || {},
               detected_at: new Date().toISOString(),
               status: 'new',
               action_type: prio.actionType,

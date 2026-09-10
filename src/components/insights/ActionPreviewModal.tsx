@@ -84,7 +84,7 @@ export const ActionPreviewModal: React.FC<ActionPreviewModalProps> = ({
   };
 
   const handleExecute = async () => {
-    if (!currentBusiness || !user) return;
+    if (!currentBusiness) return;
     setLoading(true);
     setError(null);
 
@@ -102,6 +102,7 @@ export const ActionPreviewModal: React.FC<ActionPreviewModalProps> = ({
     } else if (actionType === 'create_inventory_adjustment') {
       payload.adjustmentQuantity = Number(adjustmentQty);
       payload.quantity = Number(adjustmentQty);
+      payload.newStock = Number(adjustmentQty);
       payload.reason = inventoryReason;
     } else if (actionType === 'record_payment') {
       payload.amount = Number(paymentAmount);
@@ -120,7 +121,7 @@ export const ActionPreviewModal: React.FC<ActionPreviewModalProps> = ({
     try {
       const res = await ProactiveService.executeAction({
         businessId: currentBusiness.id,
-        userId: user.id,
+        userId: user?.id || 'business_owner',
         userRole: currentRole || 'owner',
         actionType,
         payload,

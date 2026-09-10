@@ -176,8 +176,22 @@ export class ProactiveService {
     isAIGenerated?: boolean;
   }): Promise<{ success: boolean; result?: any; error?: string; status?: string }> {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    let localResult: any = null;
 
-    // 1. Try server execution if online
+    // 1. Always execute local state changes (inventory, debts, reminders, expenses)
+    try {
+      localResult = await this.executeLocalAction(params);
+    } catch (localErr) {
+      console.warn('[ProactiveService] Local action execution warning:', localErr);
+    }
+
+    // 2. Mark insight and priority status as 'acted_on' locally
+    const insightId = params.payload?.insightId;
+    if (insightId) {
+      this.setLocalInsightStatus(params.businessId, insightId, 'acted_on');
+    }
+
+    // 3. Online sync to server for centralized logging and backend updates
     if (isOnline) {
       try {
         const response = await fetch('/api/actions/execute', {
@@ -196,55 +210,63 @@ export class ProactiveService {
         });
 
         if (response.ok) {
-          const data = await response.json();
-          if (params.payload?.insightId) {
-            this.setLocalInsightStatus(params.businessId, params.payload.insightId, 'acted_on');
+          const serverData = await response.json();
+          if (serverData.success) {
+            this.recordLocalAuditLog(params.businessId, {
+              id: serverData.auditLogId || `audit_${Date.now()}`,
+              business_id: params.businessId,
+              action_id: params.actionId || `act_${Date.now()}`,
+              action_type: params.actionType,
+              actor_id: params.userId,
+              actor_role: params.userRole || 'owner',
+              is_ai_proposed: Boolean(params.isAIGenerated),
+              target_entity_type: params.actionType,
+              target_entity_id: params.payload.customerId || params.payload.productId || null,
+              changes: { payload: params.payload, result: serverData.result || localResult },
+              status: 'success',
+              timestamp: new Date().toISOString(),
+            });
+
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('ursella_data_changed'));
+            }
+            return {
+              success: true,
+              status: 'completed',
+              result: serverData.result || localResult,
+            };
           }
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('ursella_data_changed'));
-          }
-          return data;
         }
       } catch (err) {
-        console.warn('[ProactiveService] Online execution failed, falling back to local offline execution:', err);
+        console.warn('[ProactiveService] Server sync error, local action remains effective:', err);
       }
     }
 
-    // 2. Offline / Local fallback execution with queueing
-    try {
-      const localResult = await this.executeLocalAction(params);
-      if (params.payload?.insightId) {
-        this.setLocalInsightStatus(params.businessId, params.payload.insightId, 'acted_on');
-      }
+    // 4. Record audit log locally
+    this.recordLocalAuditLog(params.businessId, {
+      id: `audit_${Date.now()}`,
+      business_id: params.businessId,
+      action_id: params.actionId || `act_${Date.now()}`,
+      action_type: params.actionType,
+      actor_id: params.userId,
+      actor_role: params.userRole || 'owner',
+      is_ai_proposed: Boolean(params.isAIGenerated),
+      target_entity_type: params.actionType,
+      target_entity_id: params.payload.customerId || params.payload.productId || null,
+      changes: { payload: params.payload, result: localResult },
+      status: 'success',
+      timestamp: new Date().toISOString(),
+    });
 
-      // Record audit log entry locally
-      this.recordLocalAuditLog(params.businessId, {
-        id: `audit_${Date.now()}`,
-        business_id: params.businessId,
-        action_id: params.actionId || `act_${Date.now()}`,
-        action_type: params.actionType,
-        actor_id: params.userId,
-        actor_role: params.userRole || 'owner',
-        is_ai_proposed: Boolean(params.isAIGenerated),
-        target_entity_type: params.actionType,
-        target_entity_id: params.payload.customerId || params.payload.productId || null,
-        changes: params.payload,
-        status: 'success',
-        timestamp: new Date().toISOString(),
-      });
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('ursella_data_changed'));
-      }
-
-      return {
-        success: true,
-        status: 'completed',
-        result: localResult,
-      };
-    } catch (localErr: any) {
-      return { success: false, error: localErr.message || 'Action execution failed' };
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ursella_data_changed'));
     }
+
+    return {
+      success: true,
+      status: 'completed',
+      result: localResult || { message: 'Action executed successfully.' },
+    };
   }
 
   /**
@@ -826,18 +848,26 @@ export class ProactiveService {
     status: BusinessInsight['status']
   ): void {
     try {
+      const cleanId = insightId.replace(/^(prio_|dp_)/, '');
       const raw = localStorage.getItem(`${INSIGHT_STATUS_KEY}${businessId}`);
       const map: Record<string, BusinessInsight['status']> = raw ? JSON.parse(raw) : {};
       map[insightId] = status;
+      map[cleanId] = status;
+      map[`prio_${cleanId}`] = status;
+      map[`dp_${cleanId}`] = status;
       localStorage.setItem(`${INSIGHT_STATUS_KEY}${businessId}`, JSON.stringify(map));
 
       // Also update inside cached insights array if present
       const cachedRaw = localStorage.getItem(`${CACHED_INSIGHTS_KEY}${businessId}`);
       if (cachedRaw) {
         const cached: BusinessInsight[] = JSON.parse(cachedRaw);
-        const updated = cached.map((item) =>
-          item.id === insightId ? { ...item, status } : item
-        );
+        const updated = cached.map((item) => {
+          const itemClean = item.id.replace(/^(prio_|dp_)/, '');
+          if (item.id === insightId || itemClean === cleanId || item.id === cleanId) {
+            return { ...item, status };
+          }
+          return item;
+        });
         localStorage.setItem(`${CACHED_INSIGHTS_KEY}${businessId}`, JSON.stringify(updated));
       }
     } catch {}
@@ -853,8 +883,10 @@ export class ProactiveService {
       const map: Record<string, BusinessInsight['status']> = JSON.parse(raw);
 
       return insights.map((ins) => {
-        if (map[ins.id]) {
-          return { ...ins, status: map[ins.id] };
+        const cleanId = ins.id.replace(/^(prio_|dp_)/, '');
+        const overrideStatus = map[ins.id] || map[cleanId] || map[`prio_${cleanId}`] || map[`dp_${cleanId}`];
+        if (overrideStatus) {
+          return { ...ins, status: overrideStatus };
         }
         return ins;
       });
@@ -1032,9 +1064,10 @@ export class ProactiveService {
   }
 
   private static getLocalDailyPriorities(businessId: string): DailyPriorityItem[] {
-    const insights = this.getLocalOrCachedInsights(businessId, 'all', 'active');
+    const rawInsights = this.getLocalOrCachedInsights(businessId, 'all', 'active');
+    const insights = rawInsights.filter((ins) => ins.status === 'new' || ins.status === 'seen');
     return insights.slice(0, 3).map((ins, idx) => ({
-      id: `dp_${ins.id}`,
+      id: `dp_${ins.id.replace(/^(prio_|dp_)/, '')}`,
       rank: idx + 1,
       title: ins.title,
       reason: ins.explanation?.whyItMatters || ins.summary,

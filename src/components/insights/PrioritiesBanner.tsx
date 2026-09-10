@@ -43,8 +43,17 @@ export const PrioritiesBanner: React.FC<PrioritiesBannerProps> = ({
         {priorities.map((item, idx) => (
           <div
             key={item.id}
+            id={`priority-card-${item.id}`}
+            role="button"
+            tabIndex={0}
             onClick={() => onSelectPriority(item)}
-            className="p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelectPriority(item);
+              }
+            }}
+            className="p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-[0.98] border border-white/10 transition-all duration-200 cursor-pointer group flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-indigo-400"
           >
             <div>
               <div className="flex items-center justify-between gap-2 mb-2">
