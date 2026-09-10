@@ -230,9 +230,9 @@ export const AppShell: React.FC<AppShellProps> = ({
               <button
                 key={item.route}
                 onClick={() => onNavigate(item.route)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group relative ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group relative active:scale-[0.99] ${
                   isActive
-                    ? 'bg-gradient-to-r from-emerald-600/20 via-emerald-600/10 to-transparent text-emerald-300 border-l-2 border-l-emerald-400 border-y border-r border-emerald-500/20 shadow-xs'
+                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 shadow-xs'
                     : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 border border-transparent'
                 }`}
               >

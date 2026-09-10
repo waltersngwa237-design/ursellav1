@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext.tsx';
 import { Button } from '../../components/common/Button.tsx';
 import { Input } from '../../components/common/Input.tsx';
 import { UrsellaLogo } from '../../components/common/UrsellaLogo.tsx';
-import { Mail, Lock, User, Phone, AlertCircle, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, Phone, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
 
 interface SignUpPageProps {
   onNavigateSignIn: () => void;
@@ -173,9 +173,10 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
             <p>
               <button
                 onClick={onNavigateLanding}
-                className="text-zinc-400 hover:text-zinc-300 transition-colors"
+                className="text-zinc-400 hover:text-zinc-300 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
               >
-                ← Back to Ursella home
+                <ArrowLeft className="w-3.5 h-3.5 stroke-[1.75]" />
+                <span>Back to Ursella home</span>
               </button>
             </p>
           )}

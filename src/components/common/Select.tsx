@@ -1,4 +1,5 @@
 import React from 'react';
+import { ChevronDown } from 'lucide-react';
 
 export interface SelectOption {
   value: string;
@@ -28,9 +29,9 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           <select
             ref={ref}
             id={selectId}
-            className={`w-full bg-zinc-900 text-zinc-100 text-sm rounded-xl px-3.5 py-2.5 border transition-all appearance-none cursor-pointer focus:outline-none focus:ring-2 ${
+            className={`w-full bg-zinc-900 text-zinc-100 text-sm rounded-xl pl-3.5 pr-9 py-2.5 border transition-all appearance-none cursor-pointer focus:outline-none focus:ring-2 ${
               error
-                ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20'
+                ? 'border-rose-500/80 focus:border-rose-500 focus:ring-rose-500/20'
                 : 'border-zinc-800 focus:border-emerald-500 focus:ring-emerald-500/20 hover:border-zinc-700'
             } ${className}`}
             {...props}
@@ -41,10 +42,8 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
               </option>
             ))}
           </select>
-          <div className="absolute right-3 pointer-events-none text-zinc-400">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-            </svg>
+          <div className="absolute right-3 pointer-events-none text-zinc-400 flex items-center justify-center">
+            <ChevronDown className="w-4 h-4 stroke-[1.75]" />
           </div>
         </div>
         {error ? (

@@ -321,20 +321,21 @@ export const CustomersPage: React.FC = () => {
         <div className="flex items-center gap-2 overflow-x-auto">
           {[
             { id: 'all', label: 'All Customers' },
-            { id: 'debt_only', label: 'With Debt ⚠️' },
+            { id: 'debt_only', label: 'With Debt', hasAlert: true },
             { id: 'active', label: 'Active Only' },
             { id: 'archived', label: 'Archived' },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setFilterType(tab.id as any)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap inline-flex items-center gap-1.5 active:scale-[0.98] ${
                 filterType === tab.id
                   ? 'bg-purple-600 text-white shadow-sm'
                   : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200'
               }`}
             >
-              {tab.label}
+              <span>{tab.label}</span>
+              {tab.hasAlert && <AlertCircle className="w-3 h-3 text-amber-400 shrink-0 stroke-[2]" />}
             </button>
           ))}
         </div>

@@ -670,7 +670,7 @@ export const SellPage: React.FC = () => {
                     <option key={c.id} value={c.id}>
                       {c.name}{' '}
                       {c.outstanding_balance > 0
-                        ? `[⚠️ Debt: ${currencyConfig.format(c.outstanding_balance)}]`
+                        ? `[Debt: ${currencyConfig.format(c.outstanding_balance)}]`
                         : ''}
                     </option>
                   ))}
@@ -678,9 +678,12 @@ export const SellPage: React.FC = () => {
 
                 {/* Outstanding balance warning for selected customer */}
                 {selectedCustomerObj && selectedCustomerObj.outstanding_balance > 0 && (
-                  <div className="p-2 rounded-lg bg-amber-950/20 border border-amber-500/30 text-[11px] text-amber-300 flex items-center justify-between">
-                    <span>Outstanding Debt Balance:</span>
-                    <strong className="font-bold">
+                  <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-500/30 text-xs text-amber-300 flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 stroke-[1.75]" />
+                      <span>Outstanding Debt Balance:</span>
+                    </span>
+                    <strong className="font-bold font-mono">
                       {currencyConfig.format(selectedCustomerObj.outstanding_balance)}
                     </strong>
                   </div>

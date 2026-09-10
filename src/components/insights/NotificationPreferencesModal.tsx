@@ -205,8 +205,9 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
                 className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
               />
             </div>
-            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-              ✓ In-app reminders are limited to once a day in the morning.
+            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 stroke-[2]" />
+              <span>In-app reminders are limited to once a day in the morning.</span>
             </div>
           </div>
 

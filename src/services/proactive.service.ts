@@ -639,7 +639,7 @@ export class ProactiveService {
         alerts.unshift({
           id: `alert_brief_morning_${businessId}_${todayStr}`,
           business_id: businessId,
-          title: `☀️ Morning Executive Brief`,
+          title: `Morning Executive Brief`,
           message: `Your morning business briefing is ready. Tap to review cash collection, stockout risks, and today's priorities.`,
           priority: 'medium',
           category: 'sales',

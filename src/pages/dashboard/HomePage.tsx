@@ -38,6 +38,7 @@ import {
   ShieldCheck,
   BarChart3,
   PieChart,
+  ArrowRight,
 } from 'lucide-react';
 
 // Fast in-memory cache to prevent blank loading flashes on tab navigation
@@ -422,9 +423,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               variant="ghost"
               size="sm"
               onClick={() => onNavigate('analytics')}
-              className="text-xs text-zinc-400 hover:text-white cursor-pointer"
+              rightIcon={<ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-0.5" />}
+              className="text-xs text-zinc-400 hover:text-white cursor-pointer group"
             >
-              View all products →
+              View all products
             </Button>
           </div>
 
@@ -488,10 +490,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             <Button
               variant="outline"
               size="sm"
-              className="w-full text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 cursor-pointer"
+              rightIcon={<ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-0.5" />}
+              className="w-full text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 cursor-pointer group"
               onClick={() => onNavigate('ai', 'Give me an overview of today’s store performance and top margin items.')}
             >
-              Chat with Ursella AI →
+              Chat with Ursella AI
             </Button>
           </Card>
         </div>
@@ -522,9 +525,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                   variant="outline"
                   size="sm"
                   onClick={() => onNavigate('business')}
+                  rightIcon={<ArrowRight className="w-3 h-3 ml-1" />}
                   className="text-xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10 cursor-pointer"
                 >
-                  Stock List →
+                  Stock List
                 </Button>
               </div>
 
@@ -539,9 +543,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                   variant="outline"
                   size="sm"
                   onClick={() => onNavigate('customers')}
+                  rightIcon={<ArrowRight className="w-3 h-3 ml-1" />}
                   className="text-xs text-amber-400 border-amber-500/20 hover:bg-amber-500/10 cursor-pointer"
                 >
-                  Ledgers →
+                  Ledgers
                 </Button>
               </div>
             </div>

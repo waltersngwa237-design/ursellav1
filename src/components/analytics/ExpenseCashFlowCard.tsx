@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, ArrowDownRight, ArrowUpRight, PieChart } from 'lucide-react';
+import { DollarSign, ArrowDownRight, ArrowUpRight, PieChart, Info } from 'lucide-react';
 import type { CompleteBusinessAnalytics, CurrencyConfig } from '../../types/index.ts';
 
 interface ExpenseCashFlowCardProps {
@@ -155,9 +155,9 @@ export const ExpenseCashFlowCard: React.FC<ExpenseCashFlowCardProps> = ({
           </div>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-zinc-800/80 text-[11px] text-zinc-500">
-          💡 <em>Accounting Principle:</em> Revenue represents goods sold at invoice price; cash flow
-          tracks liquid funds collected from transactions.
+        <div className="mt-4 pt-3 border-t border-zinc-800/80 text-[11px] text-zinc-500 flex items-center gap-1.5">
+          <Info className="w-3.5 h-3.5 text-amber-400 shrink-0 stroke-[1.75]" />
+          <span><em>Accounting Principle:</em> Revenue represents goods sold at invoice price; cash flow tracks liquid funds collected from transactions.</span>
         </div>
       </div>
     </div>

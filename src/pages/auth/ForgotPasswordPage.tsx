@@ -142,9 +142,10 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({
             <p>
               <button
                 onClick={onNavigateLanding}
-                className="text-zinc-400 hover:text-zinc-300 transition-colors"
+                className="text-zinc-400 hover:text-zinc-300 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
               >
-                ← Back to Ursella home
+                <ArrowLeft className="w-3.5 h-3.5 stroke-[1.75]" />
+                <span>Back to Ursella home</span>
               </button>
             </p>
           )}
