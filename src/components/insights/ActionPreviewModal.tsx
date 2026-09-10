@@ -74,6 +74,21 @@ export const ActionPreviewModal: React.FC<ActionPreviewModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mobile_money' | 'bank_transfer'>(
     'cash'
   );
+  const [productName, setProductName] = useState<string>(
+    insight.action_payload?.name || insight.action_payload?.productName || ''
+  );
+  const [unitOfMeasure, setUnitOfMeasure] = useState<string>(
+    insight.action_payload?.unit_of_measure || insight.action_payload?.unit || 'piece'
+  );
+  const [productStock, setProductStock] = useState<number>(
+    insight.action_payload?.stock_quantity ?? insight.action_payload?.stockQuantity ?? 10
+  );
+  const [productSellingPrice, setProductSellingPrice] = useState<number>(
+    insight.action_payload?.selling_price ?? insight.action_payload?.sellingPrice ?? 0
+  );
+  const [productCostPrice, setProductCostPrice] = useState<number>(
+    insight.action_payload?.cost_price ?? insight.action_payload?.costPrice ?? 0
+  );
 
   const actionType = insight.action_type || 'create_reminder';
 
@@ -116,6 +131,12 @@ export const ActionPreviewModal: React.FC<ActionPreviewModalProps> = ({
       payload.title = taskTitle;
       payload.description = taskDescription;
       payload.dueDate = followupDate;
+    } else if (actionType === 'create_product') {
+      payload.name = productName;
+      payload.unit_of_measure = unitOfMeasure;
+      payload.stock_quantity = Number(productStock);
+      payload.cost_price = Number(productCostPrice);
+      payload.selling_price = Number(productSellingPrice);
     }
 
     try {
@@ -196,6 +217,88 @@ export const ActionPreviewModal: React.FC<ActionPreviewModalProps> = ({
           </div>
 
           {/* Dynamic Configuration based on Action Type */}
+          {actionType === 'create_product' && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Product Name
+                </label>
+                <input
+                  type="text"
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  placeholder="e.g. Portland Cement 50kg"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Initial Stock Quantity
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={productStock}
+                    onChange={(e) => setProductStock(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Unit of Measurement
+                  </label>
+                  <select
+                    value={unitOfMeasure}
+                    onChange={(e) => setUnitOfMeasure(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="piece">Piece (pcs)</option>
+                    <option value="bag">Bag / Sac</option>
+                    <option value="carton">Carton / Box</option>
+                    <option value="kg">Kilogram (kg)</option>
+                    <option value="g">Gram (g)</option>
+                    <option value="L">Liter (L)</option>
+                    <option value="bottle">Bottle</option>
+                    <option value="can">Can</option>
+                    <option value="pack">Pack</option>
+                    <option value="pair">Pair</option>
+                    <option value="roll">Roll</option>
+                    <option value="m">Meter (m)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Unit Selling Price
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={productSellingPrice}
+                    onChange={(e) => setProductSellingPrice(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Unit Cost Price
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={productCostPrice}
+                    onChange={(e) => setProductCostPrice(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {actionType === 'send_customer_message' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">

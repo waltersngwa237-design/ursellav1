@@ -47,7 +47,7 @@ export interface AIProposedAction {
   actionType: string;
   title: string;
   description: string;
-  category: 'inventory_restock' | 'debt_reminder' | 'expense_review' | 'pricing_update' | 'marketing';
+  category: 'inventory_restock' | 'debt_reminder' | 'expense_review' | 'pricing_update' | 'marketing' | 'product_creation';
   payload?: Record<string, unknown>;
   phaseStatus: 'phase4_preview_only' | 'ready_for_execution';
 }

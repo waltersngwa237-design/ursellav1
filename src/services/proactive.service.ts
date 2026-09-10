@@ -18,6 +18,7 @@ import type { MemberRole } from '../types/database.types.ts';
 import { CustomerService } from './customer.service.ts';
 import { InventoryService } from './inventory.service.ts';
 import { ExpenseService } from './expense.service.ts';
+import { ProductService } from './product.service.ts';
 import { OfflineSyncService, type SyncItemType } from './offline-sync.service.ts';
 
 const CACHED_INSIGHTS_KEY = 'ursella_cached_insights_';
@@ -279,6 +280,33 @@ export class ProactiveService {
     payload: Record<string, any>;
   }): Promise<Record<string, any>> {
     const { businessId, actionType, payload } = params;
+
+    if (actionType === 'create_product') {
+      const name = payload.name;
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        throw new Error('Product name is required.');
+      }
+
+      const createdProd = await ProductService.createProduct({
+        business_id: businessId,
+        name: name.trim(),
+        selling_price: Number(payload.selling_price ?? payload.sellingPrice) || 0,
+        cost_price: Number(payload.cost_price ?? payload.costPrice) || 0,
+        stock_quantity: Number(payload.stock_quantity ?? payload.stockQuantity ?? payload.quantity) || 0,
+        minimum_stock_level: Number(payload.minimum_stock_level ?? payload.minimumStockLevel ?? payload.minStock) ?? 5,
+        unit_of_measure: payload.unit_of_measure || payload.unit || 'piece',
+        description: payload.description || null,
+        sku: payload.sku || null,
+        category_id: payload.category_id || payload.categoryId || null,
+        supplier_id: payload.supplier_id || payload.supplierId || null,
+      });
+
+      return {
+        message: `Product "${createdProd.name}" (${createdProd.stock_quantity} ${createdProd.unit_of_measure || 'units'}) created successfully.`,
+        productId: createdProd.id,
+        product: createdProd,
+      };
+    }
 
     if (actionType === 'record_payment') {
       const customerId = payload.customerId;

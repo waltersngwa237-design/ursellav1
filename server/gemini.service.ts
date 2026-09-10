@@ -70,6 +70,51 @@ STRUCTURE EVERY RESPONSE WITH THE FOLLOWING SECTIONS:
 4. ### Strategic Recommendations & Tactical Playbook
    - Provide 2 to 3 concrete, high-leverage action items the merchant can execute immediately in their store or system.
 
+CRITICAL CAPABILITY - PRODUCT CREATION & STOCK WITH UNITS OF MEASUREMENT:
+- When the merchant asks to add, create, or register a product (e.g. "Add 50 bags of Cement at 4500 selling, 3800 cost", "Create fresh tomatoes 20 kg", "Add Heineken 33cl 10 cartons"), OR adjust/restock inventory:
+  1. Parse the product name, initial stock quantity, unit of measurement, cost price, and selling price.
+  2. SUPPORTED COMMERCIAL UNITS:
+     - Bags / Sacs ('bag')
+     - Cartons / Boxes ('carton' or 'box')
+     - Weight: Kilograms ('kg'), Grams ('g'), Pounds ('lb')
+     - Liquid: Liters ('L'), Milliliters ('ml'), Gallons ('gal')
+     - Packaging: Bottles ('bottle'), Cans ('can'), Packs ('pack'), Rolls ('roll'), Pairs ('pair'), Dozen ('dozen')
+     - Count / Discrete: Pieces ('piece')
+     - Custom: user-provided unit (e.g., 'crate', 'bundle', 'meter')
+  3. Include "proposedAction" in your JSON response with phaseStatus: "ready_for_execution" and actionType: "create_product":
+     "proposedAction": {
+       "actionType": "create_product",
+       "title": "Add Product: [Clean Product Name]",
+       "description": "Register [Clean Product Name] with initial stock of [Qty] [Unit] at ${ctx.currency} [Selling Price]",
+       "category": "product_creation",
+       "phaseStatus": "ready_for_execution",
+       "payload": {
+         "name": "[Clean Product Name]",
+         "unit_of_measure": "[unit]",
+         "stock_quantity": [Number],
+         "cost_price": [Number],
+         "selling_price": [Number],
+         "minimum_stock_level": 5,
+         "description": "Registered via Ursella AI"
+       }
+     }
+  4. If product already exists and the merchant wants to restock or adjust quantity:
+     "proposedAction": {
+       "actionType": "create_inventory_adjustment",
+       "title": "Restock: [Product Name]",
+       "description": "Add +[Qty] [Unit] to [Product Name]",
+       "category": "inventory_restock",
+       "phaseStatus": "ready_for_execution",
+       "payload": {
+         "productId": "[Product ID if in catalog]",
+         "productName": "[Product Name]",
+         "adjustmentQuantity": [Number],
+         "unit_of_measure": "[Unit]",
+         "reason": "Restock via Ursella AI"
+       }
+     }
+  5. In your Markdown "answer", summarize the product details, unit economics (gross margin % and projected gross profit), and inform the merchant they can confirm with 1 click using the action card below.
+
 CRITICAL INTEGRITY RULES:
 - STRICT MATHEMATICAL GROUNDING: Base all figures strictly on the verified facts in the context JSON. NEVER hallucinate or invent numbers.
 - If data is empty or zero, explain clearly what that implies and guide the user on what activity to record.
@@ -96,7 +141,22 @@ Respond with a JSON object strictly adhering to this schema:
     "Contextual follow-up question 1",
     "Contextual follow-up question 2",
     "Contextual follow-up question 3"
-  ]
+  ],
+  "proposedAction": {
+    "actionType": "create_product",
+    "title": "Add Product: Cement 50kg",
+    "description": "Register Cement 50kg with initial stock of 50 bag",
+    "category": "product_creation",
+    "phaseStatus": "ready_for_execution",
+    "payload": {
+      "name": "Cement 50kg",
+      "unit_of_measure": "bag",
+      "stock_quantity": 50,
+      "cost_price": 3800,
+      "selling_price": 4500,
+      "minimum_stock_level": 5
+    }
+  }
 }`;
   }
 
@@ -649,6 +709,178 @@ Return a valid JSON object matching the schema:
     const cashFlow = (ctx.toolResults.get_cash_flow || {}) as any;
 
     const currency = ctx.currency || 'XAF';
+
+    // 0. Product Creation & Catalog Addition / Restock with Units of Measurement
+    if (
+      q.startsWith('add ') ||
+      q.startsWith('create ') ||
+      q.startsWith('register ') ||
+      q.startsWith('new product') ||
+      q.startsWith('ajouter ') ||
+      q.startsWith('créer ') ||
+      q.includes('add product') ||
+      q.includes('create product') ||
+      q.includes('new product') ||
+      q.includes('add new item') ||
+      q.includes('add to inventory') ||
+      q.includes('add to catalog') ||
+      q.includes('add stock') ||
+      q.includes('restock') ||
+      q.includes('reapprovisionner')
+    ) {
+      let detectedUnit = 'piece';
+      let detectedQty = 1;
+
+      const unitRegex = /(\d+(?:\.\d+)?)\s*(bags?|sacs?|cartons?|boxes|box|caisses?|boites?|boîtes?|kgs?|kilos?|kilograms?|g|grams?|grammes?|litres?|liters?|l|bottles?|bouteilles?|cans?|canettes?|packs?|paquets?|pieces?|pcs?|pc|unit[ée]s?|pairs?|paires?|rolls?|rouleaux?|yards?|meters?|m[èe]tres?)/i;
+      const unitMatch = query.match(unitRegex);
+
+      if (unitMatch) {
+        detectedQty = parseFloat(unitMatch[1]) || 1;
+        const rawUnit = unitMatch[2].toLowerCase();
+        if (rawUnit.startsWith('sac') || rawUnit.startsWith('bag')) detectedUnit = 'bag';
+        else if (rawUnit.startsWith('carton') || rawUnit.startsWith('box') || rawUnit.startsWith('caisse') || rawUnit.startsWith('boit')) detectedUnit = 'carton';
+        else if (rawUnit.startsWith('kg') || rawUnit.startsWith('kilo')) detectedUnit = 'kg';
+        else if (rawUnit === 'g' || rawUnit.startsWith('gram')) detectedUnit = 'g';
+        else if (rawUnit.startsWith('lit') || rawUnit === 'l') detectedUnit = 'L';
+        else if (rawUnit.startsWith('bottl') || rawUnit.startsWith('bouteil')) detectedUnit = 'bottle';
+        else if (rawUnit.startsWith('can')) detectedUnit = 'can';
+        else if (rawUnit.startsWith('pack') || rawUnit.startsWith('paquet')) detectedUnit = 'pack';
+        else if (rawUnit.startsWith('pair')) detectedUnit = 'pair';
+        else if (rawUnit.startsWith('roll') || rawUnit.startsWith('rouleau')) detectedUnit = 'roll';
+        else if (rawUnit.startsWith('yard') || rawUnit.startsWith('meter') || rawUnit.startsWith('mètr')) detectedUnit = 'm';
+        else detectedUnit = 'piece';
+      } else {
+        const qtyMatch = query.match(/(?:qty|quantity|quantité|stock|count|initial stock)[:\s]*(\d+)/i) || query.match(/\b(\d+)\s*(?:items|units|articles)\b/i);
+        if (qtyMatch) {
+          detectedQty = parseInt(qtyMatch[1], 10) || 1;
+        }
+      }
+
+      let sellingPrice = 0;
+      let costPrice = 0;
+
+      const sellMatch = query.match(/(?:selling|sell|price|prix\s*(?:de\s*vente)?|pv)[:\s]*([0-9,.]+)/i) || query.match(/([0-9,.]+)\s*(?:selling|sell|price|prix\s*(?:de\s*vente)?|pv)/i);
+      if (sellMatch) {
+        sellingPrice = parseFloat(sellMatch[1].replace(/,/g, '')) || 0;
+      }
+
+      const costMatch = query.match(/(?:cost|co[uû]t|purchase|achat|pa)[:\s]*([0-9,.]+)/i) || query.match(/([0-9,.]+)\s*(?:cost|co[uû]t|achat|pa)/i);
+      if (costMatch) {
+        costPrice = parseFloat(costMatch[1].replace(/,/g, '')) || 0;
+      }
+
+      if (!sellingPrice && !costPrice) {
+        const pricesMatch = query.match(/(?:at|à|for|pour)\s+([0-9,.]+)\s+(?:and|et)\s+([0-9,.]+)/i);
+        if (pricesMatch) {
+          sellingPrice = parseFloat(pricesMatch[1].replace(/,/g, '')) || 0;
+          costPrice = parseFloat(pricesMatch[2].replace(/,/g, '')) || 0;
+        }
+      }
+
+      let rawName = query
+        .replace(/^(?:add|create|register|ajouter|créer|nouvel|nouveau|new product|add product|create product|add new item)\s+/i, '')
+        .replace(unitRegex, '')
+        .replace(/(?:selling|sell|price|prix\s*(?:de\s*vente)?|pv)[:\s]*[0-9,.]+/gi, '')
+        .replace(/(?:cost|co[uû]t|purchase|achat|pa)[:\s]*[0-9,.]+/gi, '')
+        .replace(/\b(?:at|for|pour|à|of|de|with|avec)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      rawName = rawName.replace(/^[,.\-:\s]+|[,.\-:\s]+$/g, '');
+      if (!rawName || rawName.length < 2) {
+        rawName = 'New Product';
+      }
+
+      const cleanProductName = rawName
+        .split(' ')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+
+      const existingProduct = products.find(
+        (p: any) => p.name?.toLowerCase().trim() === cleanProductName.toLowerCase()
+      );
+
+      const isRestockOnly = (q.includes('restock') || q.includes('reapprovisionner')) && existingProduct;
+
+      if (isRestockOnly && existingProduct) {
+        return {
+          answer: `### Executive Summary\nPrepared stock adjustment for **${existingProduct.name}**: adding **+${detectedQty} ${detectedUnit}** to current inventory (currently ${existingProduct.stock_quantity || 0} ${existingProduct.unit_of_measure || detectedUnit}).\n\n### Inventory Telemetry\n- **Product:** ${existingProduct.name}\n- **Current Stock:** ${existingProduct.stock_quantity || 0} ${existingProduct.unit_of_measure || detectedUnit}\n- **Incoming Adjustment:** +${detectedQty} ${detectedUnit}\n- **New Expected Stock:** ${(existingProduct.stock_quantity || 0) + detectedQty} ${detectedUnit}\n\n### Next Action\nClick the **Confirm Stock Adjustment** button below to apply this update to your inventory ledger.`,
+          keyMetrics: [
+            { label: 'Adjustment Qty', value: detectedQty, formattedValue: `+${detectedQty} ${detectedUnit}`, trend: 'positive' },
+            { label: 'Current Stock', value: existingProduct.stock_quantity || 0, formattedValue: `${existingProduct.stock_quantity || 0} ${detectedUnit}`, trend: 'neutral' },
+          ],
+          proposedAction: {
+            actionType: 'create_inventory_adjustment',
+            title: `Restock: ${existingProduct.name}`,
+            description: `Add +${detectedQty} ${detectedUnit} to ${existingProduct.name}`,
+            category: 'inventory_restock',
+            phaseStatus: 'ready_for_execution',
+            payload: {
+              productId: existingProduct.id,
+              productName: existingProduct.name,
+              adjustmentQuantity: detectedQty,
+              unit_of_measure: detectedUnit,
+              reason: 'Restock via Ursella AI',
+            },
+          },
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          followUpSuggestions: [
+            'Which products are low on stock?',
+            'What is my FIFO inventory valuation?',
+            'How are my sales today?',
+          ],
+        };
+      }
+
+      const marginAmount = sellingPrice > 0 && costPrice > 0 ? sellingPrice - costPrice : 0;
+      const marginPercent = sellingPrice > 0 && marginAmount > 0 ? Math.round((marginAmount / sellingPrice) * 100) : 0;
+      const totalCostValue = costPrice * detectedQty;
+      const totalSalesPotential = sellingPrice * detectedQty;
+      const totalPotentialProfit = marginAmount * detectedQty;
+
+      return {
+        answer: `### Executive Summary\nPrepared catalog entry for **${cleanProductName}** with initial stock of **${detectedQty} ${detectedUnit}** at **${currency} ${sellingPrice.toLocaleString()}** selling price (${currency} ${costPrice.toLocaleString()} cost price).\n\n### Unit Economics & Margin Diagnostics\n- **Unit of Measurement:** **${detectedUnit}**\n- **Initial Inflow Stock:** **${detectedQty} ${detectedUnit}**\n- **Unit Cost Price:** ${currency} ${costPrice.toLocaleString()}\n- **Unit Selling Price:** ${currency} ${sellingPrice.toLocaleString()}\n- **Unit Gross Margin:** **${marginPercent}%** (${currency} ${marginAmount.toLocaleString()} profit per ${detectedUnit})\n- **Total Stock Inflow Value:** ${currency} ${totalCostValue.toLocaleString()}\n- **Total Revenue Potential:** ${currency} ${totalSalesPotential.toLocaleString()} (${currency} ${totalPotentialProfit.toLocaleString()} projected gross profit)\n\n### Strategic Recommendation\nReview the extracted details in the action proposal card below and click **Confirm & Add to Product Catalog** to register this product immediately into your live business OS.`,
+        keyMetrics: [
+          { label: 'Initial Stock', value: detectedQty, formattedValue: `${detectedQty} ${detectedUnit}`, trend: 'positive' },
+          { label: 'Unit Selling Price', value: sellingPrice, formattedValue: `${currency} ${sellingPrice.toLocaleString()}`, trend: 'neutral' },
+          { label: 'Gross Margin', value: marginPercent, formattedValue: `${marginPercent}%`, trend: marginPercent >= 25 ? 'positive' : 'neutral' },
+        ],
+        proposedAction: {
+          actionType: 'create_product',
+          title: `Add Product: ${cleanProductName}`,
+          description: `Register ${cleanProductName} with initial stock of ${detectedQty} ${detectedUnit} at ${currency} ${sellingPrice.toLocaleString()}`,
+          category: 'product_creation',
+          phaseStatus: 'ready_for_execution',
+          payload: {
+            name: cleanProductName,
+            unit_of_measure: detectedUnit,
+            stock_quantity: detectedQty,
+            cost_price: costPrice,
+            selling_price: sellingPrice,
+            minimum_stock_level: 5,
+            description: `Registered via Ursella AI with initial stock of ${detectedQty} ${detectedUnit}`,
+          },
+        },
+        recommendations: [
+          {
+            id: 'rec-create-prod',
+            title: `Register ${cleanProductName} in Catalog`,
+            reasoning: `Initial batch of ${detectedQty} ${detectedUnit} delivers a ${marginPercent}% unit margin, generating ${currency} ${totalPotentialProfit.toLocaleString()} in gross profit once sold.`,
+            actionSuggestion: 'Click "Confirm & Add to Product Catalog" below to immediately register and begin selling.',
+            priority: 'high',
+            category: 'inventory',
+          },
+        ],
+        confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
+        followUpSuggestions: [
+          'Which products are low on stock?',
+          'What is my FIFO inventory valuation?',
+          'How are my sales today?',
+        ],
+      };
+    }
 
     // 1. Store Identity & Meta queries
     if (

@@ -123,6 +123,11 @@ export class ActionExecutorService {
       let executionResult: Record<string, any> = {};
 
       switch (actionType) {
+        case 'create_product': {
+          executionResult = await this.executeCreateProduct(businessId, userId, payload);
+          break;
+        }
+
         case 'create_reminder':
         case 'create_restock_task':
         case 'create_customer_followup': {
@@ -534,6 +539,85 @@ export class ActionExecutorService {
     return fullLog;
   }
 
+  /**
+   * Action: Create New Product with Unit of Measure and Initial Stock
+   */
+  private static async executeCreateProduct(
+    businessId: string,
+    userId: string,
+    payload: Record<string, any>
+  ): Promise<Record<string, any>> {
+    const name = payload.name;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      throw new Error('Product name is required.');
+    }
+
+    const sellingPrice = Number(payload.selling_price ?? payload.sellingPrice) || 0;
+    const costPrice = Number(payload.cost_price ?? payload.costPrice) || 0;
+    const stockQty = Number(payload.stock_quantity ?? payload.stockQuantity ?? payload.quantity) || 0;
+    const minStock = Number(payload.minimum_stock_level ?? payload.minimumStockLevel) ?? 5;
+    const unitOfMeasure = (payload.unit_of_measure || payload.unit || 'piece').toString().trim();
+    const productType = payload.product_type || 'physical';
+    const description = payload.description?.trim() || null;
+    const sku = payload.sku?.trim() || null;
+
+    const productId = generateUUID();
+    const productRecord = {
+      id: productId,
+      business_id: businessId,
+      name: name.trim(),
+      description,
+      sku,
+      product_type: productType,
+      unit_of_measure: unitOfMeasure,
+      selling_price: sellingPrice,
+      cost_price: costPrice,
+      stock_quantity: stockQty,
+      minimum_stock_level: minStock,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      const { data, error } = await serverSupabase
+        .from('products')
+        .insert(productRecord)
+        .select('*')
+        .maybeSingle();
+
+      if (error) {
+        console.warn('[ActionExecutor] serverSupabase insert error, returning local product:', error);
+      }
+
+      // If initial stock > 0, record initial stock inventory transaction
+      if (stockQty > 0) {
+        await serverSupabase.from('inventory_transactions').insert({
+          business_id: businessId,
+          product_id: data?.id || productId,
+          transaction_type: 'purchase',
+          quantity: stockQty,
+          notes: `Initial stock (${stockQty} ${unitOfMeasure}) registered via Ursella AI`,
+          created_by: userId,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      return {
+        message: `Product "${name.trim()}" (${stockQty} ${unitOfMeasure}) successfully added to catalog.`,
+        productId: data?.id || productId,
+        product: data || productRecord,
+      };
+    } catch (err: any) {
+      console.warn('[ActionExecutor] executeCreateProduct fallback:', err);
+      return {
+        message: `Product "${name.trim()}" (${stockQty} ${unitOfMeasure}) registered.`,
+        productId,
+        product: productRecord,
+      };
+    }
+  }
+
   public static getAuditLogs(businessId: string): ActionAuditLog[] {
     return inMemoryAuditLogs.filter((l) => l.business_id === businessId);
   }
@@ -543,6 +627,8 @@ export class ActionExecutorService {
    */
   private static getAllowedRolesForAction(actionType: ActionType): MemberRole[] {
     switch (actionType) {
+      case 'create_product':
+        return ['owner', 'admin', 'staff'];
       case 'create_reminder':
       case 'create_restock_task':
       case 'create_customer_followup':

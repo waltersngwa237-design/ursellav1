@@ -56,6 +56,39 @@ export interface IntentClassificationResult {
 export function classifyBusinessQuery(query: string): IntentClassificationResult {
   const q = query.toLowerCase().trim();
 
+  // 0. Product Creation, Catalog Addition & Restocking with Units of Measurement
+  if (
+    q.startsWith('add ') ||
+    q.startsWith('create ') ||
+    q.startsWith('register ') ||
+    q.startsWith('new product') ||
+    q.startsWith('ajouter ') ||
+    q.startsWith('créer ') ||
+    q.includes('add product') ||
+    q.includes('create product') ||
+    q.includes('new product') ||
+    q.includes('add new item') ||
+    q.includes('add to inventory') ||
+    q.includes('add to catalog') ||
+    q.includes('add stock') ||
+    q.includes('restock') ||
+    q.includes('reapprovisionner')
+  ) {
+    const isRestockOnly = (q.includes('restock') || q.includes('adjust stock') || q.includes('reapprovisionner')) && !q.includes('new product') && !q.includes('create');
+    return {
+      intent: isRestockOnly ? 'recommendation' : 'recommendation',
+      domain: 'products',
+      timePeriod: 'all_time',
+      requiredTools: ['get_product_performance', 'get_inventory_alerts'],
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.98,
+      isEntitySpecific: true,
+      primaryGoal: isRestockOnly
+        ? 'Restock product inventory with designated quantity and unit of measurement.'
+        : 'Create and register new product into business catalog with initial stock and custom unit of measurement.',
+    };
+  }
+
   // 1. Store Identity & Meta Information (Store name, currency, timezone, operator)
   if (
     q.includes('business name') ||

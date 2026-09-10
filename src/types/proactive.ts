@@ -65,6 +65,7 @@ export interface BusinessInsight {
 
 // 3. Controlled Action System
 export type ActionType =
+  | 'create_product'
   | 'create_reminder'
   | 'create_inventory_adjustment'
   | 'record_payment'

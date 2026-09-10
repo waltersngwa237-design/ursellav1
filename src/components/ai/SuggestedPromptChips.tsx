@@ -67,6 +67,12 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
     },
     {
       category: 'inventory',
+      question: 'Add 50 bags of Portland Cement at 4,500 selling and 3,800 cost',
+      topic: 'Add Product with Unit of Measure',
+      subtitle: 'Ursella AI parses name, custom unit of measurement, initial stock & pricing',
+    },
+    {
+      category: 'inventory',
       question: 'Do I have any critical low-stock products that need reordering?',
       topic: 'Stockout Prevention',
       subtitle: 'Identify items nearing depletion or safety replenishment thresholds',
