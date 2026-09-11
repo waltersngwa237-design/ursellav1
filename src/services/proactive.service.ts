@@ -36,10 +36,12 @@ export class ProactiveService {
         return this.getInsights(businessId);
       }
 
+      const snapshot = this.collectLocalSnapshot(businessId);
+
       const response = await fetch('/api/insights/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId }),
+        body: JSON.stringify({ businessId, snapshot }),
       });
 
       if (!response.ok) {
@@ -47,7 +49,15 @@ export class ProactiveService {
       }
 
       const data = await response.json();
-      const insights: BusinessInsight[] = data.insights || [];
+      let insights: BusinessInsight[] = data.insights || [];
+
+      // If server returned 0 insights, fallback to local generation so anomalous local data is not missed
+      if (insights.length === 0) {
+        const localGenerated = this.generateOfflineInsights(businessId);
+        if (localGenerated.length > 0) {
+          insights = localGenerated;
+        }
+      }
 
       if (insights.length > 0) {
         this.cacheInsights(businessId, insights);
@@ -76,16 +86,39 @@ export class ProactiveService {
 
       const response = await fetch(`/api/insights?businessId=${encodeURIComponent(businessId)}&category=${category}&status=${status}`);
       if (!response.ok) throw new Error('Failed to fetch insights');
-      const data: BusinessInsight[] = await response.json();
+      let data: BusinessInsight[] = await response.json();
 
       if (Array.isArray(data) && data.length > 0) {
         this.cacheInsights(businessId, data);
+      } else {
+        const fallback = this.getLocalOrCachedInsights(businessId, category, status);
+        if (fallback.length > 0) {
+          data = fallback;
+        }
       }
 
       return this.applyLocalStatusOverrides(businessId, data);
     } catch (err) {
       console.warn('[ProactiveService] Error fetching insights, using offline cache:', err);
       return this.getLocalOrCachedInsights(businessId, category, status);
+    }
+  }
+
+  private static collectLocalSnapshot(businessId: string) {
+    try {
+      const prodsRaw = localStorage.getItem(`ursella_products_${businessId}`);
+      const custRaw = localStorage.getItem(`ursella_customers_${businessId}`);
+      const salesRaw = localStorage.getItem(`ursella_sales_${businessId}`);
+      const expRaw = localStorage.getItem(`ursella_expenses_${businessId}`);
+
+      return {
+        products: prodsRaw ? JSON.parse(prodsRaw) : [],
+        customers: custRaw ? JSON.parse(custRaw) : [],
+        sales: salesRaw ? JSON.parse(salesRaw) : [],
+        expenses: expRaw ? JSON.parse(expRaw) : [],
+      };
+    } catch {
+      return undefined;
     }
   }
 

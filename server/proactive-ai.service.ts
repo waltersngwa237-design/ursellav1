@@ -1,8 +1,8 @@
 /**
- * Ursella Business OS - Proactive AI & Insight Synthesis Service (Phase 5)
- * Combines deterministic event signals with Gemini 3.7 Flash reasoning for
- * human-friendly narratives, prioritized "What to do today" recommendations,
- * and morning daily briefs.
+ * Ursella Business OS - Proactive AI Service (Phase 5)
+ * Combines deterministic event signals with Gemini 3.7 Flash reasoning
+ * for human-friendly narratives, prioritized "What to do today" recommendations,
+ * and robust, deduplicated notifications.
  */
 import { generateUUID } from '../src/lib/uuid.ts';
 import type { RawBusinessEvent } from './event-detection.service.ts';
@@ -12,19 +12,22 @@ import type {
   DailyPriorityItem,
   NotificationPreferences,
 } from '../src/types/proactive.ts';
+import { getGeminiClient, getActiveGeminiModel } from './ai-config.ts';
 
-// Cache for business insights and notifications
+// In-memory caches for fast retrieval and state tracking
 const businessInsightsCache = new Map<string, { timestamp: number; insights: BusinessInsight[] }>();
 const businessNotificationsCache = new Map<string, AppNotification[]>();
 const businessPreferencesCache = new Map<string, NotificationPreferences>();
 
 export class ProactiveAIService {
   /**
-   * Convert raw detected events into full BusinessInsight models with deduplication.
+   * Convert raw detected events into full BusinessInsight models with deduplication
+   * and optional Gemini AI synthesis.
    */
   public static async processDetectedEvents(
     businessId: string,
-    rawEvents: RawBusinessEvent[]
+    rawEvents: RawBusinessEvent[],
+    businessMetadata?: { name?: string; type?: string; currency?: string }
   ): Promise<BusinessInsight[]> {
     const existingCache = businessInsightsCache.get(businessId)?.insights || [];
     const existingMap = new Map(existingCache.map((i) => [i.dedup_key, i]));
@@ -34,13 +37,13 @@ export class ProactiveAIService {
       const existing = existingMap.get(raw.dedupKey);
 
       if (existing) {
-        // If already acted on or dismissed, do not re-open as new
+        // If already acted on or dismissed, preserve user's conscious decision
         if (existing.status === 'dismissed' || existing.status === 'acted_on') {
           updatedInsights.push(existing);
           continue;
         }
 
-        // Update existing insight
+        // Update existing insight with fresh data
         const updated: BusinessInsight = {
           ...existing,
           title: raw.title,
@@ -79,7 +82,7 @@ export class ProactiveAIService {
         };
         updatedInsights.push(newInsight);
 
-        // Generate matching in-app notification
+        // Generate matching in-app notification with deduplication
         this.addNotification(businessId, {
           id: generateUUID(),
           business_id: businessId,
@@ -96,8 +99,8 @@ export class ProactiveAIService {
       }
     }
 
-    // Auto-resolve any existing inventory insights if the product is no longer detected as out/low stock
-    for (const [key, oldInsight] of existingMap.entries()) {
+    // Auto-resolve inventory insights if the product is no longer detected as out/low stock
+    for (const [, oldInsight] of existingMap.entries()) {
       if (oldInsight.category === 'inventory' && oldInsight.status === 'new') {
         oldInsight.status = 'resolved';
         oldInsight.updated_at = new Date().toISOString();
@@ -121,6 +124,45 @@ export class ProactiveAIService {
       if (rankDiff !== 0) return rankDiff;
       return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
     });
+
+    // Optional: Enhance top insights with Gemini AI reasoning if available
+    const gemini = getGeminiClient();
+    if (gemini && updatedInsights.some((i) => i.severity === 'critical' || i.severity === 'high')) {
+      try {
+        const criticalItems = updatedInsights
+          .filter((i) => i.status === 'new' && (i.severity === 'critical' || i.severity === 'high'))
+          .slice(0, 3);
+
+        if (criticalItems.length > 0) {
+          const prompt = `You are Ursella AI Business Operating System. Review these detected critical business events for "${businessMetadata?.name || 'the business'}" and provide a 1-sentence strategic action summary for each item:
+${JSON.stringify(criticalItems.map((c) => ({ id: c.id, title: c.title, summary: c.summary, data: c.data })))}
+Respond in valid JSON array of objects: [{"id": string, "strategicAdvice": string}]`;
+
+          const aiRes = await gemini.models.generateContent({
+            model: getActiveGeminiModel(),
+            contents: prompt,
+            config: {
+              responseMimeType: 'application/json',
+              temperature: 0.2,
+            },
+          });
+
+          if (aiRes.text) {
+            const parsed = JSON.parse(aiRes.text);
+            if (Array.isArray(parsed)) {
+              for (const advice of parsed) {
+                const target = updatedInsights.find((i) => i.id === advice.id);
+                if (target && target.explanation && advice.strategicAdvice) {
+                  target.explanation.whatYouCanDo = advice.strategicAdvice;
+                }
+              }
+            }
+          }
+        }
+      } catch (aiErr) {
+        console.warn('[ProactiveAIService] Optional Gemini synthesis skipped:', (aiErr as any)?.message);
+      }
+    }
 
     businessInsightsCache.set(businessId, {
       timestamp: Date.now(),
@@ -201,12 +243,21 @@ export class ProactiveAIService {
   }
 
   /**
-   * In-App Notifications
+   * In-App Notifications with robust deduplication.
    */
   public static addNotification(businessId: string, notif: AppNotification) {
     const list = businessNotificationsCache.get(businessId) || [];
-    // Dedup by title
-    if (!list.some((n) => n.title === notif.title && !n.is_read)) {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+
+    // Check if an existing notification with same insight_id or same title exists within 24 hours
+    const isDuplicate = list.some((n) => {
+      const isSameInsight = notif.insight_id && n.insight_id === notif.insight_id;
+      const isSameTitle = n.title === notif.title;
+      const isRecent = new Date(n.created_at).getTime() >= oneDayAgo;
+      return (isSameInsight || isSameTitle) && (isRecent || !n.is_read);
+    });
+
+    if (!isDuplicate) {
       list.unshift(notif);
       if (list.length > 50) list.pop();
       businessNotificationsCache.set(businessId, list);

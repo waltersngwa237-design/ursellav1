@@ -129,7 +129,6 @@ export class ActionExecutorService {
         }
 
         case 'create_reminder':
-        case 'create_restock_task':
         case 'create_customer_followup': {
           executionResult = await this.executeCreateReminder(businessId, userId, payload);
           break;

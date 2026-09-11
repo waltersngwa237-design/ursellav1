@@ -456,11 +456,11 @@ app.post('/api/ai/proactive-insights', async (req, res) => {
 // 1. Scan and detect events for business
 app.post('/api/insights/scan', async (req, res) => {
   try {
-    const { businessId } = req.body;
+    const { businessId, snapshot, config, businessMetadata } = req.body;
     if (!businessId) return res.status(400).json({ error: 'businessId is required' });
 
-    const rawEvents = await EventDetectionService.scanBusiness(businessId);
-    const insights = await ProactiveAIService.processDetectedEvents(businessId, rawEvents);
+    const rawEvents = await EventDetectionService.scanBusiness(businessId, snapshot, config);
+    const insights = await ProactiveAIService.processDetectedEvents(businessId, rawEvents, businessMetadata);
 
     return res.json({
       success: true,

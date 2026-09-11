@@ -9,7 +9,6 @@ import type {
   InsightCategory,
   InsightConfidence,
   InsightSeverity,
-  BusinessInsight,
   ActionType,
 } from '../src/types/proactive.ts';
 
@@ -31,11 +30,56 @@ export interface RawBusinessEvent {
   actionPayload?: Record<string, any>;
 }
 
+export interface BusinessDataSnapshot {
+  products?: any[];
+  customers?: any[];
+  sales?: any[];
+  saleItems?: any[];
+  expenses?: any[];
+}
+
+export interface EventDetectionConfig {
+  salesDropThresholdPct: number;
+  salesDropCriticalPct: number;
+  salesSpikeThresholdPct: number;
+  lowStockBufferMultiplier: number;
+  depletionRiskDays: number;
+  customerDebtLargeAmount: number;
+  customerDebtCriticalAmount: number;
+  customerInactiveDays: number;
+  customerInactiveMinSpend: number;
+  expenseSpikePct: number;
+  highMarginThresholdPct: number;
+}
+
+export const DEFAULT_DETECTION_CONFIG: EventDetectionConfig = {
+  salesDropThresholdPct: 18,
+  salesDropCriticalPct: 35,
+  salesSpikeThresholdPct: 35,
+  lowStockBufferMultiplier: 1.0,
+  depletionRiskDays: 3.5,
+  customerDebtLargeAmount: 50000,
+  customerDebtCriticalAmount: 100000,
+  customerInactiveDays: 30,
+  customerInactiveMinSpend: 50000,
+  expenseSpikePct: 30,
+  highMarginThresholdPct: 40,
+};
+
 export class EventDetectionService {
   /**
    * Run full detection across all operational domains.
+   * Supports both server database querying and resilient client-supplied data snapshots.
    */
-  public static async scanBusiness(businessId: string): Promise<RawBusinessEvent[]> {
+  public static async scanBusiness(
+    businessId: string,
+    snapshot?: BusinessDataSnapshot,
+    customConfig?: Partial<EventDetectionConfig>
+  ): Promise<RawBusinessEvent[]> {
+    const config: EventDetectionConfig = {
+      ...DEFAULT_DETECTION_CONFIG,
+      ...customConfig,
+    };
     const events: RawBusinessEvent[] = [];
 
     try {
@@ -46,11 +90,11 @@ export class EventDetectionService {
         expenseMarginEvents,
         opportunityEvents,
       ] = await Promise.all([
-        this.detectSalesEvents(businessId),
-        this.detectInventoryEvents(businessId),
-        this.detectCustomerEvents(businessId),
-        this.detectExpenseAndMarginEvents(businessId),
-        this.detectOpportunityEvents(businessId),
+        this.detectSalesEvents(businessId, snapshot, config),
+        this.detectInventoryEvents(businessId, snapshot, config),
+        this.detectCustomerEvents(businessId, snapshot, config),
+        this.detectExpenseAndMarginEvents(businessId, snapshot, config),
+        this.detectOpportunityEvents(businessId, snapshot, config),
       ]);
 
       events.push(
@@ -70,40 +114,61 @@ export class EventDetectionService {
   /**
    * 1. SALES EVENTS: Drop, Spike, Large Sale
    */
-  public static async detectSalesEvents(businessId: string): Promise<RawBusinessEvent[]> {
+  public static async detectSalesEvents(
+    businessId: string,
+    snapshot?: BusinessDataSnapshot,
+    config: EventDetectionConfig = DEFAULT_DETECTION_CONFIG
+  ): Promise<RawBusinessEvent[]> {
     const events: RawBusinessEvent[] = [];
     const now = new Date();
     const current7DaysStart = new Date(now.getTime() - 7 * 86400000);
     const prior7DaysStart = new Date(now.getTime() - 14 * 86400000);
 
-    const [{ data: currSales }, { data: priorSales }] = await Promise.all([
-      serverSupabase
-        .from('sales')
-        .select('id, total, sold_at')
-        .eq('business_id', businessId)
-        .eq('sale_status', 'completed')
-        .gte('sold_at', current7DaysStart.toISOString()),
-      serverSupabase
-        .from('sales')
-        .select('id, total, sold_at')
-        .eq('business_id', businessId)
-        .eq('sale_status', 'completed')
-        .gte('sold_at', prior7DaysStart.toISOString())
-        .lt('sold_at', current7DaysStart.toISOString()),
-    ]);
+    let currSales: any[] = [];
+    let priorSales: any[] = [];
 
-    const currRev = currSales?.reduce((acc, s) => acc + Number(s.total || 0), 0) || 0;
-    const priorRev = priorSales?.reduce((acc, s) => acc + Number(s.total || 0), 0) || 0;
-    const currCount = currSales?.length || 0;
-    const priorCount = priorSales?.length || 0;
+    if (snapshot?.sales && snapshot.sales.length > 0) {
+      for (const s of snapshot.sales) {
+        if (s.sale_status && s.sale_status !== 'completed') continue;
+        const soldDate = new Date(s.sold_at || s.created_at || now);
+        if (soldDate >= current7DaysStart) {
+          currSales.push(s);
+        } else if (soldDate >= prior7DaysStart && soldDate < current7DaysStart) {
+          priorSales.push(s);
+        }
+      }
+    } else {
+      const [resCurr, resPrior] = await Promise.all([
+        serverSupabase
+          .from('sales')
+          .select('id, total, sold_at')
+          .eq('business_id', businessId)
+          .eq('sale_status', 'completed')
+          .gte('sold_at', current7DaysStart.toISOString()),
+        serverSupabase
+          .from('sales')
+          .select('id, total, sold_at')
+          .eq('business_id', businessId)
+          .eq('sale_status', 'completed')
+          .gte('sold_at', prior7DaysStart.toISOString())
+          .lt('sold_at', current7DaysStart.toISOString()),
+      ]);
+      currSales = resCurr.data || [];
+      priorSales = resPrior.data || [];
+    }
+
+    const currRev = currSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
+    const priorRev = priorSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
+    const currCount = currSales.length;
+    const priorCount = priorSales.length;
 
     // Minimum data threshold: at least 3 transactions in prior period
     if (priorCount >= 3 && priorRev > 0) {
       const revDiffPct = ((currRev - priorRev) / priorRev) * 100;
 
-      // Detect Sales Drop (> 18% decline)
-      if (revDiffPct <= -18) {
-        const severity: InsightSeverity = revDiffPct <= -35 ? 'critical' : 'high';
+      // Detect Sales Drop
+      if (revDiffPct <= -config.salesDropThresholdPct) {
+        const severity: InsightSeverity = revDiffPct <= -config.salesDropCriticalPct ? 'critical' : 'high';
         events.push({
           eventType: 'sales_drop',
           category: 'sales',
@@ -134,8 +199,8 @@ export class EventDetectionService {
         });
       }
 
-      // Detect Sales Spike (> 35% increase)
-      if (revDiffPct >= 35 && currCount >= 3) {
+      // Detect Sales Spike
+      if (revDiffPct >= config.salesSpikeThresholdPct && currCount >= 3) {
         events.push({
           eventType: 'sales_spike',
           category: 'sales',
@@ -164,22 +229,50 @@ export class EventDetectionService {
   /**
    * 2. INVENTORY EVENTS: Out of Stock, Low Stock, Fast-Moving Depletion Risk
    */
-  public static async detectInventoryEvents(businessId: string): Promise<RawBusinessEvent[]> {
+  public static async detectInventoryEvents(
+    businessId: string,
+    snapshot?: BusinessDataSnapshot,
+    config: EventDetectionConfig = DEFAULT_DETECTION_CONFIG
+  ): Promise<RawBusinessEvent[]> {
     const events: RawBusinessEvent[] = [];
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
-    const [{ data: products }, { data: saleItems }] = await Promise.all([
-      serverSupabase
-        .from('products')
-        .select('id, name, stock_quantity, minimum_stock_level, cost_price, selling_price')
-        .eq('business_id', businessId)
-        .eq('is_active', true),
-      serverSupabase
-        .from('sale_items')
-        .select('product_id, quantity')
-        .eq('business_id', businessId)
-        .gte('created_at', sevenDaysAgo),
-    ]);
+    let products: any[] = [];
+    let saleItems: any[] = [];
+
+    if (snapshot?.products && snapshot.products.length > 0) {
+      products = snapshot.products;
+      if (snapshot.saleItems && snapshot.saleItems.length > 0) {
+        saleItems = snapshot.saleItems;
+      } else if (snapshot.sales && snapshot.sales.length > 0) {
+        for (const s of snapshot.sales) {
+          const soldDate = s.sold_at || s.created_at || '';
+          if (soldDate >= sevenDaysAgo && Array.isArray(s.items)) {
+            for (const it of s.items) {
+              saleItems.push({
+                product_id: it.product_id || it.productId,
+                quantity: it.quantity,
+              });
+            }
+          }
+        }
+      }
+    } else {
+      const [{ data: dbProducts }, { data: dbSaleItems }] = await Promise.all([
+        serverSupabase
+          .from('products')
+          .select('id, name, stock_quantity, minimum_stock_level, cost_price, selling_price')
+          .eq('business_id', businessId)
+          .eq('is_active', true),
+        serverSupabase
+          .from('sale_items')
+          .select('product_id, quantity')
+          .eq('business_id', businessId)
+          .gte('created_at', sevenDaysAgo),
+      ]);
+      products = dbProducts || [];
+      saleItems = dbSaleItems || [];
+    }
 
     if (!products || products.length === 0) return events;
 
@@ -192,30 +285,30 @@ export class EventDetectionService {
     }
 
     for (const prod of products) {
-      const stock = Number(prod.stock_quantity || 0);
-      const minStock = Number(prod.minimum_stock_level || 5);
+      const stock = Number(prod.stock_quantity ?? 0);
+      const minStock = Number(prod.minimum_stock_level ?? 5);
       const weeklyUnitsSold = velocityMap[prod.id] || 0;
       const dailyVelocity = weeklyUnitsSold / 7;
 
-      // Event A: Out of Stock
-      if (stock === 0) {
+      // Event A: Out of Stock (stock <= 0 handles both exactly zero and negative oversold stock)
+      if (stock <= 0) {
         const hadRecentSales = weeklyUnitsSold > 0;
         events.push({
           eventType: 'out_of_stock',
           category: 'inventory',
-          severity: hadRecentSales ? 'critical' : 'high',
+          severity: hadRecentSales || stock < 0 ? 'critical' : 'high',
           confidence: 'high',
-          title: `${prod.name} is Out of Stock`,
-          summary: `Current inventory is 0 units.${hadRecentSales ? ` Sold ${weeklyUnitsSold} units in the last 7 days.` : ''}`,
+          title: `${prod.name} is Out of Stock${stock < 0 ? ` (${stock} deficit)` : ''}`,
+          summary: `Current inventory is ${stock} units.${hadRecentSales ? ` Sold ${weeklyUnitsSold} units in the last 7 days.` : ''}`,
           explanation: {
-            whatHappened: `Inventory for "${prod.name}" has reached 0 units.`,
-            whyItMatters: `Zero stock causes lost sales and pushes regular customers to competitors.`,
-            whatYouCanDo: `Initiate a restock purchase with your supplier immediately.`,
+            whatHappened: `Inventory for "${prod.name}" has reached ${stock} units.`,
+            whyItMatters: `Zero or negative stock causes immediate lost sales, unfulfilled commitments, and customer dissatisfaction.`,
+            whatYouCanDo: `Initiate a restock purchase order with your supplier immediately to replenish inventory.`,
           },
           data: {
             productId: prod.id,
             productName: prod.name,
-            currentStock: 0,
+            currentStock: stock,
             minimumStockLevel: minStock,
             sevenDayUnitsSold: weeklyUnitsSold,
           },
@@ -224,15 +317,15 @@ export class EventDetectionService {
           actionPayload: {
             productId: prod.id,
             productName: prod.name,
-            currentStock: 0,
+            currentStock: stock,
             suggestedQuantity: Math.max(minStock * 2, Math.ceil(dailyVelocity * 14) || minStock),
             title: `Restock Order: ${prod.name}`,
             priority: 'high',
           },
         });
       }
-      // Event B: Fast-moving Depletion Risk (Stock low relative to sales speed: stock / dailyVelocity <= 3 days)
-      else if (dailyVelocity >= 0.8 && stock / dailyVelocity <= 3.5) {
+      // Event B: Fast-moving Depletion Risk (Stock low relative to sales speed)
+      else if (dailyVelocity >= 0.8 && stock / dailyVelocity <= config.depletionRiskDays) {
         const daysRemaining = Number((stock / dailyVelocity).toFixed(1));
         events.push({
           eventType: 'fast_moving_depletion',
@@ -242,9 +335,9 @@ export class EventDetectionService {
           title: `${prod.name} Depletion Risk (${daysRemaining} Days of Stock Left)`,
           summary: `Selling ${dailyVelocity.toFixed(1)} units/day with only ${stock} units in stock. Estimated stockout in ${daysRemaining} days.`,
           explanation: {
-            whatHappened: `"${prod.name}" is selling faster than usual (${weeklyUnitsSold} units in 7 days) and only ${stock} units remain.`,
+            whatHappened: `"${prod.name}" is selling quickly (${weeklyUnitsSold} units in 7 days) and only ${stock} units remain.`,
             whyItMatters: `At this sales pace, the product will be completely sold out within ${daysRemaining} days.`,
-            whatYouCanDo: `Order replacement stock before stock completely runs dry.`,
+            whatYouCanDo: `Order replacement stock now to arrive before current inventory completely runs dry.`,
           },
           data: {
             productId: prod.id,
@@ -267,7 +360,7 @@ export class EventDetectionService {
         });
       }
       // Event C: Low Stock (Stock <= minimum stock level)
-      else if (stock <= minStock && stock > 0) {
+      else if (stock <= minStock * config.lowStockBufferMultiplier && stock > 0) {
         events.push({
           eventType: 'low_stock',
           category: 'inventory',
@@ -278,7 +371,7 @@ export class EventDetectionService {
           explanation: {
             whatHappened: `"${prod.name}" has ${stock} units remaining, at or below your safety threshold of ${minStock}.`,
             whyItMatters: `Remaining stock is vulnerable to unexpected surges in customer demand.`,
-            whatYouCanDo: `Plan a replenishment order to restore stock above minimum threshold.`,
+            whatYouCanDo: `Order a replenishment batch to maintain adequate buffer inventory.`,
           },
           data: {
             productId: prod.id,
@@ -293,7 +386,7 @@ export class EventDetectionService {
             productName: prod.name,
             currentStock: stock,
             suggestedQuantity: minStock * 2,
-            title: `Low Stock Restock: ${prod.name}`,
+            title: `Replenish: ${prod.name}`,
             priority: 'medium',
           },
         });
@@ -306,22 +399,36 @@ export class EventDetectionService {
   /**
    * 3. CUSTOMER EVENTS: Overdue Debt, Large Outstanding Balances, Inactive Customers
    */
-  public static async detectCustomerEvents(businessId: string): Promise<RawBusinessEvent[]> {
+  public static async detectCustomerEvents(
+    businessId: string,
+    snapshot?: BusinessDataSnapshot,
+    config: EventDetectionConfig = DEFAULT_DETECTION_CONFIG
+  ): Promise<RawBusinessEvent[]> {
     const events: RawBusinessEvent[] = [];
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+    const thirtyDaysAgo = new Date(Date.now() - config.customerInactiveDays * 86400000).toISOString();
 
-    const [{ data: customers }, { data: sales }] = await Promise.all([
-      serverSupabase
-        .from('customers')
-        .select('id, name, phone, email')
-        .eq('business_id', businessId)
-        .eq('is_active', true),
-      serverSupabase
-        .from('sales')
-        .select('id, customer_id, total, amount_due, sale_status, sold_at')
-        .eq('business_id', businessId)
-        .eq('sale_status', 'completed'),
-    ]);
+    let customers: any[] = [];
+    let sales: any[] = [];
+
+    if (snapshot?.customers && snapshot.customers.length > 0) {
+      customers = snapshot.customers;
+      sales = snapshot.sales || [];
+    } else {
+      const [{ data: dbCust }, { data: dbSales }] = await Promise.all([
+        serverSupabase
+          .from('customers')
+          .select('id, name, phone, email, total_debt, outstanding_balance')
+          .eq('business_id', businessId)
+          .eq('is_active', true),
+        serverSupabase
+          .from('sales')
+          .select('id, customer_id, total, amount_due, sale_status, sold_at')
+          .eq('business_id', businessId)
+          .eq('sale_status', 'completed'),
+      ]);
+      customers = dbCust || [];
+      sales = dbSales || [];
+    }
 
     if (!customers || customers.length === 0) return events;
 
@@ -336,19 +443,28 @@ export class EventDetectionService {
       }
     }
 
-    // Detect large outstanding balances (> 0) and inactive customers
+    // Detect large outstanding balances and inactive customers
     for (const c of customers) {
       const custSales = salesByCustomer[c.id] || [];
-      const debt = custSales.reduce((acc, s) => acc + (Number(s.amount_due) || 0), 0);
+      const calculatedDebt = custSales.reduce((acc, s) => acc + (Number(s.amount_due) || 0), 0);
+      const storedDebt = Number(c.outstanding_balance || c.total_debt || c.debt || 0);
+      const debt = Math.max(calculatedDebt, storedDebt);
+
       const totalSpent = custSales.reduce((acc, s) => acc + (Number(s.total) || 0), 0);
       const totalOrders = custSales.length;
       const sortedSales = [...custSales].sort(
-        (a, b) => new Date(b.sold_at).getTime() - new Date(a.sold_at).getTime()
+        (a, b) => new Date(b.sold_at || 0).getTime() - new Date(a.sold_at || 0).getTime()
       );
       const lastOrderAt = sortedSales[0]?.sold_at || null;
 
       if (debt > 0) {
-        const severity: InsightSeverity = debt >= 100000 ? 'high' : 'medium';
+        const severity: InsightSeverity =
+          debt >= config.customerDebtCriticalAmount
+            ? 'critical'
+            : debt >= config.customerDebtLargeAmount
+            ? 'high'
+            : 'medium';
+
         events.push({
           eventType: 'customer_balance_overdue',
           category: 'customers',
@@ -359,7 +475,7 @@ export class EventDetectionService {
           explanation: {
             whatHappened: `${c.name} has an unsettled balance of ${debt.toLocaleString()} from prior purchases.`,
             whyItMatters: `Uncollected customer credit constrains liquid cash flow needed for inventory and expenses.`,
-            whatYouCanDo: `Send a friendly payment reminder via SMS, WhatsApp, or phone call to collect the amount.`,
+            whatYouCanDo: `Record a debt settlement payment or contact ${c.name} with a friendly reminder.`,
           },
           data: {
             customerId: c.id,
@@ -370,21 +486,21 @@ export class EventDetectionService {
             totalSpent,
           },
           dedupKey: `overdue_balance_${c.id}`,
-          actionType: 'send_customer_message',
+          actionType: 'record_payment',
           actionPayload: {
             customerId: c.id,
             customerName: c.name,
             customerPhone: c.phone,
-            debtAmount: debt,
-            messageType: 'payment_reminder',
-            draftMessage: `Hello ${c.name}, this is a gentle reminder regarding your outstanding balance of ${debt.toLocaleString()} with our store. Please let us know when it is convenient to settle. Thank you!`,
+            amount: debt,
+            paymentMethod: 'cash',
+            notes: `Debt settlement for ${c.name}`,
           },
         });
       }
 
-      // Detect high-value customer inactivity (Spent > 50,000 but no orders in 30+ days)
+      // Detect high-value customer inactivity
       if (
-        totalSpent >= 50000 &&
+        totalSpent >= config.customerInactiveMinSpend &&
         lastOrderAt &&
         lastOrderAt < thirtyDaysAgo &&
         debt === 0
@@ -395,7 +511,7 @@ export class EventDetectionService {
           severity: 'low',
           confidence: 'moderate',
           title: `VIP Follow-up: ${c.name} hasn't purchased recently`,
-          summary: `Customer with ${totalSpent.toLocaleString()} lifetime spend has been inactive for over 30 days.`,
+          summary: `Customer with ${totalSpent.toLocaleString()} lifetime spend has been inactive for over ${config.customerInactiveDays} days.`,
           explanation: {
             whatHappened: `${c.name}, a valuable customer with ${totalOrders || 'multiple'} past purchases, has not visited in 30+ days.`,
             whyItMatters: `Re-engaging lapsed loyal customers is 5x cheaper than acquiring new foot traffic.`,
@@ -427,31 +543,52 @@ export class EventDetectionService {
   /**
    * 4. EXPENSE & MARGIN EVENTS: Expense Spike, Gross Margin Deterioration
    */
-  public static async detectExpenseAndMarginEvents(businessId: string): Promise<RawBusinessEvent[]> {
+  public static async detectExpenseAndMarginEvents(
+    businessId: string,
+    snapshot?: BusinessDataSnapshot,
+    config: EventDetectionConfig = DEFAULT_DETECTION_CONFIG
+  ): Promise<RawBusinessEvent[]> {
     const events: RawBusinessEvent[] = [];
     const now = new Date();
     const curr30Start = new Date(now.getTime() - 30 * 86400000).toISOString().split('T')[0];
     const prior30Start = new Date(now.getTime() - 60 * 86400000).toISOString().split('T')[0];
 
-    const [{ data: currExpenses }, { data: priorExpenses }] = await Promise.all([
-      serverSupabase
-        .from('expenses')
-        .select('id, category, amount, expense_date')
-        .eq('business_id', businessId)
-        .gte('expense_date', curr30Start),
-      serverSupabase
-        .from('expenses')
-        .select('id, category, amount, expense_date')
-        .eq('business_id', businessId)
-        .gte('expense_date', prior30Start)
-        .lt('expense_date', curr30Start),
-    ]);
+    let currExpenses: any[] = [];
+    let priorExpenses: any[] = [];
 
-    const currTotal = currExpenses?.reduce((s, e) => s + Number(e.amount || 0), 0) || 0;
-    const priorTotal = priorExpenses?.reduce((s, e) => s + Number(e.amount || 0), 0) || 0;
+    if (snapshot?.expenses && snapshot.expenses.length > 0) {
+      for (const e of snapshot.expenses) {
+        const expDate = e.expense_date || e.created_at || '';
+        if (expDate >= curr30Start) {
+          currExpenses.push(e);
+        } else if (expDate >= prior30Start && expDate < curr30Start) {
+          priorExpenses.push(e);
+        }
+      }
+    } else {
+      const [resCurr, resPrior] = await Promise.all([
+        serverSupabase
+          .from('expenses')
+          .select('id, category, amount, expense_date')
+          .eq('business_id', businessId)
+          .gte('expense_date', curr30Start),
+        serverSupabase
+          .from('expenses')
+          .select('id, category, amount, expense_date')
+          .eq('business_id', businessId)
+          .gte('expense_date', prior30Start)
+          .lt('expense_date', curr30Start),
+      ]);
+      currExpenses = resCurr.data || [];
+      priorExpenses = resPrior.data || [];
+    }
 
-    // Detect Overall Expense Spike (> 30% jump with prior > 0)
-    if (priorTotal > 10000 && currTotal > priorTotal * 1.3) {
+    const currTotal = currExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    const priorTotal = priorExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+
+    // Detect Overall Expense Spike
+    const multiplier = 1 + config.expenseSpikePct / 100;
+    if (priorTotal > 10000 && currTotal > priorTotal * multiplier) {
       const jumpPct = Math.round(((currTotal - priorTotal) / priorTotal) * 100);
       events.push({
         eventType: 'expense_spike',
@@ -487,22 +624,50 @@ export class EventDetectionService {
   /**
    * 5. OPPORTUNITY EVENTS: High Margin Fast-Sellers, Revenue Opportunities
    */
-  public static async detectOpportunityEvents(businessId: string): Promise<RawBusinessEvent[]> {
+  public static async detectOpportunityEvents(
+    businessId: string,
+    snapshot?: BusinessDataSnapshot,
+    config: EventDetectionConfig = DEFAULT_DETECTION_CONFIG
+  ): Promise<RawBusinessEvent[]> {
     const events: RawBusinessEvent[] = [];
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
-    const [{ data: products }, { data: saleItems }] = await Promise.all([
-      serverSupabase
-        .from('products')
-        .select('id, name, selling_price, cost_price, stock_quantity')
-        .eq('business_id', businessId)
-        .eq('is_active', true),
-      serverSupabase
-        .from('sale_items')
-        .select('product_id, quantity, total')
-        .eq('business_id', businessId)
-        .gte('created_at', sevenDaysAgo),
-    ]);
+    let products: any[] = [];
+    let saleItems: any[] = [];
+
+    if (snapshot?.products && snapshot.products.length > 0) {
+      products = snapshot.products;
+      if (snapshot.saleItems && snapshot.saleItems.length > 0) {
+        saleItems = snapshot.saleItems;
+      } else if (snapshot.sales && snapshot.sales.length > 0) {
+        for (const s of snapshot.sales) {
+          const soldDate = s.sold_at || s.created_at || '';
+          if (soldDate >= sevenDaysAgo && Array.isArray(s.items)) {
+            for (const it of s.items) {
+              saleItems.push({
+                product_id: it.product_id || it.productId,
+                quantity: it.quantity,
+              });
+            }
+          }
+        }
+      }
+    } else {
+      const [{ data: dbProducts }, { data: dbSaleItems }] = await Promise.all([
+        serverSupabase
+          .from('products')
+          .select('id, name, selling_price, cost_price, stock_quantity')
+          .eq('business_id', businessId)
+          .eq('is_active', true),
+        serverSupabase
+          .from('sale_items')
+          .select('product_id, quantity, total')
+          .eq('business_id', businessId)
+          .gte('created_at', sevenDaysAgo),
+      ]);
+      products = dbProducts || [];
+      saleItems = dbSaleItems || [];
+    }
 
     if (!products || products.length === 0) return events;
 
@@ -513,14 +678,14 @@ export class EventDetectionService {
       }
     }
 
-    // Find products with high gross margin (> 40%) that are actively selling
+    // Find products with high gross margin that are actively selling
     for (const p of products) {
       const price = Number(p.selling_price || 0);
       const cost = Number(p.cost_price || 0);
       const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
       const sold = unitsSoldMap[p.id] || 0;
 
-      if (margin >= 45 && sold >= 5 && Number(p.stock_quantity || 0) > 10) {
+      if (margin >= config.highMarginThresholdPct && sold >= 3 && Number(p.stock_quantity || 0) > 5) {
         events.push({
           eventType: 'margin_improvement',
           category: 'opportunities',
