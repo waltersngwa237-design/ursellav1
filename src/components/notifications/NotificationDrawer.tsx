@@ -11,6 +11,7 @@ import {
   Check,
   Smartphone,
   Send,
+  Sun,
 } from 'lucide-react';
 import type { AppNotification } from '../../types/proactive.ts';
 import { PushClientService, type PushStatus } from '../../services/push-notification.service.ts';
@@ -85,6 +86,19 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
       setPushFeedback('Test push sent to your device!');
     } else {
       setPushFeedback(res.error || 'Failed to send test push');
+    }
+    setPushLoading(false);
+  };
+
+  const handleSendMorningBriefPush = async () => {
+    if (!businessId) return;
+    setPushLoading(true);
+    setPushFeedback(null);
+    const res = await PushClientService.sendMorningBriefPush(businessId, 'My Business');
+    if (res.success) {
+      setPushFeedback('☀️ Morning briefing push dispatched to your device!');
+    } else {
+      setPushFeedback(res.error || 'Failed to trigger morning brief');
     }
     setPushLoading(false);
   };
@@ -297,12 +311,21 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
               </p>
             )}
             {pushStatus?.isSubscribed && (
-              <div className="pt-1 flex items-center justify-end">
+              <div className="pt-1 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleSendMorningBriefPush}
+                  disabled={pushLoading}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-amber-300 hover:text-amber-200 bg-amber-950/40 hover:bg-amber-900/50 border border-amber-500/20 transition-colors cursor-pointer"
+                >
+                  <Sun className="w-3 h-3 text-amber-400" />
+                  <span>Test Morning Brief</span>
+                </button>
                 <button
                   type="button"
                   onClick={handleSendTestPush}
                   disabled={pushLoading}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-zinc-300 hover:text-white bg-zinc-700/60 hover:bg-zinc-700 transition-colors"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-zinc-300 hover:text-white bg-zinc-700/60 hover:bg-zinc-700 transition-colors cursor-pointer"
                 >
                   <Send className="w-3 h-3 text-indigo-400" />
                   <span>Send Test Push</span>

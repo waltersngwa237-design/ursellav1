@@ -428,10 +428,11 @@ export const BusinessPage: React.FC = () => {
 
     try {
       const qty = Number(adjustQuantity);
-      if (isNaN(qty) || qty < 0) {
-        throw new Error('Quantity must be greater than or equal to zero.');
+      if (isNaN(qty) || qty <= 0) {
+        throw new Error('Quantity must be greater than zero.');
       }
 
+      const effectiveReason = adjustReason.trim() || (adjustType === 'restock' ? 'Supplier replenishment restock' : 'Stock level adjustment');
       if (adjustType === 'adjustment' && !adjustReason.trim()) {
         throw new Error('A reason is mandatory for stock audit adjustments.');
       }
@@ -442,7 +443,7 @@ export const BusinessPage: React.FC = () => {
         type: adjustType,
         quantity: qty,
         reference_type: 'manual_adjustment',
-        notes: `Reason: ${adjustReason.trim()}${adjustNotes ? ` | Notes: ${adjustNotes.trim()}` : ''}`,
+        notes: `Reason: ${effectiveReason}${adjustNotes ? ` | Notes: ${adjustNotes.trim()}` : ''}`,
       });
 
       setIsAdjustStockModalOpen(false);
@@ -857,7 +858,9 @@ export const BusinessPage: React.FC = () => {
                             onClick={() => {
                               setAdjustProductId(product.id);
                               setAdjustType('restock');
-                              setAdjustQuantity('10');
+                              const targetReplenish = Math.max(10, ((product.minimum_stock_level || 5) * 2) - Math.max(0, product.stock_quantity || 0));
+                              setAdjustQuantity(String(targetReplenish));
+                              setAdjustReason('Supplier replenishment restock');
                               setIsAdjustStockModalOpen(true);
                             }}
                             title="Restock Stock"

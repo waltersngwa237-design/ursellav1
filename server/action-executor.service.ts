@@ -140,6 +140,11 @@ export class ActionExecutorService {
           break;
         }
 
+        case 'create_restock_task': {
+          executionResult = await this.executeRestockTask(businessId, userId, payload);
+          break;
+        }
+
         case 'record_payment': {
           executionResult = await this.executeRecordPayment(businessId, userId, payload);
           break;
@@ -248,6 +253,88 @@ export class ActionExecutorService {
 
     inMemoryReminders.unshift(reminder);
     return { reminderId, reminder, message: `Task "${reminder.title}" successfully created.` };
+  }
+
+  /**
+   * Action: Restock Task (Replenishes inventory stock and logs task)
+   */
+  private static async executeRestockTask(
+    businessId: string,
+    userId: string,
+    payload: Record<string, any>
+  ): Promise<Record<string, any>> {
+    const productId = payload.productId || payload.product_id;
+    const restockQty = Number(payload.suggestedQuantity ?? payload.quantity ?? payload.adjustmentQuantity ?? 0);
+    const title = payload.title || `Restock replenishment`;
+
+    let productUpdateResult: any = null;
+
+    if (productId && restockQty > 0) {
+      try {
+        const { data: product } = await serverSupabase
+          .from('products')
+          .select('id, name, stock_quantity')
+          .eq('id', productId)
+          .eq('business_id', businessId)
+          .maybeSingle();
+
+        if (product) {
+          const newStock = Math.max(0, Number(product.stock_quantity || 0) + restockQty);
+          await serverSupabase
+            .from('products')
+            .update({ stock_quantity: newStock, updated_at: new Date().toISOString() })
+            .eq('id', productId)
+            .eq('business_id', businessId);
+
+          await serverSupabase.from('inventory_transactions').insert({
+            business_id: businessId,
+            product_id: productId,
+            transaction_type: 'restock',
+            quantity: restockQty,
+            notes: payload.description || payload.reason || `Restocked via Ursella AI restock task`,
+            created_by: userId,
+            created_at: new Date().toISOString(),
+          });
+
+          productUpdateResult = {
+            productId,
+            productName: product.name,
+            previousStock: product.stock_quantity,
+            newStock,
+            restockQty,
+          };
+        }
+      } catch (err) {
+        console.warn('[ActionExecutor] executeRestockTask db update warning:', err);
+      }
+    }
+
+    // Also record business reminder
+    const reminderId = generateUUID();
+    const reminder: BusinessReminder = {
+      id: reminderId,
+      business_id: businessId,
+      title,
+      description: payload.description || (restockQty > 0 ? `Restocked +${restockQty} units` : null),
+      due_date: payload.dueDate || new Date(Date.now() + 86400000).toISOString(),
+      priority: payload.priority || 'high',
+      status: productUpdateResult ? 'completed' : 'pending',
+      related_entity_type: 'product',
+      related_entity_id: productId || null,
+      related_entity_name: payload.productName || productUpdateResult?.productName || null,
+      created_by: userId,
+      created_at: new Date().toISOString(),
+    };
+    inMemoryReminders.unshift(reminder);
+
+    return {
+      reminderId,
+      reminder,
+      inventoryUpdate: productUpdateResult,
+      message: productUpdateResult
+        ? `Successfully restocked ${restockQty} units of "${productUpdateResult.productName}" (Stock: ${productUpdateResult.newStock}) and logged task.`
+        : `Restock task "${title}" recorded successfully.`,
+    };
   }
 
   /**

@@ -373,14 +373,41 @@ export class ProactiveService {
     if (actionType === 'create_restock_task' || actionType === 'create_reminder') {
       const title = payload.title || 'Stock replenishment reminder';
       const remId = `rem_${Date.now()}`;
+      const restockQty = Number(payload.suggestedQuantity ?? payload.quantity ?? payload.adjustmentQuantity ?? 0);
+      let didRestock = false;
+
+      // When product ID and quantity are provided for restock, actively replenish inventory
+      if (actionType === 'create_restock_task' && payload.productId && restockQty > 0) {
+        try {
+          await InventoryService.recordMovement({
+            business_id: businessId,
+            product_id: payload.productId,
+            type: 'restock',
+            quantity: restockQty,
+            notes: payload.description || `Replenishment from restock action: ${title}`,
+          });
+
+          OfflineSyncService.enqueue('inventory_movement', businessId, {
+            business_id: businessId,
+            product_id: payload.productId,
+            type: 'restock',
+            quantity: restockQty,
+            notes: payload.description || `Replenishment from restock action: ${title}`,
+          });
+          didRestock = true;
+        } catch (invErr) {
+          console.warn('[Proactive] Auto-restock recordMovement error:', invErr);
+        }
+      }
+
       const reminder: BusinessReminder = {
         id: remId,
         business_id: businessId,
         title,
-        description: payload.description || `Target quantity: ${payload.suggestedQuantity || 'as needed'}`,
+        description: payload.description || (restockQty > 0 ? `Restocked +${restockQty} units` : `Target quantity: ${payload.suggestedQuantity || 'as needed'}`),
         due_date: payload.dueDate || new Date(Date.now() + 86400000).toISOString(),
         priority: payload.priority || 'high',
-        status: 'pending',
+        status: didRestock ? 'completed' : 'pending',
         related_entity_type: payload.relatedEntityType || 'product',
         related_entity_id: payload.productId,
         related_entity_name: payload.productName,
@@ -403,8 +430,12 @@ export class ProactiveService {
       });
 
       return {
-        message: `Task "${title}" created successfully offline.`,
+        message: didRestock
+          ? `Successfully restocked ${restockQty} units of ${payload.productName || 'item'} and logged replenishment record.`
+          : `Task "${title}" created successfully offline.`,
         reminderId: remId,
+        restocked: didRestock,
+        restockQty: didRestock ? restockQty : 0,
       };
     }
 

@@ -843,19 +843,52 @@ app.post('/api/push/send-test', async (req, res) => {
   }
 });
 
+app.get('/api/push/status', async (req, res) => {
+  try {
+    const isConfigured = PushNotificationService.isConfigured();
+    const subs = PushNotificationService.getAllSubscriptions();
+    const publicKey = PushNotificationService.getPublicKey();
+
+    return res.json({
+      configured: isConfigured,
+      publicKey: publicKey || null,
+      activeSubscriptionsCount: subs.length,
+      schedulerActive: true,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to get push status' });
+  }
+});
+
 app.post('/api/push/send-morning-brief', async (req, res) => {
   try {
-    const { businessId, businessName = 'My Business' } = req.body;
-    if (!businessId) return res.status(400).json({ error: 'businessId required' });
+    const { businessId, businessName = 'My Business', force = true } = req.body || {};
+
+    if (!businessId) {
+      // Dispatches to all registered devices/businesses
+      const dispatchResult = await PushNotificationService.dispatchScheduledMorningBriefs(force);
+      return res.json({
+        success: dispatchResult.dispatchedCount > 0,
+        ...dispatchResult,
+        message: `Morning briefing dispatched to ${dispatchResult.dispatchedCount} active device(s).`,
+      });
+    }
 
     const result = await PushNotificationService.sendToBusiness(businessId, {
       title: `☀️ Morning Executive Brief: ${businessName}`,
-      body: `Your daily business briefing is ready. Tap to review yesterday's revenue and today's top priorities.`,
+      body: `Your daily business briefing is ready. Tap to review revenue insights and today's operational priorities.`,
       url: '/#/home',
       tag: 'ursella-morning-brief',
     });
 
-    return res.json({ success: result.sentCount > 0, ...result });
+    return res.json({
+      success: result.sentCount > 0,
+      sentCount: result.sentCount,
+      errors: result.errors,
+      message: result.sentCount > 0
+        ? `Morning brief push sent to ${result.sentCount} device(s).`
+        : 'No active push subscriptions found for this business. Make sure you enable notifications on your device.',
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Failed to send morning brief push' });
   }
@@ -1078,6 +1111,35 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Ursella Full-Stack Server running on http://0.0.0.0:${PORT}`);
+
+    // Background Morning Briefing & Out-of-App Notification Scheduler
+    // Runs periodic checks every 15 minutes
+    const SCHEDULER_INTERVAL_MS = 15 * 60 * 1000;
+    setInterval(async () => {
+      try {
+        const currentHour = new Date().getHours();
+        // Automatically dispatches morning executive briefs during morning hours (6am to 10am)
+        if (currentHour >= 6 && currentHour <= 10) {
+          console.log('[Scheduler] Checking scheduled morning briefs...');
+          const result = await PushNotificationService.dispatchScheduledMorningBriefs();
+          if (result.dispatchedCount > 0) {
+            console.log(`[Scheduler] Dispatched morning briefs to ${result.dispatchedCount} device(s).`);
+          }
+        }
+      } catch (schedulerErr) {
+        console.error('[Scheduler] Error in morning brief scheduler:', schedulerErr);
+      }
+    }, SCHEDULER_INTERVAL_MS);
+
+    // Initial check on boot
+    setTimeout(async () => {
+      try {
+        const subs = PushNotificationService.getAllSubscriptions();
+        console.log(`[PushNotification] Initialized with ${subs.length} active persistent subscription(s).`);
+      } catch (initErr) {
+        console.error('[PushNotification] Error checking subscriptions on boot:', initErr);
+      }
+    }, 5000);
   });
 }
 

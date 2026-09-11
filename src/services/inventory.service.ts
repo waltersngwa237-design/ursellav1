@@ -80,13 +80,59 @@ export const InventoryService = {
       }
 
       if (error) {
-        throw new Error(error.message);
-      }
+        console.warn('[Inventory] record_inventory_movement RPC error, attempting direct table update:', error.message);
+        try {
+          const { data: prodData } = await (supabase as any)
+            .from('products')
+            .select('stock_quantity')
+            .eq('id', params.product_id)
+            .maybeSingle();
 
-      return data as string;
-    } else {
-      // Local fallback with atomic stock checks
-      const prodKey = `${LOCAL_PRODUCTS_PREFIX}${params.business_id}`;
+          if (prodData) {
+            let nextStock = (prodData as any).stock_quantity ?? 0;
+            if (['purchase', 'restock', 'return'].includes(params.type)) {
+              nextStock += params.quantity;
+            } else if (['sale', 'damage'].includes(params.type)) {
+              if (nextStock < params.quantity) {
+                throw new Error(`Insufficient stock. Available: ${nextStock}, requested: ${params.quantity}.`);
+              }
+              nextStock -= params.quantity;
+            } else if (params.type === 'adjustment' || params.type === 'initial_stock') {
+              nextStock = params.quantity;
+            }
+
+            await (supabase as any)
+              .from('products')
+              .update({ stock_quantity: nextStock, updated_at: new Date().toISOString() })
+              .eq('id', params.product_id);
+
+            const { data: tx } = await (supabase as any)
+              .from('inventory_transactions')
+              .insert({
+                business_id: params.business_id,
+                product_id: params.product_id,
+                transaction_type: params.type,
+                quantity: params.quantity,
+                unit_cost: params.unit_cost ?? null,
+                reference_type: params.reference_type || 'manual',
+                reference_id: sanitizedRefId,
+                notes: params.notes || null,
+              })
+              .select('id')
+              .maybeSingle();
+
+            return (tx as any)?.id || generateUUID();
+          }
+        } catch (directErr: any) {
+          console.warn('[Inventory] Direct table update failed, proceeding to local cache sync:', directErr?.message);
+        }
+      } else {
+        return data as string;
+      }
+    }
+
+    // Local fallback with atomic stock checks (always runs if offline or direct database fallback)
+    const prodKey = `${LOCAL_PRODUCTS_PREFIX}${params.business_id}`;
       const prodStored = localStorage.getItem(prodKey);
       const prods: Product[] = prodStored ? JSON.parse(prodStored) : [];
       const prodIdx = prods.findIndex((p) => p.id === params.product_id);
@@ -146,7 +192,6 @@ export const InventoryService = {
 
       localStorage.setItem(invKey, JSON.stringify(invList));
       return txId;
-    }
   },
 
   /**

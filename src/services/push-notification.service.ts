@@ -133,6 +133,26 @@ export class PushClientService {
       const registration = await navigator.serviceWorker.ready;
       let subscription = await registration.pushManager.getSubscription();
 
+      if (subscription) {
+        // If the server's VAPID key was rotated or changed, unsubscribe the stale subscription
+        try {
+          const appKey = (subscription as any).options?.applicationServerKey;
+          if (appKey) {
+            const currentKeyBytes = urlBase64ToUint8Array(publicKey);
+            const subKeyBytes = new Uint8Array(appKey);
+            const keysMatch = subKeyBytes.length === currentKeyBytes.length &&
+              subKeyBytes.every((val, i) => val === currentKeyBytes[i]);
+            if (!keysMatch) {
+              console.log('[PushClient] Server VAPID key changed. Re-subscribing with updated key...');
+              await subscription.unsubscribe();
+              subscription = null;
+            }
+          }
+        } catch {
+          // Ignore inspection error and attempt reuse
+        }
+      }
+
       if (!subscription) {
         const applicationServerKey = urlBase64ToUint8Array(publicKey);
         subscription = await registration.pushManager.subscribe({
