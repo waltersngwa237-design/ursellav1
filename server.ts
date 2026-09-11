@@ -155,8 +155,8 @@ app.post('/api/ai/chat', async (req, res) => {
       console.warn(`[Req ${requestId}] Failed to fetch business metadata, using context:`, e);
     }
 
-    // 3. Deterministic Intent Classification
-    const intentResult = classifyBusinessQuery(message);
+    // 3. Deterministic Intent Classification with Conversational Context Resolution
+    const intentResult = classifyBusinessQuery(message, history);
     const horizon = preferredTimeHorizonDays || intentResult.suggestedTimeHorizonDays || 30;
 
     // 4. Controlled Tool Execution based on Intent
@@ -186,8 +186,9 @@ app.post('/api/ai/chat', async (req, res) => {
           })
         );
       } else if (toolName === 'get_product_performance') {
+        const productFilter = intentResult.entityHint || message;
         toolExecutionPromises.push(
-          BusinessToolsService.getProductPerformance(businessId, 50, message).then((res) => {
+          BusinessToolsService.getProductPerformance(businessId, 50, productFilter).then((res) => {
             toolResults[toolName] = res;
           })
         );
@@ -261,6 +262,10 @@ app.post('/api/ai/chat', async (req, res) => {
         domain: intentResult.domain,
         timePeriod: intentResult.timePeriod,
         primaryGoal: intentResult.primaryGoal,
+        isEntitySpecific: intentResult.isEntitySpecific,
+        entityHint: intentResult.entityHint,
+        isReportMode: intentResult.isReportMode,
+        resolvedContextTopic: intentResult.resolvedContextTopic,
       },
       testSimulation: (req.body.testSimulation || req.headers['x-simulate-ai-failure']) as any,
     });

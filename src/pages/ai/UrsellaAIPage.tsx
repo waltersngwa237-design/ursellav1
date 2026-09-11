@@ -939,6 +939,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                 message={msg}
                 currencySymbol={currency}
                 onSelectPrompt={(prompt) => handleSendMessage(prompt)}
+                onInsertPrompt={(prompt) => {
+                  setInputText(prompt);
+                  textareaRef.current?.focus();
+                }}
                 onDeleteMessage={handleDeleteMessage}
                 onRetry={() => {
                   const lastUser = [...messages].reverse().find((m) => m.role === 'user');

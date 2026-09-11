@@ -21,6 +21,12 @@ export type AIIntentType =
   | 'calculation'
   | 'general_overview'
   | 'fifo_audit'
+  | 'greeting'
+  | 'conversational'
+  | 'navigation'
+  | 'full_report'
+  | 'action_proposal'
+  | 'action_confirmation'
   | 'unknown';
 
 export type AIDataConfidence = 'high_confidence' | 'moderate_confidence' | 'insufficient_data';

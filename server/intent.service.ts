@@ -1,4 +1,7 @@
 export type AIIntentCategory =
+  | 'greeting'
+  | 'conversational'
+  | 'navigation'
   | 'fact_retrieval'
   | 'explanation'
   | 'analysis'
@@ -9,6 +12,9 @@ export type AIIntentCategory =
   | 'daily_brief'
   | 'identity_lookup'
   | 'fifo_audit'
+  | 'full_report'
+  | 'action_proposal'
+  | 'action_confirmation'
   | 'general_overview';
 
 export type AIBusinessDomain =
@@ -22,6 +28,7 @@ export type AIBusinessDomain =
   | 'fifo_costing'
   | 'customers'
   | 'store_info'
+  | 'conversational'
   | 'multi_domain';
 
 export type AITimePeriod =
@@ -46,17 +53,254 @@ export interface IntentClassificationResult {
   primaryGoal: string;
   isEntitySpecific?: boolean;
   entityHint?: string;
+  isReportMode?: boolean;
+  resolvedContextTopic?: string;
+}
+
+export interface ConversationTurn {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
 /**
- * Intelligent, deterministic intent, domain, and temporal parser.
- * Identifies the exact business domain, time horizon, and surgical slice of data required.
- * Guarantees that only strictly relevant business tools are executed.
+ * Intelligent, conversation-aware deterministic intent, domain, and temporal parser.
+ * Identifies the exact business intent, maintains conversational context across turns,
+ * and determines the MINIMUM relevant business tools required.
  */
-export function classifyBusinessQuery(query: string): IntentClassificationResult {
+export function classifyBusinessQuery(
+  query: string,
+  history?: ConversationTurn[]
+): IntentClassificationResult {
   const q = query.toLowerCase().trim();
 
-  // 0. Product Creation, Catalog Addition & Restocking with Units of Measurement
+  // =========================================================================
+  // 1. GREETING & CHIT-CHAT (Zero database retrieval needed)
+  // =========================================================================
+  const isGreetingOnly =
+    /^(hello|hi|hey|good\s+(morning|afternoon|evening|day)|greetings|howdy|salut|bonjour|bon courage|yo|hola)[\s!.,?]*$/i.test(
+      q
+    ) ||
+    /^(who\s+are\s+you|what\s+can\s+you\s+do|how\s+are\s+you|how\s+do\s+you\s+work|what\s+is\s+ursella|help\s+me|help)[\s!.,?]*$/i.test(
+      q
+    ) ||
+    /^(thanks|thank\s+you|merci|great|awesome|understood|got\s+it|ok|okay)[\s!.,?]*$/i.test(
+      q
+    );
+
+  if (isGreetingOnly) {
+    return {
+      intent: 'greeting',
+      domain: 'conversational',
+      timePeriod: 'all_time',
+      requiredTools: [],
+      suggestedTimeHorizonDays: 0,
+      confidence: 0.99,
+      primaryGoal: 'Engage warmly and conversationally with the merchant without querying database records.',
+    };
+  }
+
+  // =========================================================================
+  // 2. NAVIGATION INTENTS (Zero database retrieval needed)
+  // =========================================================================
+  if (
+    q.startsWith('take me to ') ||
+    q.startsWith('go to ') ||
+    q.startsWith('navigate to ') ||
+    q.startsWith('open ') ||
+    q.startsWith('show me the ') ||
+    q === 'take me to inventory' ||
+    q === 'go to inventory' ||
+    q === 'go to sales' ||
+    q === 'open pos' ||
+    q === 'open settings'
+  ) {
+    const isNavigation =
+      q.includes('inventory') ||
+      q.includes('products') ||
+      q.includes('sales') ||
+      q.includes('pos') ||
+      q.includes('debtors') ||
+      q.includes('customers') ||
+      q.includes('expenses') ||
+      q.includes('settings') ||
+      q.includes('dashboard') ||
+      q.includes('catalog');
+
+    if (isNavigation && !q.includes('how much') && !q.includes('why') && !q.includes('what is')) {
+      return {
+        intent: 'navigation',
+        domain: 'store_info',
+        timePeriod: 'all_time',
+        requiredTools: [],
+        suggestedTimeHorizonDays: 0,
+        confidence: 0.98,
+        primaryGoal: 'Guide the merchant directly to the requested application screen.',
+      };
+    }
+  }
+
+  // =========================================================================
+  // 3. CONVERSATIONAL MEMORY & ANAPHORA RESOLUTION
+  // Understands references to prior messages: "it", "that", "them", "check it",
+  // "what about the hoodies?", "compare it with last month", "do that", etc.
+  // =========================================================================
+  const recentHistory = (history || []).slice(-6);
+  const lastUserMsg = [...recentHistory].reverse().find((m) => m.role === 'user')?.content.toLowerCase() || '';
+  const lastAssistantMsg = [...recentHistory].reverse().find((m) => m.role === 'assistant')?.content.toLowerCase() || '';
+
+  const isAnaphoraOrContinuation =
+    q === 'check it' ||
+    q === 'check that' ||
+    q === 'check this' ||
+    q === 'look into it' ||
+    q === 'diagnose it' ||
+    q === 'investigate it' ||
+    q === 'why is that?' ||
+    q === 'why is that' ||
+    q === 'why?' ||
+    q === 'why' ||
+    q.startsWith('what about ') ||
+    q.startsWith('how about ') ||
+    q.startsWith('and ') ||
+    q === 'do that' ||
+    q === 'yes' ||
+    q === 'go ahead' ||
+    q === 'proceed' ||
+    q === 'apply it' ||
+    q === 'confirm it' ||
+    q.includes('compare it') ||
+    q.includes('tell me more about that');
+
+  if (isAnaphoraOrContinuation && recentHistory.length > 0) {
+    // 3A. Product follow-up: e.g. "What about the hoodies?" or "And the shirts?"
+    const productFollowUpMatch = q.match(/^(?:what\s+about|how\s+about|and)\s+(?:the\s+)?([a-z0-9\s_-]+)\??$/i);
+    if (productFollowUpMatch) {
+      const extractedEntity = productFollowUpMatch[1].trim();
+      return {
+        intent: 'analysis',
+        domain: 'products',
+        timePeriod: 'last_30_days',
+        requiredTools: ['get_product_performance'],
+        suggestedTimeHorizonDays: 30,
+        confidence: 0.95,
+        isEntitySpecific: true,
+        entityHint: extractedEntity,
+        resolvedContextTopic: 'product_margin_continuation',
+        primaryGoal: `Continue product analysis specifically targeting "${extractedEntity}".`,
+      };
+    }
+
+    // 3B. Action execution confirmation: e.g. "do that", "go ahead", "yes", "proceed"
+    if (q === 'do that' || q === 'yes' || q === 'go ahead' || q === 'proceed' || q === 'apply it') {
+      return {
+        intent: 'action_confirmation',
+        domain: 'products',
+        timePeriod: 'all_time',
+        requiredTools: ['get_product_performance'],
+        suggestedTimeHorizonDays: 1,
+        confidence: 0.95,
+        resolvedContextTopic: 'action_confirmation',
+        primaryGoal: 'Confirm execution of the proposed action discussed in the previous message.',
+      };
+    }
+
+    // 3C. "Check it" / "Why is that" after sales slowdown or sales pace discussion
+    if (
+      lastUserMsg.includes('slow') ||
+      lastUserMsg.includes('sales') ||
+      lastAssistantMsg.includes('slow') ||
+      lastAssistantMsg.includes('sales volume') ||
+      lastAssistantMsg.includes('product demand')
+    ) {
+      return {
+        intent: 'diagnosis',
+        domain: 'sales',
+        timePeriod: 'comparison_period',
+        requiredTools: ['get_sales_summary', 'get_period_comparison', 'get_inventory_alerts'],
+        suggestedTimeHorizonDays: 30,
+        confidence: 0.95,
+        resolvedContextTopic: 'sales_slowdown_diagnosis',
+        primaryGoal: 'Diagnose sales slowdown by checking recent sales trajectory, period comparison, and inventory availability.',
+      };
+    }
+
+    // 3D. "Check it" after stock/inventory discussion
+    if (lastUserMsg.includes('stock') || lastUserMsg.includes('inventory') || lastAssistantMsg.includes('inventory')) {
+      return {
+        intent: 'diagnosis',
+        domain: 'inventory',
+        timePeriod: 'all_time',
+        requiredTools: ['get_inventory_alerts', 'get_product_performance'],
+        suggestedTimeHorizonDays: 30,
+        confidence: 0.94,
+        resolvedContextTopic: 'inventory_continuation',
+        primaryGoal: 'Check inventory stock levels and replenishment priorities from prior context.',
+      };
+    }
+
+    // 3E. "Check it" after debt/receivables discussion
+    if (lastUserMsg.includes('debt') || lastUserMsg.includes('owe') || lastAssistantMsg.includes('debt')) {
+      return {
+        intent: 'fact_retrieval',
+        domain: 'debtors',
+        timePeriod: 'all_time',
+        requiredTools: ['get_customer_balances'],
+        suggestedTimeHorizonDays: 30,
+        confidence: 0.95,
+        resolvedContextTopic: 'debtor_continuation',
+        primaryGoal: 'Inspect customer balances and overdue credit based on preceding discussion.',
+      };
+    }
+  }
+
+  // =========================================================================
+  // 4. BUSINESS CONCEPT & EDUCATIONAL EXPLANATIONS (No database retrieval needed)
+  // e.g. "Can you explain gross margin?", "What is COGS?", "What is working capital?"
+  // =========================================================================
+  const isEducationalConcept =
+    (q.includes('explain') ||
+      q.startsWith('what is ') ||
+      q.startsWith('what does ') ||
+      q.startsWith('how to calculate ') ||
+      q.startsWith('how do you calculate ') ||
+      q.startsWith('difference between ')) &&
+    (q.includes('gross margin') ||
+      q.includes('net profit') ||
+      q.includes('profit margin') ||
+      q.includes('cogs') ||
+      q.includes('cost of goods') ||
+      q.includes('fifo') ||
+      q.includes('working capital') ||
+      q.includes('markup') ||
+      q.includes('break even') ||
+      q.includes('breakeven') ||
+      q.includes('cash flow') ||
+      q.includes('depreciation') ||
+      q.includes('inventory turnover') ||
+      q.includes('safety stock')) &&
+    !q.includes('my ') &&
+    !q.includes('our ') &&
+    !q.includes('store') &&
+    !q.includes('business') &&
+    !q.includes('today') &&
+    !q.includes('this month');
+
+  if (isEducationalConcept) {
+    return {
+      intent: 'explanation',
+      domain: 'profitability',
+      timePeriod: 'all_time',
+      requiredTools: [], // ZERO database retrieval!
+      suggestedTimeHorizonDays: 0,
+      confidence: 0.98,
+      primaryGoal: 'Provide a clear, conversational explanation of the business financial concept with practical examples, without querying store database records.',
+    };
+  }
+
+  // =========================================================================
+  // 5. PRODUCT CREATION / RESTOCK / ACTION INTENTS
+  // Only product/inventory lookup needed to validate whether product exists.
+  // =========================================================================
   if (
     q.startsWith('add ') ||
     q.startsWith('create ') ||
@@ -74,135 +318,223 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     q.includes('restock') ||
     q.includes('reapprovisionner')
   ) {
-    const isRestockOnly = (q.includes('restock') || q.includes('adjust stock') || q.includes('reapprovisionner')) && !q.includes('new product') && !q.includes('create');
+    // Extract entity name if possible (e.g. "Add 20 units of Milo" -> Milo)
+    let extractedEntity: string | undefined;
+    const addUnitsMatch = q.match(/add\s+\d+\s*(?:units?|pcs?|items?|bags?|cartons?|kg|bottles?|pieces?)?\s*(?:of\s+)?([a-z0-9\s_-]+)/i);
+    if (addUnitsMatch) {
+      extractedEntity = addUnitsMatch[1].trim();
+    }
+
     return {
-      intent: isRestockOnly ? 'recommendation' : 'recommendation',
+      intent: 'action_proposal',
       domain: 'products',
       timePeriod: 'all_time',
-      requiredTools: ['get_product_performance', 'get_inventory_alerts'],
+      requiredTools: ['get_product_performance'], // Only product catalog needed!
       suggestedTimeHorizonDays: 30,
       confidence: 0.98,
       isEntitySpecific: true,
-      primaryGoal: isRestockOnly
-        ? 'Restock product inventory with designated quantity and unit of measurement.'
-        : 'Create and register new product into business catalog with initial stock and custom unit of measurement.',
+      entityHint: extractedEntity,
+      primaryGoal: 'Validate product catalog entry, check existing stock, and prepare proposed action for confirmation.',
     };
   }
 
-  // 1. Store Identity & Meta Information (Store name, currency, timezone, operator)
-  if (
-    q.includes('business name') ||
-    q.includes('store name') ||
-    q.includes('shop name') ||
-    q.includes('name of my business') ||
-    q.includes('name of this business') ||
-    q.includes('what is my store') ||
-    q.includes('what is my business') ||
-    q.includes('about my store') ||
-    q.includes('about my business') ||
-    q.includes('who am i') ||
-    q.includes('who is the owner') ||
-    q.includes('operating currency') ||
-    q.includes('what currency') ||
-    q.includes('which currency') ||
-    q.includes('currency am i using') ||
-    q.includes('currency do we use') ||
-    q.includes('timezone') ||
-    q.includes('what timezone')
-  ) {
-    return {
-      intent: 'identity_lookup',
-      domain: 'store_info',
-      timePeriod: 'all_time',
-      requiredTools: ['get_business_overview'],
-      suggestedTimeHorizonDays: 1,
-      confidence: 0.98,
-      primaryGoal: 'Identify store settings, active currency, timezone, or business identity.',
-    };
-  }
+  // =========================================================================
+  // 6. FULL BUSINESS ANALYSIS & REPORT MODE (Explicitly requested by user)
+  // =========================================================================
+  const isExplicitReportRequested =
+    q.includes('full business analysis') ||
+    q.includes('full analysis') ||
+    q.includes('detailed performance report') ||
+    q.includes('comprehensive diagnostics') ||
+    q.includes('detailed report') ||
+    q.includes('business overview report') ||
+    q.includes('comprehensive analysis') ||
+    q.includes('full report') ||
+    q.includes('complete business analysis');
 
-  // 2. FIFO Costing, Inventory Valuation & Cost Drift Audit
-  if (
-    q.includes('fifo') ||
-    q.includes('cost drift') ||
-    q.includes('cost basis') ||
-    q.includes('inventory valuation') ||
-    q.includes('valuation by product') ||
-    q.includes('cost layer') ||
-    q.includes('first in first out') ||
-    q.includes('cost of inventory')
-  ) {
+  if (isExplicitReportRequested) {
     return {
-      intent: 'fifo_audit',
-      domain: 'fifo_costing',
-      timePeriod: 'all_time',
-      requiredTools: ['get_fifo_inventory_valuation', 'get_inventory_alerts', 'get_product_performance'],
+      intent: 'full_report',
+      domain: 'multi_domain',
+      timePeriod: 'last_30_days',
+      isReportMode: true,
+      requiredTools: [
+        'get_business_overview',
+        'get_today_sales_summary',
+        'get_inventory_alerts',
+        'get_customer_balances',
+        'get_business_health',
+      ],
       suggestedTimeHorizonDays: 30,
-      confidence: 0.98,
-      primaryGoal: 'Run pure FIFO ledger valuation, layer breakdown, and cost drift audit.',
+      confidence: 0.99,
+      primaryGoal: 'Generate an in-depth, comprehensive executive report with structured sections as explicitly requested by the merchant.',
     };
   }
 
-  // 3. Product-Specific or Catalog-Level Queries (Takes precedence over general macro profit if product keywords or specific items are targeted)
-  const isProductLevel =
+  // =========================================================================
+  // 7. BEST-SELLING PRODUCTS & PRODUCT-SPECIFIC INQUIRIES
+  // Retrieve relevant sales/product data only.
+  // =========================================================================
+  const isBestSellingOrProductMargin =
     q.includes('best selling') ||
+    q.includes('best-selling') ||
     q.includes('top product') ||
     q.includes('top selling') ||
     q.includes('fastest selling') ||
     q.includes('best seller') ||
-    q.includes('highest margin product') ||
+    q.includes('most sold') ||
+    q.includes('makes me the most money') ||
+    q.includes('make me the most money') ||
     q.includes('most profitable product') ||
-    q.includes('margin on product') ||
-    q.includes('product margin') ||
-    q.includes('product-level') ||
-    q.includes('by product') ||
-    q.includes('per product') ||
-    q.includes('slow moving') ||
-    q.includes('product sales') ||
-    q.includes('product performance') ||
+    q.includes('highest margin product') ||
+    q.includes('highest profit product') ||
     q.includes('which product') ||
     q.includes('what product') ||
-    q.includes('margin on') ||
-    q.includes('profit on') ||
-    q.includes('cost of') ||
-    q.includes('price of');
+    q.includes('product performance') ||
+    q.includes('slow moving product');
 
-  if (isProductLevel) {
+  if (isBestSellingOrProductMargin) {
     return {
       intent: 'analysis',
       domain: 'products',
       timePeriod: 'last_30_days',
-      requiredTools: ['get_product_performance', 'get_inventory_alerts'],
+      requiredTools: ['get_product_performance'], // Products ONLY!
       suggestedTimeHorizonDays: 30,
-      confidence: 0.95,
-      isEntitySpecific: true,
-      primaryGoal: 'Analyze product catalog unit economics, unit margin %, FIFO COGS, velocity, and stock levels.',
+      confidence: 0.96,
+      isEntitySpecific: false,
+      primaryGoal: 'Retrieve product sales velocity, volume, and unit economics to answer top product inquiries directly.',
     };
   }
 
-  // 4. Daily Brief / Morning Briefing
+  // =========================================================================
+  // 8. SPECIFIC TIME-BOUND SALES & REVENUE
+  // =========================================================================
+
+  // 8A. Today's sales only
   if (
-    q.includes('daily brief') ||
-    q.includes('morning brief') ||
-    q.includes('start my day') ||
-    q.includes('today briefing') ||
-    q.includes('today brief') ||
-    q.includes('daily report') ||
-    q.includes('day report') ||
-    q.includes('morning update')
+    q.includes('today') ||
+    q.includes('sell today') ||
+    q.includes('sold today') ||
+    q.includes('sales today') ||
+    q.includes('revenue today') ||
+    q.includes('orders today')
   ) {
     return {
-      intent: 'daily_brief',
-      domain: 'multi_domain',
+      intent: 'fact_retrieval',
+      domain: 'sales',
       timePeriod: 'today',
-      requiredTools: ['get_daily_brief_facts', 'get_today_sales_summary', 'get_inventory_alerts', 'get_customer_balances'],
+      requiredTools: ['get_today_sales_summary'], // Today only!
       suggestedTimeHorizonDays: 1,
-      confidence: 0.96,
-      primaryGoal: 'Synthesize comprehensive daily executive briefing across today sales, inventory alerts, and debtor follow-ups.',
+      confidence: 0.98,
+      primaryGoal: 'Retrieve today sales revenue, transaction count, and orders directly.',
     };
   }
 
-  // 5. Receivables, Debtors & Unpaid Customer Balances
+  // 8B. Yesterday's sales only
+  if (
+    q.includes('yesterday') ||
+    q.includes('sales yesterday') ||
+    q.includes('sold yesterday')
+  ) {
+    return {
+      intent: 'fact_retrieval',
+      domain: 'sales',
+      timePeriod: 'yesterday',
+      requiredTools: ['get_sales_summary'], // Sales summary only!
+      suggestedTimeHorizonDays: 2,
+      confidence: 0.95,
+      primaryGoal: 'Retrieve sales revenue and orders for yesterday.',
+    };
+  }
+
+  // 8C. "How much did I make this month?" / "This month revenue"
+  if (
+    q.includes('this month') ||
+    q.includes('make this month') ||
+    q.includes('made this month') ||
+    q.includes('monthly sales')
+  ) {
+    return {
+      intent: 'fact_retrieval',
+      domain: 'sales',
+      timePeriod: 'this_month',
+      requiredTools: ['get_sales_summary'], // Sales summary only!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.95,
+      primaryGoal: 'Retrieve recorded sales and revenue for this month.',
+    };
+  }
+
+  // 8D. "Sales have been slow lately" / "Why did my sales drop?" / "How are my sales doing?"
+  if (
+    q.includes('sales have been slow') ||
+    q.includes('sales are slow') ||
+    q.includes('slow lately') ||
+    q.includes('how are my sales doing') ||
+    q.includes('how are sales doing') ||
+    q.includes('how are my sales') ||
+    q.includes('sales drop') ||
+    q.includes('drop in sales') ||
+    q.includes('sales down')
+  ) {
+    return {
+      intent: 'diagnosis',
+      domain: 'sales',
+      timePeriod: 'comparison_period',
+      requiredTools: ['get_sales_summary', 'get_period_comparison'], // Relevant sales history & comparison only!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.95,
+      primaryGoal: 'Analyze sales trajectory against previous period to answer sales performance and slowdown concerns.',
+    };
+  }
+
+  // 8E. "Why did my profit drop?"
+  if (
+    q.includes('why did my profit drop') ||
+    q.includes('why did profit drop') ||
+    q.includes('profit drop') ||
+    q.includes('profit down')
+  ) {
+    return {
+      intent: 'diagnosis',
+      domain: 'profitability',
+      timePeriod: 'comparison_period',
+      requiredTools: ['get_business_overview', 'get_period_comparison', 'get_expense_summary'], // Relevant revenue, COGS, expenses and comparison only!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.95,
+      primaryGoal: 'Diagnose profit change by comparing revenue, COGS, and operating expenses against previous period.',
+    };
+  }
+
+  // =========================================================================
+  // 9. INVENTORY & STOCKOUTS ("Which products are low on stock?")
+  // Retrieve inventory/product data only.
+  // =========================================================================
+  if (
+    q.includes('low stock') ||
+    q.includes('running low') ||
+    q.includes('out of stock') ||
+    q.includes('inventory') ||
+    q.includes('stock level') ||
+    q.includes('items in stock') ||
+    q.includes('how much stock') ||
+    q.includes('depleted') ||
+    q.includes('stockout')
+  ) {
+    return {
+      intent: 'fact_retrieval',
+      domain: 'inventory',
+      timePeriod: 'all_time',
+      requiredTools: ['get_inventory_alerts'], // Inventory alerts only!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.96,
+      primaryGoal: 'Identify low-stock and out-of-stock items needing replenishment.',
+    };
+  }
+
+  // =========================================================================
+  // 10. CUSTOMER RECEIVABLES & DEBTORS ("Who owes me money?")
+  // =========================================================================
   if (
     q.includes('who owes') ||
     q.includes('debt') ||
@@ -214,267 +546,117 @@ export function classifyBusinessQuery(query: string): IntentClassificationResult
     q.includes('collect money') ||
     q.includes('customers owe') ||
     q.includes('owe me') ||
-    q.includes('money owed') ||
-    q.includes('pending payment') ||
-    q.includes('uncollected')
+    q.includes('money owed')
   ) {
-    const isRecommendation = q.includes('who should i call') || q.includes('who to collect') || q.includes('priority');
     return {
-      intent: isRecommendation ? 'recommendation' : 'fact_retrieval',
+      intent: 'fact_retrieval',
       domain: 'debtors',
       timePeriod: 'all_time',
-      requiredTools: ['get_customer_balances'],
+      requiredTools: ['get_customer_balances'], // Customer balances only!
       suggestedTimeHorizonDays: 30,
-      confidence: 0.95,
-      primaryGoal: 'Retrieve outstanding customer debts, credit balances, and debtor contact details.',
+      confidence: 0.96,
+      primaryGoal: 'Retrieve outstanding customer receivables and debtor balances.',
     };
   }
 
-  // 6. Inventory, Stockouts & Low-Stock Alerts
-  if (
-    q.includes('low stock') ||
-    q.includes('running low') ||
-    q.includes('out of stock') ||
-    q.includes('restock') ||
-    q.includes('inventory') ||
-    q.includes('stock level') ||
-    q.includes('stockout') ||
-    q.includes('reorder') ||
-    q.includes('stock valuation') ||
-    q.includes('how much stock') ||
-    q.includes('items in stock') ||
-    q.includes('depleted')
-  ) {
-    const isRecommendation = q.includes('what should i restock') || q.includes('what to buy') || q.includes('priority');
-    return {
-      intent: isRecommendation ? 'recommendation' : 'fact_retrieval',
-      domain: 'inventory',
-      timePeriod: 'all_time',
-      requiredTools: ['get_inventory_alerts', 'get_product_performance'],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.94,
-      primaryGoal: 'Check stock quantities, identify out-of-stock and low-stock SKUs, and evaluate replenishment urgency.',
-    };
-  }
-
-  // 7. Expenses & Operating Costs
+  // =========================================================================
+  // 11. EXPENSES & OPERATING COSTS
+  // =========================================================================
   if (
     q.includes('expense') ||
     q.includes('spending') ||
     q.includes('spent') ||
-    q.includes('spending the most') ||
     q.includes('costs') ||
-    q.includes('where am i spending') ||
-    q.includes('operating expense') ||
-    q.includes('cost breakdown') ||
-    q.includes('bills') ||
-    q.includes('rent') ||
-    q.includes('salaries') ||
-    q.includes('utilities')
+    q.includes('operating cost') ||
+    q.includes('where am i spending')
   ) {
-    const isMonth = q.includes('this month') || q.includes('month');
-    const isWeek = q.includes('this week') || q.includes('week');
     return {
       intent: 'analysis',
       domain: 'expenses',
-      timePeriod: isWeek ? 'this_week' : isMonth ? 'this_month' : 'last_30_days',
-      requiredTools: ['get_expense_summary'],
-      suggestedTimeHorizonDays: isWeek ? 7 : 30,
-      confidence: 0.92,
-      primaryGoal: 'Analyze operating expenses, cost categories, and major expenditure drivers.',
+      timePeriod: 'this_month',
+      requiredTools: ['get_expense_summary'], // Expense summary only!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.94,
+      primaryGoal: 'Retrieve operating expenditures and cost breakdowns.',
     };
   }
 
-  // 8. Cash Flow & Liquidity
+  // =========================================================================
+  // 12. CASH FLOW & LIQUIDITY
+  // =========================================================================
   if (
     q.includes('cash flow') ||
     q.includes('cash collected') ||
-    q.includes('money in') ||
-    q.includes('inflow') ||
-    q.includes('outflow') ||
-    q.includes('net cash') ||
     q.includes('liquidity') ||
-    q.includes('deposits') ||
-    q.includes('cash vs credit')
+    q.includes('money in') ||
+    q.includes('inflow')
   ) {
     return {
       intent: 'analysis',
       domain: 'cash_flow',
       timePeriod: 'last_30_days',
-      requiredTools: ['get_cash_flow', 'get_expense_summary'],
+      requiredTools: ['get_cash_flow'],
       suggestedTimeHorizonDays: 30,
-      confidence: 0.9,
-      primaryGoal: 'Evaluate cash inflows from payments vs cash outflows from operational expenses.',
+      confidence: 0.92,
+      primaryGoal: 'Evaluate cash inflows vs operational outflows.',
     };
   }
 
-  // 9. Macro Profitability, COGS & Margins (Store-wide)
+  // =========================================================================
+  // 13. FIFO AUDIT
+  // =========================================================================
   if (
-    q.includes('gross margin') ||
-    q.includes('net profit') ||
-    q.includes('profit margin') ||
-    q.includes('profitable') ||
-    q.includes('margins') ||
-    q.includes('profitability') ||
-    q.includes('cogs') ||
-    q.includes('cost of goods') ||
-    q.includes('gross profit')
+    q.includes('fifo') ||
+    q.includes('cost drift') ||
+    q.includes('cost basis') ||
+    q.includes('inventory valuation') ||
+    q.includes('cost layer')
   ) {
     return {
-      intent: 'analysis',
-      domain: 'profitability',
-      timePeriod: 'last_30_days',
-      requiredTools: ['get_business_overview', 'get_today_sales_summary', 'get_product_performance'],
+      intent: 'fifo_audit',
+      domain: 'fifo_costing',
+      timePeriod: 'all_time',
+      requiredTools: ['get_fifo_inventory_valuation'],
       suggestedTimeHorizonDays: 30,
-      confidence: 0.91,
-      primaryGoal: 'Examine business-wide gross margin percentage, total cost of goods sold, and operating net profit.',
-    };
-  }
-
-  // 10. Period Comparisons & Trend Diagnosis
-  if (
-    q.includes('why are sales') ||
-    q.includes('sales down') ||
-    q.includes('sales up') ||
-    q.includes('compared') ||
-    q.includes('compare') ||
-    q.includes('vs last') ||
-    q.includes('growth') ||
-    q.includes('drop in sales') ||
-    q.includes('trend') ||
-    q.includes('contraction') ||
-    q.includes('this week vs last week') ||
-    q.includes('this month vs last month')
-  ) {
-    return {
-      intent: 'comparison',
-      domain: 'sales',
-      timePeriod: 'comparison_period',
-      requiredTools: ['get_period_comparison', 'get_sales_summary', 'get_product_performance'],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.93,
-      primaryGoal: 'Compare current period metrics with previous period to diagnose trends and variations.',
-    };
-  }
-
-  // 11. Specific "Today" queries
-  if (
-    q.includes('today') ||
-    q.includes('sell today') ||
-    q.includes('sold today') ||
-    q.includes('sales today') ||
-    q.includes('revenue today') ||
-    q.includes('profit today') ||
-    q.includes('orders today') ||
-    q.includes('what did i sell today') ||
-    q.includes('how much did i sell today') ||
-    q.includes('how are my sales today')
-  ) {
-    return {
-      intent: 'fact_retrieval',
-      domain: 'sales',
-      timePeriod: 'today',
-      requiredTools: ['get_today_sales_summary'],
-      suggestedTimeHorizonDays: 1,
       confidence: 0.97,
-      primaryGoal: 'Answer exact sales revenue, transaction count, gross profit, and cash collected for today.',
+      primaryGoal: 'Run FIFO inventory valuation and layer inspection.',
     };
   }
 
-  // 12. Yesterday Queries
+  // =========================================================================
+  // 14. STORE IDENTITY & METADATA
+  // =========================================================================
   if (
-    q.includes('yesterday') ||
-    q.includes('sales yesterday') ||
-    q.includes('revenue yesterday') ||
-    q.includes('sold yesterday')
+    q.includes('business name') ||
+    q.includes('store name') ||
+    q.includes('operating currency') ||
+    q.includes('what currency') ||
+    q.includes('timezone') ||
+    q.includes('who am i')
   ) {
     return {
-      intent: 'fact_retrieval',
-      domain: 'sales',
-      timePeriod: 'yesterday',
-      requiredTools: ['get_sales_summary'],
-      suggestedTimeHorizonDays: 2,
-      confidence: 0.95,
-      primaryGoal: 'Answer sales revenue and order counts for yesterday.',
+      intent: 'identity_lookup',
+      domain: 'store_info',
+      timePeriod: 'all_time',
+      requiredTools: ['get_business_overview'],
+      suggestedTimeHorizonDays: 1,
+      confidence: 0.98,
+      primaryGoal: 'Answer store configuration, name, currency, or timezone.',
     };
   }
 
-  // 13. Strategic Priorities & Recommendations
-  if (
-    q.includes('focus on') ||
-    q.includes('what should i do') ||
-    q.includes('advice') ||
-    q.includes('recommend') ||
-    q.includes('priority') ||
-    q.includes('priorities') ||
-    q.includes('how to improve') ||
-    q.includes('next step') ||
-    q.includes('action plan')
-  ) {
-    return {
-      intent: 'recommendation',
-      domain: 'multi_domain',
-      timePeriod: 'last_30_days',
-      requiredTools: [
-        'get_business_overview',
-        'get_inventory_alerts',
-        'get_customer_balances',
-        'get_business_health',
-      ],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.88,
-      primaryGoal: 'Formulate actionable, prioritized business actions grounded in health, inventory, and debtors.',
-    };
-  }
-
-  // 14. General Sales / Revenue Queries
-  if (
-    q.includes('sales') ||
-    q.includes('revenue') ||
-    q.includes('transactions') ||
-    q.includes('orders') ||
-    q.includes('turnover')
-  ) {
-    const isWeek = q.includes('this week') || q.includes('week');
-    const isMonth = q.includes('this month') || q.includes('month');
-    return {
-      intent: 'analysis',
-      domain: 'sales',
-      timePeriod: isWeek ? 'this_week' : isMonth ? 'this_month' : 'last_30_days',
-      requiredTools: ['get_sales_summary', 'get_business_overview'],
-      suggestedTimeHorizonDays: isWeek ? 7 : 30,
-      confidence: 0.9,
-      primaryGoal: 'Analyze sales volume, total revenue, and average transaction values for the requested timeframe.',
-    };
-  }
-
-  // 15. Customer Intelligence
-  if (q.includes('customer') || q.includes('clients') || q.includes('buyer')) {
-    return {
-      intent: 'analysis',
-      domain: 'customers',
-      timePeriod: 'last_30_days',
-      requiredTools: ['get_customer_balances', 'get_sales_summary'],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.88,
-      primaryGoal: 'Provide registered customer counts, purchasing activity, and receivables.',
-    };
-  }
-
-  // 16. Default: General Business Overview
+  // =========================================================================
+  // 15. DEFAULT CONVERSATIONAL BUSINESS FALLBACK
+  // For general queries that don't match above, fetch a light daily pulse
+  // instead of a massive multi-domain dump.
+  // =========================================================================
   return {
-    intent: 'general_overview',
+    intent: 'conversational',
     domain: 'multi_domain',
-    timePeriod: 'last_30_days',
-    requiredTools: [
-      'get_business_overview',
-      'get_today_sales_summary',
-      'get_inventory_alerts',
-      'get_customer_balances',
-      'get_business_health',
-    ],
-    suggestedTimeHorizonDays: 30,
-    confidence: 0.8,
-    primaryGoal: 'Provide balanced business summary covering revenue, margins, inventory alerts, and debtor balance.',
+    timePeriod: 'today',
+    requiredTools: ['get_today_sales_summary'], // Minimal pulse only!
+    suggestedTimeHorizonDays: 1,
+    confidence: 0.85,
+    primaryGoal: 'Respond naturally to the merchant using immediate daily sales pulse.',
   };
 }

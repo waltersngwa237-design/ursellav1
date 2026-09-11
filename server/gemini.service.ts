@@ -26,104 +26,87 @@ export interface ChatReasoningContext {
     domain: string;
     timePeriod: string;
     primaryGoal: string;
+    isEntitySpecific?: boolean;
+    entityHint?: string;
+    isReportMode?: boolean;
+    resolvedContextTopic?: string;
   };
   testSimulation?: 'gemini-503' | 'gemini-429' | 'gemini-timeout' | 'all-fail';
 }
 
 /**
  * Server-side Ursella AI Reasoning Engine.
- * Follows an internal 9-step reasoning process:
- * USER QUESTION -> INTERPRET USER INTENT -> IDENTIFY BUSINESS DOMAIN ->
- * IDENTIFY REQUIRED INFORMATION -> IDENTIFY RELEVANT TIME PERIOD ->
- * RETRIEVE RELEVANT VERIFIED BUSINESS DATA -> ANALYZE DATA ->
- * FORMULATE BUSINESS CONCLUSION -> PROVIDE APPROPRIATE RESPONSE ->
- * VALIDATE RESPONSE RELEVANCE.
+ * Operates as a knowledgeable, conversational business advisor that talks directly to the merchant.
+ * Prioritizes direct, natural answers over rigid report templates.
  */
 export class GeminiService {
   /**
-   * Builds the strict Ursella AI system instruction enforcing the 9-step reasoning workflow.
+   * Builds the conversational Ursella AI system instruction.
    */
   private static buildSystemInstruction(ctx: ChatReasoningContext): string {
-    return `You are Ursella AI, the elite executive business operating co-pilot inside Ursella Business OS.
-You are providing high-level operational intelligence, financial diagnostics, and strategic advisory to the business owner of "${ctx.businessName}" (${ctx.businessType}).
+    const isReportMode = Boolean(ctx.parsedIntent?.isReportMode);
+
+    return `You are Ursella AI, a trusted, highly knowledgeable business advisor speaking directly with the merchant who owns "${ctx.businessName}" (${ctx.businessType}).
+You communicate like an experienced human business advisor: natural, conversational, warm, sharp, and direct.
+You are NOT a rigid report generator.
 
 PLATFORM CONTEXT & GROUND TRUTH:
 - Active Enterprise: "${ctx.businessName}" (${ctx.businessType})
 - Operating Currency: "${ctx.currency}". Always format every financial figure with "${ctx.currency}".
 - Timezone: "${ctx.timezone}". Reference Date: ${ctx.currentDateIso.split('T')[0]}.
 
-RESPONSE STYLE: FLAGSHIP GEMINI EXECUTIVE INTELLIGENCE
-You provide thorough, comprehensive, deeply analytical, and actionable responses. DO NOT give ultra-short or single-line answers.
+CONVERSATIONAL BEHAVIOR & ANSWER PRIORITY:
+1. ALWAYS ANSWER THE USER'S ACTUAL QUESTION IMMEDIATELY IN THE FIRST SENTENCE.
+   - Additional context should support the answer, not bury it.
+   - Keep responses proportional to what was asked. For standard questions, respond in 1-3 conversational, insightful paragraphs using clear natural language, bolding key figures.
+   - Do NOT dump every available metric into the response.
 
-STRUCTURE EVERY RESPONSE WITH THE FOLLOWING SECTIONS:
-1. ### Executive Summary
-   - State the authoritative, verified factual figures directly in the opening sentence.
-   - Summarize the immediate status of the requested topic clearly and concisely.
+2. STRUCTURE RULES (CONVERSATIONAL vs REPORT MODE):
+${
+  isReportMode
+    ? `- REPORT MODE IS EXPLICITLY REQUESTED BY THE USER:
+  Structure your analysis into clear, professional sections:
+  ### Executive Summary
+  - Summarize key findings directly.
+  ### Analytical Diagnostics & Data Breakdown
+  - Drill into relevant metrics, percentages, margins, and comparisons.
+  ### Strategic Recommendations
+  - Provide 2-3 concrete, high-leverage operational action steps.`
+    : `- NORMAL CONVERSATIONAL MODE (Default):
+  Respond naturally and directly to the user's message.
+  DO NOT use or prepend boilerplate report headers like "### Executive Summary", "### Analytical Diagnostics & Data Breakdown", or "### Strategic Recommendations & Tactical Playbook". Write conversationally as an advisor talking to the merchant.`
+}
 
-2. ### Analytical Diagnostics & Data Breakdown
-   - Break down the underlying drivers (e.g. breakdown by SKU, customer debtor balances, cash collection velocity, margin percentages, or stock replenishment lead times).
-   - Use bullet points, bold key figures, and concise comparison metrics.
+3. CONVERSATIONAL MEMORY & MULTI-TURN CONTINUITY:
+- Maintain the current conversation's context.
+- The AI must understand references such as:
+  'it', 'that', 'them', 'those products', 'the first one', 'what about the hoodies?', 'compare it with last month', 'check it', 'do that', 'yes', 'no', 'go ahead'
+  based on the immediately preceding conversation.
+- Never treat every message as an isolated question or force the merchant to repeat the subject.
+- Continue previous trains of thought seamlessly (e.g., if the user previously said 'Sales have been slow lately' and then says 'Check it', diagnose the sales slowdown directly; if discussing which product makes the most money and the user asks 'What about the hoodies?', analyze the hoodies' margins and revenue directly).
 
-3. ### Operational Observations & Risk Assessment
-   - Highlight potential bottlenecks, cash flow leakage, stockout vulnerabilities, margin compression, or overdue credit exposure based on the real data.
+4. BUSINESS REASONING & INTEGRITY (FACT vs INFERENCE vs RECOMMENDATION):
+- Strictly distinguish between:
+  * FACT: 'Your recorded sales today are ${ctx.currency} 0.' (Must be grounded strictly in verified data).
+  * INFERENCE: 'This may indicate a slower sales day, or orders have not been entered into the system yet.'
+  * RECOMMENDATION: 'If you want to generate sales today, I would first contact existing customers before discounting products.'
+- NEVER present an inference or recommendation as an established business fact.
+- NEVER fabricate: supplier agreements, delivery times, customer behavior, market trends, competitor activity, future events, discounts, budgets, percentages, financial conditions, or business policies.
+- If data is insufficient or zero, say so simply and clearly.
+- Do not assume that one day of zero sales means the business has a cash-flow problem.
+- Do not recommend arbitrary discounts or spending amounts without supporting evidence.
 
-4. ### Strategic Recommendations & Tactical Playbook
-   - Provide 2 to 3 concrete, high-leverage action items the merchant can execute immediately in their store or system.
+5. PRODUCT ACTIONS & CATALOG MANAGEMENT:
+- When the merchant asks to add, create, or restock a product (e.g. "Add 20 units of Milo" or "Add 50 bags of Cement at 4500 selling, 3800 cost"):
+  * Summarize the product name, unit of measure, quantity, and unit economics in a friendly, conversational response.
+  * In the JSON output, include the "proposedAction" object (category: "product_creation" or "inventory_restock", phaseStatus: "ready_for_execution").
+  * Inform the merchant they can confirm the addition with 1 click using the card below.
+  * DO NOT generate an unrelated full-business analysis report.
 
-CRITICAL CAPABILITY - PRODUCT CREATION & STOCK WITH UNITS OF MEASUREMENT:
-- When the merchant asks to add, create, or register a product (e.g. "Add 50 bags of Cement at 4500 selling, 3800 cost", "Create fresh tomatoes 20 kg", "Add Heineken 33cl 10 cartons"), OR adjust/restock inventory:
-  1. Parse the product name, initial stock quantity, unit of measurement, cost price, and selling price.
-  2. SUPPORTED COMMERCIAL UNITS:
-     - Bags / Sacs ('bag')
-     - Cartons / Boxes ('carton' or 'box')
-     - Weight: Kilograms ('kg'), Grams ('g'), Pounds ('lb')
-     - Liquid: Liters ('L'), Milliliters ('ml'), Gallons ('gal')
-     - Packaging: Bottles ('bottle'), Cans ('can'), Packs ('pack'), Rolls ('roll'), Pairs ('pair'), Dozen ('dozen')
-     - Count / Discrete: Pieces ('piece')
-     - Custom: user-provided unit (e.g., 'crate', 'bundle', 'meter')
-  3. Include "proposedAction" in your JSON response with phaseStatus: "ready_for_execution" and actionType: "create_product":
-     "proposedAction": {
-       "actionType": "create_product",
-       "title": "Add Product: [Clean Product Name]",
-       "description": "Register [Clean Product Name] with initial stock of [Qty] [Unit] at ${ctx.currency} [Selling Price]",
-       "category": "product_creation",
-       "phaseStatus": "ready_for_execution",
-       "payload": {
-         "name": "[Clean Product Name]",
-         "unit_of_measure": "[unit]",
-         "stock_quantity": [Number],
-         "cost_price": [Number],
-         "selling_price": [Number],
-         "minimum_stock_level": 5,
-         "description": "Registered via Ursella AI"
-       }
-     }
-  4. If product already exists and the merchant wants to restock or adjust quantity:
-     "proposedAction": {
-       "actionType": "create_inventory_adjustment",
-       "title": "Restock: [Product Name]",
-       "description": "Add +[Qty] [Unit] to [Product Name]",
-       "category": "inventory_restock",
-       "phaseStatus": "ready_for_execution",
-       "payload": {
-         "productId": "[Product ID if in catalog]",
-         "productName": "[Product Name]",
-         "adjustmentQuantity": [Number],
-         "unit_of_measure": "[Unit]",
-         "reason": "Restock via Ursella AI"
-       }
-     }
-  5. In your Markdown "answer", summarize the product details, unit economics (gross margin % and projected gross profit), and inform the merchant they can confirm with 1 click using the action card below.
-
-CRITICAL INTEGRITY RULES:
-- STRICT MATHEMATICAL GROUNDING: Base all figures strictly on the verified facts in the context JSON. NEVER hallucinate or invent numbers.
-- If data is empty or zero, explain clearly what that implies and guide the user on what activity to record.
-- NEVER substitute store-wide aggregate reports when asked about a specific product, customer, or category.
-
-OUTPUT FORMAT:
+6. OUTPUT FORMAT:
 Respond with a JSON object strictly adhering to this schema:
 {
-  "answer": "A comprehensive, beautifully formatted Markdown response with clear headers (### Executive Summary, ### Analytical Breakdown, ### Strategic Playbook), bullet points, bold figures, and actionable business depth.",
+  "answer": "Your natural, conversational response in Markdown (or structured report if Report Mode was explicitly requested).",
   "keyMetrics": [
     { "label": "Metric Name", "value": 12000, "formattedValue": "${ctx.currency} 12,000", "trend": "positive" | "negative" | "neutral" }
   ],
@@ -131,37 +114,34 @@ Respond with a JSON object strictly adhering to this schema:
     {
       "id": "rec-1",
       "title": "Action Title",
-      "reasoning": "Detailed rationale explaining why this action is critical",
-      "actionSuggestion": "Step-by-step actionable instruction",
+      "reasoning": "Clear rationale",
+      "actionSuggestion": "Actionable step",
       "priority": "high" | "medium" | "low"
     }
   ],
   "confidence": "high_confidence" | "moderate_confidence" | "insufficient_data",
   "followUpSuggestions": [
     "Contextual follow-up question 1",
-    "Contextual follow-up question 2",
-    "Contextual follow-up question 3"
+    "Contextual follow-up question 2"
   ],
   "proposedAction": {
-    "actionType": "create_product",
-    "title": "Add Product: Cement 50kg",
-    "description": "Register Cement 50kg with initial stock of 50 bag",
-    "category": "product_creation",
+    "actionType": "create_product" | "create_inventory_adjustment",
+    "title": "Action Title",
+    "description": "Action Description",
+    "category": "product_creation" | "inventory_restock",
     "phaseStatus": "ready_for_execution",
-    "payload": {
-      "name": "Cement 50kg",
-      "unit_of_measure": "bag",
-      "stock_quantity": 50,
-      "cost_price": 3800,
-      "selling_price": 4500,
-      "minimum_stock_level": 5
-    }
+    "payload": { ... }
   }
-}`;
+}
+(Note: Include keyMetrics only if directly relevant to the question. Leave empty [] for greetings, navigation, or general concept explanations).`;
   }
 
   /**
-   * Executes AI Chat reasoning.
+   * Primary entry point for generating conversational AI chat responses.
+   * Employs the resilient multi-provider routing strategy:
+   * 1. Gemini (primary) -> with 1 bounded retry for transient faults
+   * 2. Groq (secondary) -> production llama/gpt model
+   * 3. Deterministic Reasoning Engine Fallback (guaranteed response)
    */
   public static async generateChatResponse(
     userMessage: string,
@@ -183,6 +163,9 @@ Intent: ${ctx.parsedIntent.intent}
 Domain: ${ctx.parsedIntent.domain}
 Time Period: ${ctx.parsedIntent.timePeriod}
 Goal: ${ctx.parsedIntent.primaryGoal}
+Report Mode: ${ctx.parsedIntent.isReportMode ? 'YES' : 'NO'}
+${ctx.parsedIntent.entityHint ? `Entity Target: ${ctx.parsedIntent.entityHint}` : ''}
+${ctx.parsedIntent.resolvedContextTopic ? `Resolved Topic: ${ctx.parsedIntent.resolvedContextTopic}` : ''}
 `
     : ''
 }
@@ -216,7 +199,8 @@ ${
       ctx.testSimulation !== 'all-fail'
     ) {
       try {
-        const responsePromise = ai.models.generateContent({
+        console.log(`[AI Routing] Calling primary provider: gemini (${model})...`);
+        const geminiPromise = ai.models.generateContent({
           model,
           contents: contextPrompt,
           config: {
@@ -227,7 +211,7 @@ ${
         });
 
         const response = await this.withTimeout(
-          responsePromise,
+          geminiPromise,
           12000,
           'Gemini request timed out after 12000ms'
         );
@@ -249,6 +233,7 @@ ${
           return this.parseChatStructuredResponse(responseText, ctx, 'GEMINI_RESPONSE', 'gemini');
         }
       } catch (err: any) {
+        console.warn(`[AI Routing] Gemini primary provider failed:`, err?.message || err);
         geminiError = err;
       }
     } else {
@@ -343,356 +328,99 @@ ${
       console.warn(`[AI Routing] Groq provider failed:`, groqErr?.message || groqErr);
     }
 
-    // 4. TERTIARY PROVIDER: Deterministic Fallback
+    // 4. DETERMINISTIC REASONING ENGINE FALLBACK
     console.log('[AI Routing] provider: deterministic_fallback');
-    const totalLatency = Date.now() - startTime;
-    logAIProvenance({
-      endpoint: 'generateChatResponse',
-      businessId: ctx.businessName,
-      source: 'DETERMINISTIC_FALLBACK',
-      provider: 'deterministic_fallback',
-      model: 'deterministic_engine',
-      latencyMs: totalLatency,
-      error: geminiError?.message || 'Both primary and secondary AI providers unavailable',
-    });
-
     return this.generateDeterministicFallback(userMessage, ctx);
   }
 
   /**
-   * Helper to safely parse AI JSON response and conform to AIStructuredResponse.
+   * Detects whether an error from Gemini is temporary and suitable for a bounded retry.
+   */
+  private static isTemporaryGeminiError(err: any): boolean {
+    if (!err) return false;
+    const msg = (err.message || '').toLowerCase();
+    const status = err.status || err.statusCode;
+
+    if (status === 503 || status === 429 || status === 504 || status === 502) return true;
+    if (msg.includes('503') || msg.includes('429') || msg.includes('rate limit') || msg.includes('resource exhausted')) return true;
+    if (msg.includes('timeout') || msg.includes('timed out') || err.name === 'TimeoutError') return true;
+    if (msg.includes('econnreset') || msg.includes('etimedout') || msg.includes('network error') || msg.includes('socket hang up')) return true;
+
+    return false;
+  }
+
+  /**
+   * Helper timeout promise wrapper.
+   */
+  private static withTimeout<T>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const err = new Error(errorMsg);
+        (err as any).name = 'TimeoutError';
+        reject(err);
+      }, ms);
+
+      promise
+        .then((res) => {
+          clearTimeout(timer);
+          resolve(res);
+        })
+        .catch((err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+    });
+  }
+
+  /**
+   * Parses and validates raw AI JSON output.
    */
   private static parseChatStructuredResponse(
-    responseText: string,
+    rawText: string,
     ctx: ChatReasoningContext,
     source: 'GEMINI_RESPONSE' | 'GROQ_RESPONSE',
     provider: 'gemini' | 'groq'
   ): AIStructuredResponse {
     try {
-      const parsed = JSON.parse(responseText);
-      if (parsed && typeof parsed.answer === 'string') {
-        return {
-          answer: parsed.answer,
-          intent: (parsed.intent as any) || ctx.parsedIntent?.intent || 'business_overview',
-          keyMetrics: parsed.keyMetrics || [],
-          observations: parsed.observations || [],
-          recommendations: parsed.recommendations || [],
-          anomaliesDetected: parsed.anomaliesDetected || [],
-          confidence: parsed.confidence || 'high_confidence',
-          dataSufficiencyNote: parsed.dataSufficiencyNote,
-          followUpSuggestions: parsed.followUpSuggestions || [
-            'How are my sales today?',
-            'Which products are low on stock?',
-            'Who owes me money?',
-          ],
-          proposedAction: parsed.proposedAction,
-          responseSource: source,
-          provider,
-        };
+      let cleaned = rawText.trim();
+      if (cleaned.startsWith('```json')) {
+        cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
       }
-    } catch {
-      // Fallback for non-JSON content
-    }
 
-    return {
-      answer: responseText,
-      confidence: 'moderate_confidence',
-      followUpSuggestions: ['What else should I focus on?'],
-      responseSource: source,
-      provider,
-    };
+      const parsed = JSON.parse(cleaned);
+
+      return {
+        answer: parsed.answer || 'Analysis complete.',
+        keyMetrics: Array.isArray(parsed.keyMetrics) ? parsed.keyMetrics : [],
+        observations: Array.isArray(parsed.observations) ? parsed.observations : [],
+        recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
+        confidence: parsed.confidence || 'high_confidence',
+        followUpSuggestions: Array.isArray(parsed.followUpSuggestions)
+          ? parsed.followUpSuggestions
+          : ['How are my sales today?', 'What is my best-selling product?'],
+        proposedAction: parsed.proposedAction,
+        responseSource: source,
+        provider,
+      };
+    } catch (parseError) {
+      console.warn(`[AI Engine] Failed to parse structured JSON from ${provider}, using text fallback:`, parseError);
+      return {
+        answer: rawText,
+        confidence: 'moderate_confidence',
+        responseSource: source,
+        provider,
+        followUpSuggestions: ['How are my sales today?', 'Which products are low on stock?'],
+      };
+    }
   }
 
   /**
-   * Executes a promise bounded by a strict timeout in milliseconds.
+   * Authoritative Deterministic Fallback Engine.
+   * Produces natural, conversational responses matching the updated communication standards.
    */
-  private static async withTimeout<T>(
-    promise: Promise<T>,
-    timeoutMs: number,
-    errorMessage = 'Operation timed out'
-  ): Promise<T> {
-    let timer: NodeJS.Timeout;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        const err = new Error(errorMessage);
-        (err as any).name = 'TimeoutError';
-        (err as any).status = 504;
-        reject(err);
-      }, timeoutMs);
-    });
-
-    return Promise.race([promise, timeoutPromise]).finally(() => {
-      clearTimeout(timer);
-    });
-  }
-
-  /**
-   * Detects whether an error from Gemini is temporary and eligible for a bounded retry.
-   */
-  private static isTemporaryGeminiError(err: any): boolean {
-    if (!err) return false;
-    const status = Number(err.status || err.statusCode || err.code || 0);
-    if (status === 503 || status === 429 || status === 502 || status === 504 || status === 500) {
-      return true;
-    }
-    const msg = String(err.message || err.toString() || '').toLowerCase();
-    return (
-      msg.includes('503') ||
-      msg.includes('429') ||
-      msg.includes('502') ||
-      msg.includes('504') ||
-      msg.includes('resource_exhausted') ||
-      msg.includes('unavailable') ||
-      msg.includes('overloaded') ||
-      msg.includes('deadline_exceeded') ||
-      msg.includes('timeout') ||
-      msg.includes('timed out') ||
-      msg.includes('fetch failed') ||
-      msg.includes('econnreset') ||
-      msg.includes('etimedout')
-    );
-  }
-
-  /**
-   * Generates Daily Business Brief.
-   */
-  public static async generateDailyBrief(ctx: ChatReasoningContext): Promise<AIDailyBrief> {
-    const ai = getGeminiClient();
-    const model = getActiveGeminiModel();
-    const startTime = Date.now();
-    const briefFacts = (ctx.toolResults.get_daily_brief_facts || ctx.toolResults.get_today_sales_summary) as any;
-    const today = briefFacts?.todayMetrics || {
-      revenueToday: briefFacts?.revenue || 0,
-      transactionCountToday: briefFacts?.salesCount || 0,
-      cashCollectedToday: briefFacts?.cashCollected || 0,
-      expensesToday: 0,
-      grossProfitToday: briefFacts?.grossProfit || 0,
-      grossMarginPctToday: briefFacts?.grossMarginPct || 0,
-    };
-    const debtors = briefFacts?.debtorAlerts || { debtorsCount: 0, totalOutstandingDebt: 0 };
-
-    const prompt = `Generate a concise, professional executive Daily Business Brief for "${ctx.businessName}" based on today's factual metrics in timezone ${ctx.timezone}:
-${JSON.stringify(briefFacts, null, 2)}
-
-Return a valid JSON object matching the schema:
-{
-  "headline": "Punchy 1-sentence headline of today's status",
-  "executiveSummary": "2-3 sentence overview answering today's revenue, gross margin, cash collection, and immediate risks.",
-  "keyTakeaways": ["Takeaway 1", "Takeaway 2", "Takeaway 3"],
-  "inventoryAlerts": ["Alert 1"],
-  "debtFollowUps": ["Follow up 1"],
-  "recommendedFocusToday": "Clear top strategic priority for today",
-  "confidence": "high_confidence" | "moderate_confidence" | "insufficient_data"
-}`;
-
-    const systemInstruction = `You are Ursella AI. Generate an accurate, grounded Daily Business Brief for ${ctx.businessName} in currency ${ctx.currency}. Never invent numbers. Answer performance facts directly.`;
-
-    // 1. Primary Gemini attempt
-    let geminiError: any = null;
-    if (
-      ai &&
-      ctx.testSimulation !== 'gemini-503' &&
-      ctx.testSimulation !== 'gemini-429' &&
-      ctx.testSimulation !== 'gemini-timeout' &&
-      ctx.testSimulation !== 'all-fail'
-    ) {
-      try {
-        const responsePromise = ai.models.generateContent({
-          model,
-          contents: prompt,
-          config: {
-            systemInstruction,
-            responseMimeType: 'application/json',
-            temperature: 0.2,
-          },
-        });
-
-        const response = await this.withTimeout(responsePromise, 12000, 'Gemini daily brief timed out');
-        const latencyMs = Date.now() - startTime;
-        const parsed = JSON.parse(response.text || '{}');
-
-        console.log('[AI Routing] provider: gemini (daily brief)');
-        logAIProvenance({
-          endpoint: 'generateDailyBrief',
-          businessId: ctx.businessName,
-          source: 'GEMINI_RESPONSE',
-          provider: 'gemini',
-          model,
-          latencyMs,
-        });
-
-        return {
-          generatedAt: new Date().toISOString(),
-          businessName: ctx.businessName,
-          currency: ctx.currency,
-          headline: parsed.headline || `Daily Briefing for ${ctx.businessName}`,
-          executiveSummary: parsed.executiveSummary || `Today's performance overview for ${ctx.businessName}.`,
-          performanceSnapshot: {
-            revenue: today.revenueToday,
-            transactions: today.transactionCountToday,
-            amountCollected: today.cashCollectedToday,
-            expenses: today.expensesToday,
-            outstandingReceivables: debtors.totalOutstandingDebt,
-          },
-          keyTakeaways: parsed.keyTakeaways || [],
-          inventoryAlerts: parsed.inventoryAlerts || [],
-          debtFollowUps: parsed.debtFollowUps || [],
-          recommendedFocusToday: parsed.recommendedFocusToday || 'Review daily sales and inventory levels.',
-          confidence: parsed.confidence || (today.transactionCountToday >= 5 ? 'high_confidence' : 'insufficient_data'),
-        };
-      } catch (err: any) {
-        geminiError = err;
-      }
-    } else {
-      geminiError = new Error('Gemini bypassed or unconfigured for daily brief');
-    }
-
-    // 2. Retry Gemini if temporary
-    if (this.isTemporaryGeminiError(geminiError) && ai && !ctx.testSimulation?.startsWith('gemini-') && ctx.testSimulation !== 'all-fail') {
-      try {
-        await new Promise((r) => setTimeout(r, 500));
-        const retryPromise = ai.models.generateContent({
-          model,
-          contents: prompt,
-          config: {
-            systemInstruction,
-            responseMimeType: 'application/json',
-            temperature: 0.2,
-          },
-        });
-        const response = await this.withTimeout(retryPromise, 8000, 'Gemini daily brief retry timed out');
-        const latencyMs = Date.now() - startTime;
-        const parsed = JSON.parse(response.text || '{}');
-
-        console.log('[AI Routing] provider: gemini (daily brief retry)');
-        logAIProvenance({
-          endpoint: 'generateDailyBrief',
-          businessId: ctx.businessName,
-          source: 'GEMINI_RESPONSE',
-          provider: 'gemini',
-          model,
-          latencyMs,
-        });
-
-        return {
-          generatedAt: new Date().toISOString(),
-          businessName: ctx.businessName,
-          currency: ctx.currency,
-          headline: parsed.headline || `Daily Briefing for ${ctx.businessName}`,
-          executiveSummary: parsed.executiveSummary || `Today's performance overview for ${ctx.businessName}.`,
-          performanceSnapshot: {
-            revenue: today.revenueToday,
-            transactions: today.transactionCountToday,
-            amountCollected: today.cashCollectedToday,
-            expenses: today.expensesToday,
-            outstandingReceivables: debtors.totalOutstandingDebt,
-          },
-          keyTakeaways: parsed.keyTakeaways || [],
-          inventoryAlerts: parsed.inventoryAlerts || [],
-          debtFollowUps: parsed.debtFollowUps || [],
-          recommendedFocusToday: parsed.recommendedFocusToday || 'Review daily sales and inventory levels.',
-          confidence: parsed.confidence || (today.transactionCountToday >= 5 ? 'high_confidence' : 'insufficient_data'),
-        };
-      } catch (retryErr: any) {
-        console.warn(`[AI Routing] Gemini daily brief retry failed:`, retryErr?.message || retryErr);
-      }
-    }
-
-    // 3. Groq fallback for daily brief
-    try {
-      console.log(`[AI Routing] Calling secondary provider: groq for daily brief (${GROQ_PRODUCTION_MODEL})...`);
-      const groqBrief = await GroqService.generateDailyBrief(
-        prompt,
-        systemInstruction,
-        ctx,
-        today,
-        debtors,
-        12000
-      );
-      if (groqBrief) {
-        console.log('[AI Routing] provider: groq (daily brief)');
-        return groqBrief;
-      }
-    } catch (groqErr: any) {
-      console.warn(`[AI Routing] Groq daily brief fallback failed:`, groqErr?.message || groqErr);
-    }
-
-    // 4. Deterministic fallback for daily brief
-    console.log('[AI Routing] provider: deterministic_fallback (daily brief)');
-    const latencyMs = Date.now() - startTime;
-    logAIProvenance({
-      endpoint: 'generateDailyBrief',
-      businessId: ctx.businessName,
-      source: 'DETERMINISTIC_FALLBACK',
-      provider: 'deterministic_fallback',
-      model: 'deterministic_engine',
-      latencyMs,
-      error: geminiError?.message || 'Both AI providers failed',
-    });
-
-    return this.generateDeterministicDailyBrief(ctx, briefFacts);
-  }
-
-  /**
-   * Deterministic Daily Brief generator when AI API is unavailable.
-   */
-  private static generateDeterministicDailyBrief(
-    ctx: ChatReasoningContext,
-    briefFacts: any
-  ): AIDailyBrief {
-    const today = briefFacts?.todayMetrics || {
-      revenueToday: briefFacts?.revenue || 0,
-      transactionCountToday: briefFacts?.salesCount || 0,
-      cashCollectedToday: briefFacts?.cashCollected || 0,
-      expensesToday: 0,
-    };
-    const inv = briefFacts?.inventoryAlerts || { lowStockCount: 0, outOfStockCount: 0 };
-    const debtors = briefFacts?.debtorAlerts || { debtorsCount: 0, totalOutstandingDebt: 0 };
-
-    return {
-      generatedAt: new Date().toISOString(),
-      businessName: ctx.businessName,
-      currency: ctx.currency,
-      headline:
-        today.revenueToday > 0
-          ? `Daily Briefing: ${ctx.currency} ${today.revenueToday.toLocaleString()} recorded in sales today across ${today.transactionCountToday} orders.`
-          : `Daily Briefing: Ready for trading. No sales recorded yet today.`,
-      executiveSummary: `Today ${ctx.businessName} has recorded ${ctx.currency} ${today.revenueToday.toLocaleString()} in revenue with ${ctx.currency} ${today.cashCollectedToday.toLocaleString()} in cash collected. You currently have ${inv.outOfStockCount} out of stock item(s) and ${debtors.debtorsCount} customer(s) with outstanding credit balances.`,
-      performanceSnapshot: {
-        revenue: today.revenueToday,
-        transactions: today.transactionCountToday,
-        amountCollected: today.cashCollectedToday,
-        expenses: today.expensesToday,
-        outstandingReceivables: debtors.totalOutstandingDebt,
-      },
-      keyTakeaways: [
-        `Revenue: ${ctx.currency} ${today.revenueToday.toLocaleString()} across ${today.transactionCountToday} transaction(s).`,
-        `Cash Collections: ${ctx.currency} ${today.cashCollectedToday.toLocaleString()} received.`,
-        `Receivables Balance: ${ctx.currency} ${debtors.totalOutstandingDebt.toLocaleString()} owed across ${debtors.debtorsCount} customer account(s).`,
-      ],
-      inventoryAlerts:
-        inv.outOfStockCount > 0 || inv.lowStockCount > 0
-          ? [`${inv.outOfStockCount} product(s) out of stock, ${inv.lowStockCount} below minimum threshold.`]
-          : ['All inventory SKUs are currently adequately stocked.'],
-      debtFollowUps:
-        debtors.debtorsCount > 0
-          ? [`${debtors.debtorsCount} debtor account(s) totaling ${ctx.currency} ${debtors.totalOutstandingDebt.toLocaleString()}.`]
-          : ['No overdue customer receivables recorded.'],
-      recommendedFocusToday:
-        inv.outOfStockCount > 0
-          ? 'Prepare restock orders for depleted inventory items to avoid stockouts.'
-          : debtors.totalOutstandingDebt > 0
-          ? 'Send payment reminder notices to customer debtor accounts.'
-          : 'Focus on ringing up sales and customer engagement today.',
-      confidence: today.transactionCountToday >= 5 ? 'high_confidence' : 'insufficient_data',
-    };
-  }
-
-  /**
-   * Deterministic fallback reasoning engine when Gemini API is offline or key unconfigured.
-   * Guarantees strict relevance: only answers what was asked, answering directly in the first sentence.
-   */
-  private static generateDeterministicFallback(
+  public static generateDeterministicFallback(
     query: string,
     ctx: ChatReasoningContext
   ): AIStructuredResponse {
@@ -709,8 +437,202 @@ Return a valid JSON object matching the schema:
     const cashFlow = (ctx.toolResults.get_cash_flow || {}) as any;
 
     const currency = ctx.currency || 'XAF';
+    const isExplicitReport = Boolean(ctx.parsedIntent?.isReportMode);
 
-    // 0. Product Creation & Catalog Addition / Restock with Units of Measurement
+    // =========================================================================
+    // 1. GREETINGS & CHIT-CHAT (Conversational, no report headers, no database queries)
+    // =========================================================================
+    if (
+      ctx.parsedIntent?.intent === 'greeting' ||
+      /^(hello|hi|hey|good\s+(morning|afternoon|evening|day)|greetings|howdy|salut|bonjour|yo|hola)[\s!.,?]*$/i.test(q) ||
+      /^(who\s+are\s+you|what\s+can\s+you\s+do|how\s+are\s+you|what\s+is\s+ursella|help)[\s!.,?]*$/i.test(q)
+    ) {
+      return {
+        answer: `Hello! I'm your Ursella AI advisor for **${ctx.businessName}**.\n\nI can help you check your live sales, identify low-stock items needing replenishment, review customer credit balances, analyze your product margins, or register products in your catalog. What would you like to look at today?`,
+        confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        keyMetrics: [],
+        recommendations: [],
+        followUpSuggestions: [
+          'How are my sales today?',
+          'What is my best-selling product?',
+          'Which products are low on stock?',
+          'Who owes me money?',
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 2. NAVIGATION INTENTS (Conversational guide, no database queries)
+    // =========================================================================
+    if (ctx.parsedIntent?.intent === 'navigation') {
+      let targetName = 'the main dashboard';
+      if (q.includes('inventory') || q.includes('product') || q.includes('catalog')) targetName = '**Inventory & Products**';
+      else if (q.includes('sale') || q.includes('order')) targetName = '**Sales & Orders**';
+      else if (q.includes('pos')) targetName = '**POS / Point of Sale**';
+      else if (q.includes('debt') || q.includes('customer')) targetName = '**Customers & Credit**';
+      else if (q.includes('expense')) targetName = '**Expenses**';
+      else if (q.includes('setting')) targetName = '**Settings**';
+
+      return {
+        answer: `You can access ${targetName} directly from the navigation menu on the left side of your screen.`,
+        confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        keyMetrics: [],
+        recommendations: [],
+        followUpSuggestions: [
+          'How are my sales today?',
+          'Which products are low on stock?',
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 3. BUSINESS CONCEPTS & EDUCATIONAL EXPLANATIONS (Zero DB query needed)
+    // =========================================================================
+    if (ctx.parsedIntent?.intent === 'explanation') {
+      if (q.includes('gross margin') || q.includes('margin')) {
+        return {
+          answer: `**Gross margin** is the percentage of revenue your business keeps after paying the direct cost of purchasing or producing the goods sold (COGS).\n\n**Formula:**\n$$\\text{Gross Margin (\\%)} = \\frac{\\text{Revenue} - \\text{COGS}}{\\text{Revenue}} \\times 100$$\n\nFor example, if you buy an item for ${currency} 3,000 and sell it for ${currency} 5,000, your gross profit is ${currency} 2,000 and your gross margin is **40%**. A higher gross margin gives you more cash buffer to cover operating expenses like rent, utilities, and staff.`,
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          keyMetrics: [],
+          recommendations: [],
+          followUpSuggestions: [
+            'Which products make me the most money?',
+            'What is my gross profit this month?',
+          ],
+        };
+      }
+      if (q.includes('cogs') || q.includes('cost of goods')) {
+        return {
+          answer: `**Cost of Goods Sold (COGS)** represents the direct costs incurred to acquire or produce the products you sold during a period.\n\nIt includes purchase costs and direct inbound freight, but excludes general operating expenses like rent, electricity, or administrative overhead. In Ursella, COGS is tracked automatically using authoritative FIFO (First-In, First-Out) costing.`,
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          keyMetrics: [],
+          recommendations: [],
+          followUpSuggestions: [
+            'What is my FIFO inventory valuation?',
+            'What is my best-selling product?',
+          ],
+        };
+      }
+      if (q.includes('working capital') || q.includes('capital')) {
+        return {
+          answer: `**Working capital** is the cash and short-term assets available for your day-to-day business operations.\n\nIt is calculated as **Current Assets** (cash on hand, bank balances, inventory, unpaid customer debts) minus **Current Liabilities** (supplier payables and short-term bills). Maintaining positive working capital ensures you can replenish high-demand inventory and pay operational costs without liquidity freezes.`,
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          keyMetrics: [],
+          recommendations: [],
+          followUpSuggestions: [
+            'What is my current cash flow?',
+            'Who owes me money?',
+          ],
+        };
+      }
+    }
+
+    // =========================================================================
+    // 4. CONVERSATIONAL MEMORY / ANAPHORA CONTINUATION ("Check it", "What about the hoodies?")
+    // =========================================================================
+
+    // 4A. Sales Slowdown Diagnosis ("Check it" after sales discussion)
+    if (
+      ctx.parsedIntent?.resolvedContextTopic === 'sales_slowdown_diagnosis' ||
+      (q === 'check it' && !q.includes('stock'))
+    ) {
+      const totalRev = Number(salesSummary.totalRevenue || overview.revenue || 0);
+      const txCount = Number(salesSummary.transactionCount || overview.transaction_count || 0);
+      const revGrowth = comp?.revenueGrowthPct;
+      const outOfStock = Number(inv.outOfStockCount || 0);
+      const lowStock = Number(inv.lowStockCount || 0);
+
+      const hasDrop = revGrowth !== undefined && revGrowth < 0;
+      const dropText = hasDrop
+        ? `Sales are down **${Math.abs(revGrowth)}%** compared to the prior period.`
+        : revGrowth !== undefined && revGrowth > 0
+        ? `Sales are actually up **+${revGrowth}%** compared to the prior period.`
+        : `Recent volume stands at ${currency} ${totalRev.toLocaleString()} across ${txCount} orders.`;
+
+      let stockFinding = '';
+      if (outOfStock > 0 || lowStock > 0) {
+        stockFinding = `You have **${outOfStock} depleted item(s)** and **${lowStock} low-stock item(s)**. Out-of-stock items may be directly suppressing daily sales volume.`;
+      } else {
+        stockFinding = `All catalog items are currently stocked, so the slower pace appears related to general customer foot-traffic or purchase frequency rather than inventory shortages.`;
+      }
+
+      return {
+        answer: `Looking into your sales pace:\n\n${dropText} In the last 30 days, your store recorded **${currency} ${totalRev.toLocaleString()}** across **${txCount}** transaction(s).\n\n**Key observations:**\n- **Inventory status:** ${stockFinding}\n- **Next step:** If you want to boost sales today, reaching out directly to past regular buyers or featuring your top-margin items at the register is a practical place to start.`,
+        confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        keyMetrics: [
+          { label: 'Recent Revenue', value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: hasDrop ? 'negative' : 'neutral' },
+          { label: 'Out of Stock SKUs', value: outOfStock, formattedValue: `${outOfStock}`, trend: outOfStock > 0 ? 'negative' : 'positive' },
+        ],
+        followUpSuggestions: [
+          'What is my best-selling product?',
+          'Which products are low on stock?',
+          'How are my sales today?',
+        ],
+      };
+    }
+
+    // 4B. Follow-up product inquiry: e.g. "What about the hoodies?"
+    if (
+      ctx.parsedIntent?.resolvedContextTopic === 'product_margin_continuation' ||
+      ctx.parsedIntent?.entityHint ||
+      q.startsWith('what about ')
+    ) {
+      const entityHint = (ctx.parsedIntent?.entityHint || q.replace(/^(what\s+about|how\s+about|and)\s+(the\s+)?/i, '')).replace(/\?$/, '').trim();
+      const matchedProduct = products.find((p) => p.name?.toLowerCase().includes(entityHint.toLowerCase()));
+
+      if (matchedProduct) {
+        const uMargin = matchedProduct.catalogUnitMarginPct ?? matchedProduct.marginPct ?? 0;
+        const fifoCost = matchedProduct.fifoUnitCostAverage ?? matchedProduct.costPrice ?? 0;
+        const sellPrice = Number(matchedProduct.sellingPrice || 0);
+        const stock = matchedProduct.stockQuantity ?? 0;
+        const unitsSold = matchedProduct.unitsSold ?? 0;
+        const unitProfit = sellPrice - Number(fifoCost);
+
+        return {
+          answer: `For **${matchedProduct.name}**, you're selling at **${currency} ${sellPrice.toLocaleString()}** with a **${uMargin}% unit margin** (${currency} ${unitProfit.toLocaleString()} profit per unit).\n\nYou currently have **${stock} unit(s)** on hand with **${unitsSold} sold** in the current period.`,
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          keyMetrics: [
+            { label: `${matchedProduct.name} Price`, value: sellPrice, formattedValue: `${currency} ${sellPrice.toLocaleString()}`, trend: 'neutral' },
+            { label: 'Unit Margin', value: uMargin, formattedValue: `${uMargin}%`, trend: uMargin >= 30 ? 'positive' : 'neutral' },
+            { label: 'Stock On Hand', value: stock, formattedValue: `${stock}`, trend: stock > 5 ? 'positive' : 'negative' },
+          ],
+          followUpSuggestions: [
+            'Which product makes me the most money?',
+            'What is my best-selling product?',
+            'Which products are low on stock?',
+          ],
+        };
+      } else {
+        return {
+          answer: `I checked your catalog, but could not find a product matching **"${entityHint}"**. You can register it anytime by saying "Add [quantity] of ${entityHint} at [selling price]".`,
+          confidence: 'insufficient_data',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          followUpSuggestions: [
+            'What is my best-selling product?',
+            'Which product makes me the most money?',
+          ],
+        };
+      }
+    }
+
+    // =========================================================================
+    // 5. PRODUCT CREATION / RESTOCK ACTIONS (Conversational confirmation + Action card)
+    // =========================================================================
     if (
       q.startsWith('add ') ||
       q.startsWith('create ') ||
@@ -720,13 +642,10 @@ Return a valid JSON object matching the schema:
       q.startsWith('créer ') ||
       q.includes('add product') ||
       q.includes('create product') ||
-      q.includes('new product') ||
-      q.includes('add new item') ||
       q.includes('add to inventory') ||
       q.includes('add to catalog') ||
       q.includes('add stock') ||
-      q.includes('restock') ||
-      q.includes('reapprovisionner')
+      q.includes('restock')
     ) {
       let detectedUnit = 'piece';
       let detectedQty = 1;
@@ -759,42 +678,33 @@ Return a valid JSON object matching the schema:
       let sellingPrice = 0;
       let costPrice = 0;
 
-      const sellMatch = query.match(/(?:selling|sell|price|prix\s*(?:de\s*vente)?|pv)[:\s]*([0-9,.]+)/i) || query.match(/([0-9,.]+)\s*(?:selling|sell|price|prix\s*(?:de\s*vente)?|pv)/i);
+      const sellMatch =
+        query.match(/(?:selling|sell|price|selling price|sell price|prix|prix de vente)[:\s]*(\d+(?:[.,]\d+)?)/i) ||
+        query.match(/at\s+(\d+(?:[.,]\d+)?)\s*(?:selling|each|unit|fcfa|xaf|\$)?/i);
       if (sellMatch) {
-        sellingPrice = parseFloat(sellMatch[1].replace(/,/g, '')) || 0;
+        sellingPrice = parseFloat(sellMatch[1].replace(',', '')) || 0;
       }
 
-      const costMatch = query.match(/(?:cost|co[uû]t|purchase|achat|pa)[:\s]*([0-9,.]+)/i) || query.match(/([0-9,.]+)\s*(?:cost|co[uû]t|achat|pa)/i);
+      const costMatch =
+        query.match(/(?:cost|cost price|buy price|achat|prix d'achat)[:\s]*(\d+(?:[.,]\d+)?)/i) ||
+        query.match(/and\s+(\d+(?:[.,]\d+)?)\s*(?:cost|cost price|buying)/i);
       if (costMatch) {
-        costPrice = parseFloat(costMatch[1].replace(/,/g, '')) || 0;
+        costPrice = parseFloat(costMatch[1].replace(',', '')) || 0;
       }
 
-      if (!sellingPrice && !costPrice) {
-        const pricesMatch = query.match(/(?:at|à|for|pour)\s+([0-9,.]+)\s+(?:and|et)\s+([0-9,.]+)/i);
-        if (pricesMatch) {
-          sellingPrice = parseFloat(pricesMatch[1].replace(/,/g, '')) || 0;
-          costPrice = parseFloat(pricesMatch[2].replace(/,/g, '')) || 0;
-        }
-      }
-
-      let rawName = query
-        .replace(/^(?:add|create|register|ajouter|créer|nouvel|nouveau|new product|add product|create product|add new item)\s+/i, '')
+      let cleanProductName = query
+        .replace(/^(add|create|register|new product|ajouter|créer)\s+/i, '')
+        .replace(/\b(?:product|item|article)\b/gi, '')
         .replace(unitRegex, '')
-        .replace(/(?:selling|sell|price|prix\s*(?:de\s*vente)?|pv)[:\s]*[0-9,.]+/gi, '')
-        .replace(/(?:cost|co[uû]t|purchase|achat|pa)[:\s]*[0-9,.]+/gi, '')
-        .replace(/\b(?:at|for|pour|à|of|de|with|avec)\b/gi, '')
+        .replace(/(?:qty|quantity|quantité|stock|count)[:\s]*\d+/gi, '')
+        .replace(/(?:selling|sell|price|cost|cost price|at|and)[:\s]*\d+(?:[.,]\d+)?/gi, '')
+        .replace(/\b(?:fcfa|xaf|\$|usd)\b/gi, '')
         .replace(/\s+/g, ' ')
         .trim();
 
-      rawName = rawName.replace(/^[,.\-:\s]+|[,.\-:\s]+$/g, '');
-      if (!rawName || rawName.length < 2) {
-        rawName = 'New Product';
+      if (!cleanProductName || cleanProductName.length < 2) {
+        cleanProductName = 'Commercial Item';
       }
-
-      const cleanProductName = rawName
-        .split(' ')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
 
       const existingProduct = products.find(
         (p: any) => p.name?.toLowerCase().trim() === cleanProductName.toLowerCase()
@@ -804,7 +714,7 @@ Return a valid JSON object matching the schema:
 
       if (isRestockOnly && existingProduct) {
         return {
-          answer: `### Executive Summary\nPrepared stock adjustment for **${existingProduct.name}**: adding **+${detectedQty} ${detectedUnit}** to current inventory (currently ${existingProduct.stock_quantity || 0} ${existingProduct.unit_of_measure || detectedUnit}).\n\n### Inventory Telemetry\n- **Product:** ${existingProduct.name}\n- **Current Stock:** ${existingProduct.stock_quantity || 0} ${existingProduct.unit_of_measure || detectedUnit}\n- **Incoming Adjustment:** +${detectedQty} ${detectedUnit}\n- **New Expected Stock:** ${(existingProduct.stock_quantity || 0) + detectedQty} ${detectedUnit}\n\n### Next Action\nClick the **Confirm Stock Adjustment** button below to apply this update to your inventory ledger.`,
+          answer: `I've prepared a stock adjustment for **${existingProduct.name}** to add **+${detectedQty} ${detectedUnit}**. This will increase your recorded stock from ${existingProduct.stock_quantity || 0} to **${(existingProduct.stock_quantity || 0) + detectedQty} ${detectedUnit}**.\n\nPlease confirm the adjustment below.`,
           keyMetrics: [
             { label: 'Adjustment Qty', value: detectedQty, formattedValue: `+${detectedQty} ${detectedUnit}`, trend: 'positive' },
             { label: 'Current Stock', value: existingProduct.stock_quantity || 0, formattedValue: `${existingProduct.stock_quantity || 0} ${detectedUnit}`, trend: 'neutral' },
@@ -825,9 +735,10 @@ Return a valid JSON object matching the schema:
           },
           confidence: 'high_confidence',
           responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
           followUpSuggestions: [
             'Which products are low on stock?',
-            'What is my FIFO inventory valuation?',
+            'What is my best-selling product?',
             'How are my sales today?',
           ],
         };
@@ -835,16 +746,13 @@ Return a valid JSON object matching the schema:
 
       const marginAmount = sellingPrice > 0 && costPrice > 0 ? sellingPrice - costPrice : 0;
       const marginPercent = sellingPrice > 0 && marginAmount > 0 ? Math.round((marginAmount / sellingPrice) * 100) : 0;
-      const totalCostValue = costPrice * detectedQty;
-      const totalSalesPotential = sellingPrice * detectedQty;
-      const totalPotentialProfit = marginAmount * detectedQty;
 
       return {
-        answer: `### Executive Summary\nPrepared catalog entry for **${cleanProductName}** with initial stock of **${detectedQty} ${detectedUnit}** at **${currency} ${sellingPrice.toLocaleString()}** selling price (${currency} ${costPrice.toLocaleString()} cost price).\n\n### Unit Economics & Margin Diagnostics\n- **Unit of Measurement:** **${detectedUnit}**\n- **Initial Inflow Stock:** **${detectedQty} ${detectedUnit}**\n- **Unit Cost Price:** ${currency} ${costPrice.toLocaleString()}\n- **Unit Selling Price:** ${currency} ${sellingPrice.toLocaleString()}\n- **Unit Gross Margin:** **${marginPercent}%** (${currency} ${marginAmount.toLocaleString()} profit per ${detectedUnit})\n- **Total Stock Inflow Value:** ${currency} ${totalCostValue.toLocaleString()}\n- **Total Revenue Potential:** ${currency} ${totalSalesPotential.toLocaleString()} (${currency} ${totalPotentialProfit.toLocaleString()} projected gross profit)\n\n### Strategic Recommendation\nReview the extracted details in the action proposal card below and click **Confirm & Add to Product Catalog** to register this product immediately into your live business OS.`,
+        answer: `I've prepared the catalog registration for **${cleanProductName}** with an initial stock of **${detectedQty} ${detectedUnit}** at **${currency} ${sellingPrice.toLocaleString()}** selling price${costPrice > 0 ? ` (cost: ${currency} ${costPrice.toLocaleString()})` : ''}.${marginPercent > 0 ? ` This gives you a **${marginPercent}%** unit margin (${currency} ${marginAmount.toLocaleString()} profit per ${detectedUnit}).` : ''}\n\nYou can review the details and confirm the addition below.`,
         keyMetrics: [
           { label: 'Initial Stock', value: detectedQty, formattedValue: `${detectedQty} ${detectedUnit}`, trend: 'positive' },
-          { label: 'Unit Selling Price', value: sellingPrice, formattedValue: `${currency} ${sellingPrice.toLocaleString()}`, trend: 'neutral' },
-          { label: 'Gross Margin', value: marginPercent, formattedValue: `${marginPercent}%`, trend: marginPercent >= 25 ? 'positive' : 'neutral' },
+          { label: 'Selling Price', value: sellingPrice, formattedValue: `${currency} ${sellingPrice.toLocaleString()}`, trend: 'neutral' },
+          ...(marginPercent > 0 ? [{ label: 'Gross Margin', value: marginPercent, formattedValue: `${marginPercent}%`, trend: 'positive' as const }] : []),
         ],
         proposedAction: {
           actionType: 'create_product',
@@ -859,250 +767,139 @@ Return a valid JSON object matching the schema:
             cost_price: costPrice,
             selling_price: sellingPrice,
             minimum_stock_level: 5,
-            description: `Registered via Ursella AI with initial stock of ${detectedQty} ${detectedUnit}`,
+            description: 'Registered via Ursella AI',
           },
         },
-        recommendations: [
-          {
-            id: 'rec-create-prod',
-            title: `Register ${cleanProductName} in Catalog`,
-            reasoning: `Initial batch of ${detectedQty} ${detectedUnit} delivers a ${marginPercent}% unit margin, generating ${currency} ${totalPotentialProfit.toLocaleString()} in gross profit once sold.`,
-            actionSuggestion: 'Click "Confirm & Add to Product Catalog" below to immediately register and begin selling.',
-            priority: 'high',
-            category: 'inventory',
-          },
-        ],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
         followUpSuggestions: [
           'Which products are low on stock?',
-          'What is my FIFO inventory valuation?',
+          'What is my best-selling product?',
           'How are my sales today?',
         ],
       };
     }
 
-    // 1. Store Identity & Meta queries
+    // =========================================================================
+    // 6. PRODUCT INQUIRIES ("What is my best-selling product?", "Which product makes me the most money?")
+    // =========================================================================
     if (
-      q.includes('business name') ||
-      q.includes('store name') ||
-      q.includes('shop name') ||
-      q.includes('name of my business') ||
-      q.includes('what is my store') ||
-      q.includes('what is my business') ||
-      q.includes('who am i') ||
-      q.includes('about my store')
+      q.includes('best selling') ||
+      q.includes('best-selling') ||
+      q.includes('top product') ||
+      q.includes('top selling') ||
+      q.includes('fastest selling') ||
+      q.includes('most sold')
     ) {
-      return {
-        answer: `Your active business is **${ctx.businessName}** (${ctx.businessType}), operating in **${currency}** under the **${ctx.timezone}** timezone.${ctx.ownerName ? ` Owned by ${ctx.ownerName}.` : ''}`,
-        keyMetrics: [
-          { label: 'Business Name', value: ctx.businessName, formattedValue: ctx.businessName, trend: 'neutral' },
-          { label: 'Currency', value: currency, formattedValue: currency, trend: 'neutral' },
-        ],
-        followUpSuggestions: ['How are my sales today?', 'Who owes me money?', 'Which products are low on stock?'],
-        confidence: 'high_confidence',
-        responseSource: 'DETERMINISTIC_FALLBACK',
-      };
-    }
-
-    if (
-      q.includes('currency') ||
-      q.includes('what currency') ||
-      q.includes('which currency') ||
-      q.includes('currency am i using')
-    ) {
-      return {
-        answer: `Your store's active operating currency is **${currency}**. All transactions, catalog prices, inventory valuations, and debtor balances are recorded in ${currency}.`,
-        keyMetrics: [{ label: 'Operating Currency', value: currency, formattedValue: currency, trend: 'neutral' }],
-        followUpSuggestions: ['How are my sales today?', 'What is my total receivables?'],
-        confidence: 'high_confidence',
-        responseSource: 'DETERMINISTIC_FALLBACK',
-      };
-    }
-
-    // 2. Debtors, Receivables & Unpaid Customer Accounts
-    if (
-      q.includes('who owes') ||
-      q.includes('debt') ||
-      q.includes('debtor') ||
-      q.includes('unpaid') ||
-      q.includes('receivable') ||
-      q.includes('owing') ||
-      q.includes('credit balance') ||
-      q.includes('collect money')
-    ) {
-      const totalDebt = Number(debtors.totalOutstandingDebt || 0);
-      const debtorCount = Number(debtors.debtorsCount || 0);
-      const topList = (debtors.topDebtors || []) as Array<{ name: string; debtAmount: number; phone?: string }>;
-
-      if (debtorCount === 0 || totalDebt === 0) {
+      if (!products || products.length === 0) {
         return {
-          answer: `You currently have **no outstanding customer debts** (0 unpaid customer balances recorded).`,
-          keyMetrics: [
-            { label: 'Outstanding Receivables', value: 0, formattedValue: `${currency} 0`, trend: 'positive' },
-            { label: 'Debtor Accounts', value: 0, formattedValue: '0', trend: 'positive' },
-          ],
-          recommendations: [],
-          followUpSuggestions: ['How are my sales today?', 'Do I have any low-stock products?'],
-          confidence: 'high_confidence',
+          answer: `You do not have any recorded product sales in your catalog yet. Once you record sales through POS or Orders, I'll identify your fastest-moving items here.`,
+          keyMetrics: [],
+          confidence: 'insufficient_data',
           responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          followUpSuggestions: ['How are my sales today?', 'Which products are low on stock?'],
         };
       }
 
-      const topDebtor = topList[0];
-      const debtorBreakdown = topList
-        .map((d, i) => `${i + 1}. **${d.name}**: ${currency} ${Number(d.debtAmount).toLocaleString()}${d.phone ? ` (📞 ${d.phone})` : ''}`)
-        .join('\n');
+      // Sort by units sold (volume)
+      const sortedByVolume = [...products].sort((a, b) => (b.unitsSold || 0) - (a.unitsSold || 0));
+      const topVolume = sortedByVolume[0];
 
       return {
-        answer: `### Executive Summary\nYou currently have **${debtorCount} customer account(s)** with outstanding credit balances totaling **${currency} ${totalDebt.toLocaleString()}**.
-
-### Debtor Portfolio Breakdown
-${debtorBreakdown}
-
-### Receivables Risk Analysis
-- **Top Concentration:** The single largest outstanding credit belongs to **${topDebtor?.name || 'Top Debtor'}** at **${currency} ${Number(topDebtor?.debtAmount || 0).toLocaleString()}** (${totalDebt > 0 ? Math.round((Number(topDebtor?.debtAmount || 0) / totalDebt) * 100) : 0}% of total receivables).
-- **Working Capital Impact:** Uncollected debts directly constrains your purchasing power for fast-moving inventory.
-
-### Strategic Playbook
-1. **Immediate Phone Follow-Up:** Dispatch payment reminders or payment links via WhatsApp/SMS to the top 3 debtor accounts.
-2. **Implement Credit Limits:** Place a temporary freeze on new credit purchases for accounts with overdue balances older than 14 days.`,
+        answer: `Your best-selling product by volume is **${topVolume.name}** with **${topVolume.unitsSold || 0} unit(s) sold**, generating **${currency} ${Number(topVolume.revenue || 0).toLocaleString()}** in revenue (unit gross margin: **${topVolume.marginPct || 0}%**).\n\nYou currently have **${topVolume.stockQuantity || 0} unit(s)** remaining in stock.`,
         keyMetrics: [
-          { label: 'Total Outstanding Debt', value: totalDebt, formattedValue: `${currency} ${totalDebt.toLocaleString()}`, trend: 'negative' },
-          { label: 'Debtor Accounts', value: debtorCount, formattedValue: `${debtorCount}`, trend: 'neutral' },
-          { label: 'Top Debtor Exposure', value: Number(topDebtor?.debtAmount || 0), formattedValue: `${currency} ${Number(topDebtor?.debtAmount || 0).toLocaleString()}`, trend: 'negative' },
+          { label: 'Units Sold', value: topVolume.unitsSold || 0, formattedValue: `${topVolume.unitsSold || 0}`, trend: 'positive' },
+          { label: 'Revenue', value: Number(topVolume.revenue || 0), formattedValue: `${currency} ${Number(topVolume.revenue || 0).toLocaleString()}`, trend: 'positive' },
+          { label: 'Units on Hand', value: topVolume.stockQuantity || 0, formattedValue: `${topVolume.stockQuantity || 0}`, trend: (topVolume.stockQuantity || 0) > 5 ? 'positive' : 'negative' },
         ],
-        recommendations: [
-          {
-            id: 'rec-debt-collection',
-            title: `Contact ${topDebtor?.name || 'Top Debtors'}`,
-            reasoning: `Collecting ${currency} ${totalDebt.toLocaleString()} will immediately improve operating liquidity.`,
-            actionSuggestion: topDebtor?.phone ? `Send SMS or call ${topDebtor.name} at ${topDebtor.phone}.` : 'Review credit sales in the Customers module.',
-            priority: 'high',
-          },
-        ],
-        followUpSuggestions: ['How are my sales today?', 'What is my current cash flow?'],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        followUpSuggestions: [
+          'Which product makes me the most money?',
+          'Which products are low on stock?',
+          'How are my sales today?',
+        ],
       };
     }
 
-    // 3. FIFO Costing, Valuation & Cost Drift
     if (
-      q.includes('fifo') ||
-      q.includes('cost drift') ||
-      q.includes('cost basis') ||
-      q.includes('inventory valuation') ||
-      q.includes('valuation by product') ||
-      q.includes('cost layer')
+      q.includes('makes me the most money') ||
+      q.includes('make me the most money') ||
+      q.includes('most profitable product') ||
+      q.includes('highest profit product') ||
+      q.includes('highest margin product')
     ) {
-      const fifoData = (ctx.toolResults.get_fifo_inventory_valuation || {}) as any;
-      const totals = fifoData.totals || {};
-      const totalVal = Number(totals.inventoryValue || inv.totalInventoryValuation || 0);
-      const unitsOnHand = Number(totals.unitsOnHand || 0);
-      const warnings = fifoData.warnings || [];
-      const costDrift = fifoData.costDrift || { totalDrift: 0, saleLinesCompared: 0 };
-
-      return {
-        answer: `### Executive Summary
-Your authoritative **FIFO Inventory Asset Valuation** is **${currency} ${totalVal.toLocaleString()}** representing **${unitsOnHand > 0 ? unitsOnHand : inv.totalActiveSKUs || 0}** ${unitsOnHand > 0 ? 'units on hand' : 'active catalog SKUs'}.
-
-### Costing & COGS Diagnostics
-- **Historical FIFO COGS:** ${currency} ${Number(totals.cogs || 0).toLocaleString()}
-- **Cost Drift Variance:** ${currency} ${Number(costDrift.totalDrift || 0).toLocaleString()} across ${costDrift.saleLinesCompared} audited transaction lines
-${warnings.length > 0 ? `- **Audit Notes:** ${warnings.join('; ')}` : '- **Audit Status:** Zero cost discrepancy detected across recorded stock batches.'}
-
-### Inventory Capital Optimization
-- Ensure purchasing batches reflect seasonal supplier price renegotiations to preserve gross margin integrity.`,
-        keyMetrics: [
-          { label: 'FIFO Valuation', value: totalVal, formattedValue: `${currency} ${totalVal.toLocaleString()}`, trend: 'neutral' },
-          { label: 'FIFO COGS', value: Number(totals.cogs || 0), formattedValue: `${currency} ${Number(totals.cogs || 0).toLocaleString()}`, trend: 'neutral' },
-          { label: 'Cost Drift', value: Number(costDrift.totalDrift || 0), formattedValue: `${currency} ${Number(costDrift.totalDrift || 0).toLocaleString()}`, trend: costDrift.totalDrift === 0 ? 'positive' : 'neutral' },
-        ],
-        followUpSuggestions: ['Which products are low on stock?', 'What is my gross profit?'],
-        confidence: 'high_confidence',
-        responseSource: 'DETERMINISTIC_FALLBACK',
-      };
-    }
-
-    // 4. Inventory, Out of Stock, Low Stock
-    if (
-      q.includes('low stock') ||
-      q.includes('running low') ||
-      q.includes('out of stock') ||
-      q.includes('restock') ||
-      q.includes('inventory') ||
-      q.includes('stock level') ||
-      q.includes('stockout') ||
-      q.includes('reorder')
-    ) {
-      const outCount = Number(inv.outOfStockCount || 0);
-      const lowCount = Number(inv.lowStockCount || 0);
-      const criticalItems = (inv.criticalItemsToRestock || []) as Array<{ name: string; currentStock: number; minimumStockLevel: number; status: string }>;
-      const totalSKUs = Number(inv.totalActiveSKUs || 0);
-      const valuation = Number(inv.totalInventoryValuation || 0);
-
-      if (outCount === 0 && lowCount === 0) {
+      if (!products || products.length === 0) {
         return {
-          answer: `### Executive Summary
-All **${totalSKUs} active product SKUs** in your catalog are fully stocked with zero critical stockouts or low-inventory alerts.
-
-### Stock Health Overview
-- **Total Stock Asset Value (at cost):** ${currency} ${valuation.toLocaleString()}
-- **Stock Depletion Risk:** Minimal. All catalog items are maintained comfortably above their designated safety stock thresholds.
-
-### Next Operational Steps
-- Maintain current replenishment schedules and monitor sales velocity across weekend peak hours.`,
-          keyMetrics: [
-            { label: 'Out of Stock SKUs', value: 0, formattedValue: '0', trend: 'positive' },
-            { label: 'Low Stock SKUs', value: 0, formattedValue: '0', trend: 'positive' },
-            { label: 'Inventory Value', value: valuation, formattedValue: `${currency} ${valuation.toLocaleString()}`, trend: 'neutral' },
-          ],
-          recommendations: [],
-          followUpSuggestions: ['What are my top selling products?', 'How are my sales today?'],
-          confidence: 'high_confidence',
+          answer: `No product margin data is recorded in your catalog yet. Once purchase costs and sales prices are established, your highest profit contributors will be tracked here.`,
+          keyMetrics: [],
+          confidence: 'insufficient_data',
           responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          followUpSuggestions: ['How are my sales today?', 'Which products are low on stock?'],
         };
       }
 
-      const itemsList = criticalItems
-        .map((item) => `- **${item.name}**: ${item.currentStock} units remaining (${item.status === 'OUT_OF_STOCK' ? '🔴 Depleted / Out of Stock' : `⚠️ Below safety minimum: ${item.minimumStockLevel}`})`)
-        .join('\n');
+      // Sort by gross profit or margin
+      const sortedByProfit = [...products].sort((a, b) => {
+        const profitA = (a.revenue || 0) - (a.cogs || 0);
+        const profitB = (b.revenue || 0) - (b.cogs || 0);
+        return profitB - profitA;
+      });
+      const topProfit = sortedByProfit[0];
+      const gp = (topProfit.revenue || 0) - (topProfit.cogs || 0);
 
       return {
-        answer: `### Executive Summary
-Inventory alert: You have **${outCount} item(s) completely depleted (0 stock)** and **${lowCount} item(s) operating below minimum reorder thresholds**.
-
-### Critical Stockout & Low Stock Items
-${itemsList}
-
-### Revenue Impact & Stockout Risks
-- **Immediate Sales Forfeiture:** Depleted SKUs are actively causing walk-outs and unfulfilled customer requests at checkout.
-- **Supplier Lead Time:** If supplier replenishment takes 2–4 days, current low-stock SKUs will hit zero inventory before next delivery.
-
-### Strategic Restocking Playbook
-1. **Trigger Purchase Orders:** Open the Stock Management module to record replenishment batches for depleted lines immediately.
-2. **Prioritize High-Velocity Lines:** Focus available working capital on top-selling items to protect daily gross profit.`,
+        answer: `Your strongest product by gross profit is **${topProfit.name}**, generating **${currency} ${Number(gp).toLocaleString()}** in profit (${topProfit.unitsSold || 0} units sold at a **${topProfit.marginPct || 0}%** margin).\n\nCurrent stock on hand is **${topProfit.stockQuantity || 0} unit(s)**.`,
         keyMetrics: [
-          { label: 'Out of Stock', value: outCount, formattedValue: `${outCount}`, trend: outCount > 0 ? 'negative' : 'neutral' },
-          { label: 'Low Stock', value: lowCount, formattedValue: `${lowCount}`, trend: lowCount > 0 ? 'negative' : 'neutral' },
+          { label: 'Gross Profit', value: gp, formattedValue: `${currency} ${Number(gp).toLocaleString()}`, trend: 'positive' },
+          { label: 'Gross Margin', value: topProfit.marginPct || 0, formattedValue: `${topProfit.marginPct || 0}%`, trend: 'positive' },
+          { label: 'Stock On Hand', value: topProfit.stockQuantity || 0, formattedValue: `${topProfit.stockQuantity || 0}`, trend: 'neutral' },
         ],
-        recommendations: [
-          {
-            id: 'rec-restock-urgency',
-            title: 'Place Supplier Purchase Order',
-            reasoning: `${outCount + lowCount} SKUs are depleted or near stockout, risking lost customer sales.`,
-            actionSuggestion: 'Navigate to Stock module to issue purchase orders for depleted SKUs.',
-            priority: 'high',
-          },
-        ],
-        followUpSuggestions: ['Which products make me the most money?', 'How are my sales today?'],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        followUpSuggestions: [
+          'What is my best-selling product?',
+          'Which products are low on stock?',
+          'What about the hoodies?',
+        ],
       };
     }
 
-    // 5. Specific "Today" queries
+    // =========================================================================
+    // 7. TIME-SPECIFIC SALES ("How are my sales today?", "How much did I make this month?")
+    // =========================================================================
+    if (
+      q.includes('this month') ||
+      q.includes('make this month') ||
+      q.includes('made this month')
+    ) {
+      const monthRev = Number(salesSummary.totalRevenue || overview.revenue || 0);
+      const monthOrders = Number(salesSummary.transactionCount || overview.transaction_count || 0);
+      const monthMargin = Number(salesSummary.grossMarginPct || overview.gross_margin || 0);
+
+      return {
+        answer: `This month, **${ctx.businessName}** has generated **${currency} ${monthRev.toLocaleString()}** in recorded sales across **${monthOrders}** order(s), with a **${monthMargin}%** gross margin.`,
+        keyMetrics: [
+          { label: 'Monthly Revenue', value: monthRev, formattedValue: `${currency} ${monthRev.toLocaleString()}`, trend: 'positive' },
+          { label: 'Monthly Orders', value: monthOrders, formattedValue: `${monthOrders}`, trend: 'neutral' },
+          { label: 'Gross Margin', value: monthMargin, formattedValue: `${monthMargin}%`, trend: 'positive' },
+        ],
+        confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        followUpSuggestions: [
+          'How are my sales today?',
+          'What is my best-selling product?',
+          'Who owes me money?',
+        ],
+      };
+    }
+
     if (
       q.includes('today') ||
       q.includes('sell today') ||
@@ -1114,258 +911,261 @@ ${itemsList}
       const revToday = Number(todaySales.revenue ?? dailyBrief.todayMetrics?.revenueToday ?? 0);
       const txToday = Number(todaySales.salesCount ?? dailyBrief.todayMetrics?.transactionCountToday ?? 0);
       const cashToday = Number(todaySales.cashCollected ?? dailyBrief.todayMetrics?.cashCollectedToday ?? 0);
-      const gpToday = Number(todaySales.grossProfit ?? (revToday > 0 ? revToday * 0.35 : 0));
-      const marginPct = Number(todaySales.grossMarginPct ?? (revToday > 0 ? 35 : 0));
 
       if (txToday === 0) {
         return {
-          answer: `### Executive Summary
-No transactions have been logged yet today for **${ctx.businessName}** (${currency} 0 revenue across 0 orders).
-
-### Today's Readiness Checklist
-- Verify that cashiers and POS registers are active in the **Sell / POS** module.
-- Check that opening cash float has been counted and catalog prices are up to date.`,
+          answer: `No sales have been recorded yet today for **${ctx.businessName}** (${currency} 0 across 0 orders).\n\nIf you have completed transactions today that have not yet been rung up, make sure they are entered in the **POS / Sales** module.`,
           keyMetrics: [
             { label: "Today's Revenue", value: 0, formattedValue: `${currency} 0`, trend: 'neutral' },
             { label: "Today's Orders", value: 0, formattedValue: '0', trend: 'neutral' },
           ],
-          recommendations: [],
-          followUpSuggestions: ['Which products are low on stock?', 'Who owes me money?', 'What were my sales this month?'],
           confidence: 'high_confidence',
           responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          followUpSuggestions: [
+            'What is my best-selling product?',
+            'Which products are low on stock?',
+            'Who owes me money?',
+          ],
         };
       }
 
       return {
-        answer: `### Executive Summary
-Today, **${ctx.businessName}** has generated **${currency} ${revToday.toLocaleString()}** across **${txToday}** customer transaction${txToday > 1 ? 's' : ''}.
-
-### Performance Diagnostics
-- **Gross Profit Generated:** ${currency} ${gpToday.toLocaleString()} (Operating Gross Margin: **${marginPct}%**)
-- **Direct Cash Inflow:** ${currency} ${cashToday.toLocaleString()}
-- **Average Basket Value:** ${currency} ${txToday > 0 ? Math.round(revToday / txToday).toLocaleString() : '0'} per transaction
-
-### Tactical Observations
-- Momentum is active. Ensure front-line sales staff offer complementary items at checkout to increase average basket size.`,
+        answer: `Today, **${ctx.businessName}** has recorded **${currency} ${revToday.toLocaleString()}** in sales across **${txToday}** customer order(s), with **${currency} ${cashToday.toLocaleString()}** collected in cash.`,
         keyMetrics: [
           { label: "Today's Revenue", value: revToday, formattedValue: `${currency} ${revToday.toLocaleString()}`, trend: 'positive' },
           { label: "Today's Orders", value: txToday, formattedValue: `${txToday}`, trend: 'positive' },
-          { label: 'Gross Margin', value: marginPct, formattedValue: `${marginPct}%`, trend: 'positive' },
+          { label: 'Cash Collected', value: cashToday, formattedValue: `${currency} ${cashToday.toLocaleString()}`, trend: 'positive' },
         ],
-        followUpSuggestions: ['Who owes me money?', 'Which products are low on stock?'],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        followUpSuggestions: [
+          'What is my best-selling product?',
+          'Who owes me money?',
+          'Which products are low on stock?',
+        ],
       };
     }
 
-    // 6. Product Margins & Specific Product Queries
+    // =========================================================================
+    // 8. INVENTORY & STOCKOUTS ("Which products are low on stock?")
+    // =========================================================================
     if (
-      q.includes('best selling') ||
-      q.includes('top product') ||
-      q.includes('margin on product') ||
-      q.includes('highest margin') ||
-      q.includes('most profitable product') ||
-      q.includes('product') ||
-      q.includes('margin on') ||
-      q.includes('cost of') ||
-      q.includes('price of') ||
-      (products && products.some((p) => q.includes(p.name.toLowerCase()) || (p.sku && q.includes(p.sku.toLowerCase()))))
+      q.includes('low stock') ||
+      q.includes('running low') ||
+      q.includes('out of stock') ||
+      q.includes('stock level') ||
+      q.includes('stockout') ||
+      q.includes('reorder')
     ) {
-      if (!products || products.length === 0) {
+      const outCount = Number(inv.outOfStockCount || 0);
+      const lowCount = Number(inv.lowStockCount || 0);
+      const criticalItems = (inv.criticalItemsToRestock || []) as Array<{ name: string; currentStock: number; minimumStockLevel: number; status: string }>;
+      const totalSKUs = Number(inv.totalActiveSKUs || 0);
+
+      if (outCount === 0 && lowCount === 0) {
         return {
-          answer: `No matching product performance data is available in the catalog.`,
-          keyMetrics: [],
-          followUpSuggestions: ['How are my sales today?', 'Do I have low stock?'],
-          confidence: 'insufficient_data',
-          responseSource: 'DETERMINISTIC_FALLBACK',
-        };
-      }
-
-      // Check if user specifically asked about a single product
-      const exactMatch = products.find(
-        (p) => q.includes(p.name.toLowerCase()) || (p.sku && q.includes(p.sku.toLowerCase()))
-      );
-
-      if (exactMatch) {
-        const uMargin = exactMatch.catalogUnitMarginPct ?? exactMatch.marginPct;
-        const fifoCost = exactMatch.fifoUnitCostAverage ?? exactMatch.costPrice;
-        const unitsSold = exactMatch.unitsSold ?? 0;
-        const stock = exactMatch.stockQuantity ?? 0;
-
-        return {
-          answer: `### Executive Summary
-Performance analysis for **${exactMatch.name}**: Selling at **${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}** with a **${uMargin}% unit gross margin** (${currency} ${(Number(exactMatch.sellingPrice) - Number(fifoCost)).toLocaleString()} unit profit).
-
-### Product Unit Economics
-- **Selling Price (RRP):** ${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}
-- **Unit Cost (FIFO Base):** ${currency} ${Number(fifoCost).toLocaleString()}
-- **Gross Profit per Unit:** ${currency} ${(Number(exactMatch.sellingPrice) - Number(fifoCost)).toLocaleString()} (**${uMargin}%**)
-- **Current Inventory On Hand:** ${stock} unit(s) ${stock <= 5 ? '⚠️ *(Low safety stock)*' : '✅ *(Adequately stocked)*'}
-- **Sales Velocity:** ${unitsSold} unit(s) sold in current period (Generated ${currency} ${Number(exactMatch.revenue || 0).toLocaleString()} revenue)
-
-### Strategic Merchandising Guidance
-${stock <= 5 ? '- 🔴 **Restock Action:** Current inventory is critical. Issue a replenishment order to prevent stockout during high-traffic hours.' : '- 📈 **Growth Action:** Given healthy margin and stock, feature this item as a recommended cross-sell at checkout.'}`,
+          answer: `All **${totalSKUs} active product SKUs** in your catalog are adequately stocked with zero low-stock or out-of-stock alerts.`,
           keyMetrics: [
-            { label: `${exactMatch.name} Price`, value: exactMatch.sellingPrice, formattedValue: `${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}`, trend: 'neutral' },
-            { label: 'Unit Margin', value: uMargin, formattedValue: `${uMargin}%`, trend: uMargin >= 30 ? 'positive' : 'neutral' },
-            { label: 'Stock On Hand', value: stock, formattedValue: `${stock}`, trend: stock > 5 ? 'positive' : 'negative' },
+            { label: 'Out of Stock', value: 0, formattedValue: '0', trend: 'positive' },
+            { label: 'Low Stock', value: 0, formattedValue: '0', trend: 'positive' },
           ],
-          followUpSuggestions: ['Which products have higher margin?', 'How are my sales today?'],
           confidence: 'high_confidence',
           responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          followUpSuggestions: [
+            'What is my best-selling product?',
+            'How are my sales today?',
+          ],
         };
       }
 
-      const productList = products
-        .slice(0, 10)
-        .map((p, i) => `${i + 1}. **${p.name}**: Selling at ${currency} ${Number(p.sellingPrice).toLocaleString()} (Gross Margin: **${p.marginPct}%**, Stock: ${p.stockQuantity})`)
-        .join('\n');
-
-      const topProduct = products[0];
-
-      return {
-        answer: `### Executive Summary
-Your catalog leader by unit profitability is **${topProduct.name}** delivering an exceptional **${topProduct.marginPct}% gross margin**.
-
-### Top High-Margin Product Highlights
-${productList}
-
-### Portfolio Strategy
-- **Protect Top Margin Contributors:** Ensure items with margins above 35% maintain consistent inventory availability.
-- **Bundle Strategy:** Pair high-margin accessories with staple items to increase average ticket value without discounting.`,
-        keyMetrics: products.slice(0, 3).map((p) => ({
-          label: p.name,
-          value: p.marginPct,
-          formattedValue: `${p.marginPct}% margin`,
-          trend: (p.marginPct >= 30 ? 'positive' : 'neutral') as 'positive' | 'neutral',
-        })),
-        followUpSuggestions: ['Which products are running low on stock?', 'How are my sales today?'],
-        confidence: 'high_confidence',
-        responseSource: 'DETERMINISTIC_FALLBACK',
-      };
-    }
-
-    // 7. Expenses
-    if (q.includes('expense') || q.includes('spending') || q.includes('costs') || q.includes('bills')) {
-      const totalExp = Number(expenses.totalExpenses || 0);
-      const topCats = (expenses.topExpenseCategories || expenses.expensesByCategory || []) as Array<{ category: string; amount: number; percentageOfTotal?: number; percentage?: number }>;
-
-      if (totalExp === 0) {
-        return {
-          answer: `### Executive Summary
-Zero operating expenses (**${currency} 0**) have been recorded for **${ctx.businessName}** in the active period.
-
-### Operational Advice
-- To ensure accurate Net Profit calculations in Ursella, record utility bills, rent, and supplier delivery costs in the **Expenses** module.`,
-          keyMetrics: [{ label: 'Total Expenses', value: 0, formattedValue: `${currency} 0`, trend: 'positive' }],
-          followUpSuggestions: ['How are my sales today?', 'What is my current cash flow?'],
-          confidence: 'high_confidence',
-          responseSource: 'DETERMINISTIC_FALLBACK',
-        };
-      }
-
-      const catBreakdown = topCats
-        .map((c) => `- **${c.category}**: ${currency} ${Number(c.amount).toLocaleString()} (${c.percentageOfTotal ?? c.percentage ?? 0}% of total spend)`)
+      const itemsList = criticalItems
+        .map((item) => `- **${item.name}**: ${item.currentStock} unit(s) remaining (${item.status === 'OUT_OF_STOCK' ? '🔴 Depleted' : `⚠️ Below minimum of ${item.minimumStockLevel}`})`)
         .join('\n');
 
       return {
-        answer: `### Executive Summary
-Total operating expenditure for the period is **${currency} ${totalExp.toLocaleString()}**.
-
-### Expense Distribution by Category
-${catBreakdown}
-
-### Cost Control Opportunities
-- Review high-percentage cost categories for recurring subscription audits or supplier bulk terms.`,
+        answer: `You currently have **${outCount} item(s) completely depleted** and **${lowCount} item(s) running below their safety threshold**:\n\n${itemsList}\n\nI recommend prioritizing purchase orders for depleted items that drive regular customer foot traffic.`,
         keyMetrics: [
-          { label: 'Total Expenses', value: totalExp, formattedValue: `${currency} ${totalExp.toLocaleString()}`, trend: 'neutral' },
-          { label: 'Top Category', value: topCats[0]?.category || 'N/A', formattedValue: `${topCats[0]?.category || 'N/A'} (${currency} ${Number(topCats[0]?.amount || 0).toLocaleString()})`, trend: 'neutral' },
+          { label: 'Out of Stock', value: outCount, formattedValue: `${outCount}`, trend: outCount > 0 ? 'negative' : 'positive' },
+          { label: 'Low Stock', value: lowCount, formattedValue: `${lowCount}`, trend: lowCount > 0 ? 'negative' : 'positive' },
         ],
-        followUpSuggestions: ['What is my net profitability?', 'How is my cash flow?'],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        followUpSuggestions: [
+          'What is my best-selling product?',
+          'How are my sales today?',
+          'What is my FIFO inventory valuation?',
+        ],
       };
     }
 
-    // 8. Cash Flow
-    if (q.includes('cash flow') || q.includes('cash collected') || q.includes('liquidity') || q.includes('inflow')) {
-      const cashIn = Number(cashFlow.cashInflow || cashFlow.cashInflows || 0);
-      const cashOut = Number(cashFlow.cashOutflow || cashFlow.cashOutflows || 0);
-      const netCash = Number(cashFlow.netCashFlow || 0);
-
-      return {
-        answer: `### Executive Summary
-Net cash flow for the trailing 30 days is **${netCash >= 0 ? '+' : ''}${currency} ${netCash.toLocaleString()}**.
-
-### Cash Liquidity Analysis
-- **Cash Inflows (Collections & Cash Sales):** ${currency} ${cashIn.toLocaleString()}
-- **Cash Outflows (Operating Spend & Stock Purchases):** ${currency} ${cashOut.toLocaleString()}
-- **Net Liquidity Movement:** **${netCash >= 0 ? '+' : ''}${currency} ${netCash.toLocaleString()}** (${netCash >= 0 ? '🟢 Positive Cash Accretion' : '🔴 Negative Cash Drain'})
-
-### Liquidity Safeguards
-- Accelerate debtor collections to bolster reserve buffers before upcoming supplier payables.`,
-        keyMetrics: [
-          { label: 'Net Cash Flow', value: netCash, formattedValue: `${currency} ${netCash.toLocaleString()}`, trend: netCash >= 0 ? 'positive' : 'negative' },
-          { label: 'Cash Inflow', value: cashIn, formattedValue: `${currency} ${cashIn.toLocaleString()}`, trend: 'positive' },
-          { label: 'Cash Outflow', value: cashOut, formattedValue: `${currency} ${cashOut.toLocaleString()}`, trend: 'neutral' },
-        ],
-        followUpSuggestions: ['Who owes me money?', 'What are my total expenses?'],
-        confidence: 'high_confidence',
-        responseSource: 'DETERMINISTIC_FALLBACK',
-      };
-    }
-
-    // 9. Explicit Overview or Summary Requests
+    // =========================================================================
+    // 9. RECEIVABLES & DEBTORS ("Who owes me money?")
+    // =========================================================================
     if (
-      q.includes('overview') ||
-      q.includes('summary') ||
-      q.includes('health') ||
-      q.includes('performance') ||
-      q.includes('how is my business') ||
-      q.includes('how are we doing') ||
-      q.includes('status') ||
-      q.includes('report')
+      q.includes('who owes') ||
+      q.includes('debt') ||
+      q.includes('debtor') ||
+      q.includes('unpaid') ||
+      q.includes('receivable') ||
+      q.includes('owe me')
     ) {
+      const totalDebt = Number(debtors.totalOutstandingDebt || 0);
+      const debtorCount = Number(debtors.debtorsCount || 0);
+      const topList = (debtors.topDebtors || []) as Array<{ name: string; debtAmount: number; phone?: string }>;
+
+      if (debtorCount === 0 || totalDebt === 0) {
+        return {
+          answer: `You currently have **no outstanding customer debts** (0 unpaid balances recorded).`,
+          keyMetrics: [
+            { label: 'Outstanding Debt', value: 0, formattedValue: `${currency} 0`, trend: 'positive' },
+            { label: 'Debtor Accounts', value: 0, formattedValue: '0', trend: 'positive' },
+          ],
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          followUpSuggestions: ['How are my sales today?', 'Which products are low on stock?'],
+        };
+      }
+
+      const debtorBreakdown = topList
+        .map((d, i) => `${i + 1}. **${d.name}**: ${currency} ${Number(d.debtAmount).toLocaleString()}${d.phone ? ` (${d.phone})` : ''}`)
+        .join('\n');
+
+      return {
+        answer: `You currently have **${debtorCount} customer account(s)** with outstanding credit balances totaling **${currency} ${totalDebt.toLocaleString()}**:\n\n${debtorBreakdown}\n\nReaching out to these customers will help recover working capital for inventory purchases.`,
+        keyMetrics: [
+          { label: 'Outstanding Receivables', value: totalDebt, formattedValue: `${currency} ${totalDebt.toLocaleString()}`, trend: 'negative' },
+          { label: 'Debtor Accounts', value: debtorCount, formattedValue: `${debtorCount}`, trend: 'neutral' },
+        ],
+        confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        followUpSuggestions: ['How are my sales today?', 'What is my current cash flow?'],
+      };
+    }
+
+    // =========================================================================
+    // 10. FULL BUSINESS ANALYSIS (Explicit report mode only)
+    // =========================================================================
+    if (isExplicitReport) {
       const totalRev = Number(overview.revenue || salesSummary.totalRevenue || 0);
       const txCount = Number(overview.transaction_count || salesSummary.transactionCount || 0);
       const grossProfit = Number(overview.gross_profit || 0);
       const grossMargin = Number(overview.gross_margin || 0);
+      const outCount = Number(inv.outOfStockCount || 0);
+      const totalDebt = Number(debtors.totalOutstandingDebt || 0);
 
       return {
-        answer: `### Executive Summary
-**${ctx.businessName}** has generated **${currency} ${totalRev.toLocaleString()}** in revenue across **${txCount}** completed transaction(s) over the last 30 days, achieving a **${grossMargin}% gross margin** (${currency} ${grossProfit.toLocaleString()} gross profit).
-
-### Operational Diagnostics & Performance Pillars
-- **Revenue Throughput:** ${currency} ${totalRev.toLocaleString()} across ${txCount} customer checkouts
-- **Gross Profit Margin:** **${grossMargin}%** (${grossMargin >= 30 ? 'Strong margin performance' : 'Monitor unit pricing to protect margins'})
-- **Average Ticket Size:** ${currency} ${txCount > 0 ? Math.round(totalRev / txCount).toLocaleString() : '0'}
-
-### Key Growth Actions
-1. **Focus on Inventory Continuity:** Review safety stock levels for top sellers to eliminate stockout losses.
-2. **Collect Open Receivables:** Monitor customer credit limits to keep operating cash conversion swift.`,
+        answer: `### Executive Summary\n**${ctx.businessName}** generated **${currency} ${totalRev.toLocaleString()}** in revenue across **${txCount}** completed transaction(s) over the last 30 days, achieving a **${grossMargin}% gross margin** (${currency} ${grossProfit.toLocaleString()} gross profit).\n\n### Analytical Diagnostics & Data Breakdown\n- **Revenue Volume:** ${currency} ${totalRev.toLocaleString()} (${txCount} transactions)\n- **Gross Margin:** **${grossMargin}%**\n- **Inventory Health:** ${outCount} depleted SKU(s)\n- **Receivables Exposure:** ${currency} ${totalDebt.toLocaleString()} in open customer credit\n\n### Strategic Recommendations\n1. **Protect Top Sellers:** Restock any depleted SKUs to avoid lost sales.\n2. **Collect Open Debts:** Send payment reminders to debtor accounts to recover liquid cash.\n3. **Maintain Margin Discipline:** Ensure sales prices cover rising replacement costs.`,
         keyMetrics: [
           { label: 'Revenue (30d)', value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: 'positive' },
-          { label: 'Transactions', value: txCount, formattedValue: `${txCount}`, trend: 'positive' },
           { label: 'Gross Margin', value: grossMargin, formattedValue: `${grossMargin}%`, trend: grossMargin >= 30 ? 'positive' : 'neutral' },
+          { label: 'Transactions', value: txCount, formattedValue: `${txCount}`, trend: 'neutral' },
         ],
-        followUpSuggestions: ['How are my sales today?', 'Who owes me money?', 'Which products are low on stock?'],
-        confidence: txCount > 0 ? 'high_confidence' : 'insufficient_data',
+        confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        followUpSuggestions: [
+          'What is my best-selling product?',
+          'Which products are low on stock?',
+          'How are my sales today?',
+        ],
       };
     }
 
-    // 10. Ambiguous or Unrecognized Query: Ask for clarification instead of guessing
+    // =========================================================================
+    // 11. GENERAL BUSINESS OVERVIEW / STATUS (Conversational default)
+    // =========================================================================
+    const totalRev = Number(overview.revenue || salesSummary.totalRevenue || 0);
+    const txCount = Number(overview.transaction_count || salesSummary.transactionCount || 0);
+    const grossMargin = Number(overview.gross_margin || 0);
+
     return {
-      answer: `I could not identify the specific business metric or question you would like me to analyze for **${ctx.businessName}**.\n\nPlease ask a specific question such as checking today's sales, low stock items, customer debts, or operating expenses.`,
-      confidence: 'insufficient_data',
-      dataSufficiencyNote: 'Query was ambiguous or outside standard business metrics.',
+      answer: `Over the past 30 days, **${ctx.businessName}** has generated **${currency} ${totalRev.toLocaleString()}** across **${txCount}** transaction(s) with an operating gross margin of **${grossMargin}%**.\n\nWhat specific part of your business would you like to explore? I can check today's sales, product profitability, low inventory, or customer debts.`,
+      keyMetrics: [
+        { label: 'Revenue (30d)', value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: 'positive' },
+        { label: 'Gross Margin', value: grossMargin, formattedValue: `${grossMargin}%`, trend: 'neutral' },
+      ],
+      confidence: txCount > 0 ? 'high_confidence' : 'insufficient_data',
       responseSource: 'DETERMINISTIC_FALLBACK',
+      provider: 'deterministic_fallback',
       followUpSuggestions: [
         'How are my sales today?',
+        'What is my best-selling product?',
         'Which products are low on stock?',
         'Who owes me money?',
-        'What is my FIFO inventory valuation?',
       ],
+    };
+  }
+
+  /**
+   * Generates the Daily Business Brief summary.
+   */
+  public static async generateDailyBrief(ctx: ChatReasoningContext): Promise<AIDailyBrief> {
+    const briefFacts = (ctx.toolResults.get_daily_brief_facts || {}) as any;
+    const currency = ctx.currency || 'XAF';
+
+    const revenue = Number(briefFacts.todayMetrics?.revenueToday ?? 0);
+    const transactions = Number(briefFacts.todayMetrics?.transactionCountToday ?? 0);
+    const amountCollected = Number(briefFacts.todayMetrics?.cashCollectedToday ?? 0);
+    const expenses = Number(briefFacts.todayMetrics?.expensesToday ?? 0);
+    const outstandingReceivables = Number(briefFacts.debtorAlerts?.totalOutstandingDebt ?? 0);
+
+    const inventoryAlerts: string[] = [];
+    if (briefFacts.inventoryAlerts?.criticalItemsToRestock?.length) {
+      for (const item of briefFacts.inventoryAlerts.criticalItemsToRestock.slice(0, 4)) {
+        inventoryAlerts.push(`${item.name} (${item.currentStock} remaining - ${item.status})`);
+      }
+    }
+
+    const debtFollowUps: string[] = [];
+    if (briefFacts.debtorAlerts?.topDebtors?.length) {
+      for (const debtor of briefFacts.debtorAlerts.topDebtors.slice(0, 3)) {
+        debtFollowUps.push(`${debtor.name} owes ${currency} ${Number(debtor.debtAmount).toLocaleString()}`);
+      }
+    }
+
+    const headline = transactions > 0
+      ? `${transactions} transaction(s) logged today generating ${currency} ${revenue.toLocaleString()}`
+      : `No transactions recorded yet today for ${ctx.businessName}`;
+
+    const keyTakeaways: string[] = [
+      `Today's Revenue: ${currency} ${revenue.toLocaleString()} across ${transactions} order(s)`,
+      `Cash Collected: ${currency} ${amountCollected.toLocaleString()}`,
+    ];
+
+    if (outstandingReceivables > 0) {
+      keyTakeaways.push(`Open Customer Debt: ${currency} ${outstandingReceivables.toLocaleString()} across ${briefFacts.debtorAlerts?.debtorsCount || 0} account(s)`);
+    }
+
+    const recommendedFocusToday = inventoryAlerts.length > 0
+      ? `Review depleted inventory items to prevent missed sales.`
+      : outstandingReceivables > 0
+      ? `Follow up with top debtor accounts to recover working capital.`
+      : `Focus on customer checkout service and recording daily transactions.`;
+
+    return {
+      generatedAt: new Date().toISOString(),
+      businessName: ctx.businessName,
+      currency,
+      headline,
+      executiveSummary: `${ctx.businessName} has recorded ${transactions} order(s) today generating ${currency} ${revenue.toLocaleString()}. ${inventoryAlerts.length > 0 ? `${inventoryAlerts.length} product(s) require inventory replenishment.` : 'Catalog inventory is adequately stocked.'}`,
+      performanceSnapshot: {
+        revenue,
+        transactions,
+        amountCollected,
+        expenses,
+        outstandingReceivables,
+      },
+      keyTakeaways,
+      inventoryAlerts,
+      debtFollowUps,
+      recommendedFocusToday,
+      confidence: 'high_confidence',
     };
   }
 }

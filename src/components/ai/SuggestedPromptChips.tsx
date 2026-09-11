@@ -162,12 +162,19 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
 
               {/* The Actual Question - Prominent & Conversational */}
               <p
-                onClick={() => onSelectPrompt(item.question)}
+                onClick={() => {
+                  if (onInsertPrompt) {
+                    onInsertPrompt(item.question);
+                  } else {
+                    onSelectPrompt(item.question);
+                  }
+                }}
                 className={`text-xs sm:text-[13px] font-semibold leading-relaxed cursor-pointer transition-colors ${
                   isDark
                     ? 'text-zinc-100 group-hover:text-amber-300'
                     : 'text-slate-900 group-hover:text-amber-800'
                 }`}
+                title="Click to put into composer"
               >
                 "{item.question}"
               </p>
@@ -179,11 +186,25 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
               </p>
             </div>
 
-            {/* Direct Send Action */}
+            {/* Actions: Insert into composer or Ask directly */}
             <div className="pt-3 mt-3 border-t border-zinc-800/40 dark:border-zinc-800/80 flex items-center justify-between">
-              <span className={`text-[10px] font-medium ${isDark ? 'text-zinc-500' : 'text-slate-400'}`}>
-                Tap to ask advisor
-              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onInsertPrompt) {
+                    onInsertPrompt(item.question);
+                  } else {
+                    onSelectPrompt(item.question);
+                  }
+                }}
+                className={`text-[10px] font-medium transition-colors cursor-pointer flex items-center gap-1 ${
+                  isDark ? 'text-zinc-400 hover:text-zinc-200' : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Copy to composer to edit"
+              >
+                <Edit3 className="w-3 h-3" />
+                <span>Insert in chat</span>
+              </button>
               <button
                 type="button"
                 onClick={() => onSelectPrompt(item.question)}

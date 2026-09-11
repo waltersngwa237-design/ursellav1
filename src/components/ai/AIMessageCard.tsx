@@ -29,6 +29,7 @@ interface AIMessageCardProps {
   message: AIChatMessage;
   currencySymbol?: string;
   onSelectPrompt?: (prompt: string) => void;
+  onInsertPrompt?: (prompt: string) => void;
   onRetry?: () => void;
   onDeleteMessage?: (messageId: string) => void;
 }
@@ -37,6 +38,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
   message,
   currencySymbol,
   onSelectPrompt,
+  onInsertPrompt,
   onRetry,
   onDeleteMessage,
 }) => {
@@ -527,17 +529,24 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
         </div>
 
         {/* Conversational Follow-up Suggestion Chips */}
-        {structured?.followUpSuggestions && structured.followUpSuggestions.length > 0 && onSelectPrompt && (
+        {structured?.followUpSuggestions && structured.followUpSuggestions.length > 0 && (onSelectPrompt || onInsertPrompt) && (
           <div className="flex flex-wrap gap-1.5 pt-0.5">
             {structured.followUpSuggestions.map((suggestion, idx) => (
               <button
                 key={idx}
-                onClick={() => onSelectPrompt(suggestion)}
+                onClick={() => {
+                  if (onInsertPrompt) {
+                    onInsertPrompt(suggestion);
+                  } else if (onSelectPrompt) {
+                    onSelectPrompt(suggestion);
+                  }
+                }}
                 className={`text-left text-xs px-3 py-1.5 rounded-full border transition-all shadow-2xs flex items-center gap-1.5 group cursor-pointer active:scale-98 ${
                   isDark 
                     ? 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 hover:border-amber-500/40 text-zinc-300 hover:text-white' 
                     : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-amber-500/60 text-slate-700 hover:text-slate-900 shadow-xs'
                 }`}
+                title="Tap to put into chat composer"
               >
                 <span>{suggestion}</span>
                 <ArrowRight className={`w-3 h-3 group-hover:translate-x-0.5 transition-all shrink-0 ${
