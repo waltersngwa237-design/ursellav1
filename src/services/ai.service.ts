@@ -686,12 +686,98 @@ export class AIService {
   }
 
   /**
-   * Generates a clean 3-5 word conversation title from the first prompt.
+   * Generates a unique, concise title reflecting the user's specific intent and topic.
    */
-  public static generateTitleFromMessage(text: string): string {
-    const clean = text.replace(/[^a-zA-Z0-9\s]/g, '').trim();
-    const words = clean.split(/\s+/).slice(0, 5).join(' ');
-    if (!words) return 'Business Advisory';
-    return words.charAt(0).toUpperCase() + words.slice(1);
+  public static generateTitleFromMessage(text: string, intent?: string): string {
+    const raw = text.trim();
+    const lower = raw.toLowerCase();
+
+    // 1. Action proposal / Product creation intent
+    if (intent === 'action_proposal' || lower.startsWith('add ') || lower.startsWith('create ') || lower.includes('add product')) {
+      const match = raw.match(/add\s+(\d+\s*(?:units?|bags?|cartons?|kg|pcs?|pieces?|bottles?|boxes?)\s+of\s+)?([a-zA-Z0-9\s-]+?)(?:\s+at|\s+with|\s+cost|\s+selling|$)/i);
+      if (match && match[2]) {
+        const prod = match[2].trim();
+        return `Add ${prod.charAt(0).toUpperCase() + prod.slice(1)} to Catalog`;
+      }
+      return 'Add New Product';
+    }
+
+    // 2. Sales queries
+    if (intent === 'sales_today' || (lower.includes('sales') && (lower.includes('today') || lower.includes('now')))) {
+      return "Today's Sales Performance";
+    }
+    if (intent === 'sales' || lower.includes('sale') || lower.includes('revenue')) {
+      if (lower.includes('yesterday')) return "Yesterday's Sales";
+      if (lower.includes('week')) return "Weekly Sales Review";
+      if (lower.includes('month')) return "Monthly Sales Overview";
+      if (lower.includes('slow')) return "Sales Velocity & Trends";
+      return "Sales & Revenue Analysis";
+    }
+
+    // 3. Product / Best-seller queries
+    if (intent === 'products' || lower.includes('best-selling') || lower.includes('best selling') || lower.includes('top product')) {
+      return "Best-Selling Products";
+    }
+    if (lower.includes('highest margin') || lower.includes('most profit') || lower.includes('most money')) {
+      return "High-Margin Products";
+    }
+
+    // 4. Inventory / Restock queries
+    if (intent === 'inventory' || lower.includes('inventory') || lower.includes('stock') || lower.includes('restock')) {
+      if (lower.includes('low') || lower.includes('reorder') || lower.includes('depleted')) {
+        return "Low Stock & Reorders";
+      }
+      return "Inventory Stock Levels";
+    }
+
+    // 5. Debtors / Receivables
+    if (intent === 'receivables' || lower.includes('debt') || lower.includes('owe') || lower.includes('credit customer')) {
+      return "Customer Debts & Balances";
+    }
+
+    // 6. Profitability / Gross Margin
+    if (intent === 'profitability' || lower.includes('profit') || lower.includes('margin')) {
+      if (lower.includes('gross margin')) return "Gross Margin Breakdown";
+      return "Profitability & Margins";
+    }
+
+    // 7. Expenses & Cash Flow
+    if (intent === 'expenses' || lower.includes('expense') || lower.includes('cost')) {
+      return "Business Expense Review";
+    }
+    if (intent === 'cash_flow' || lower.includes('cash flow') || lower.includes('cash')) {
+      return "Cash Flow & Collections";
+    }
+
+    // 8. Concept Explanation
+    if (intent === 'explanation' || lower.startsWith('can you explain') || lower.startsWith('what is ') || lower.startsWith('explain ')) {
+      const topic = raw.replace(/^(can you explain|what is|explain|tell me about)\s+/i, '').replace(/[?!.,]/g, '').trim();
+      if (topic) {
+        return `${topic.charAt(0).toUpperCase() + topic.slice(1)} Explanation`;
+      }
+      return "Business Concept Guide";
+    }
+
+    // 9. Daily brief or Full Report
+    if (intent === 'daily_brief' || lower.includes('daily brief') || lower.includes('briefing')) {
+      return "Daily Business Brief";
+    }
+    if (intent === 'full_report' || lower.includes('full report') || lower.includes('analysis report')) {
+      return "Comprehensive Business Report";
+    }
+
+    // 10. Greetings & Onboarding
+    if (intent === 'greeting' || /^(hello|hi|hey|good morning|good afternoon|good evening)\b/i.test(lower)) {
+      return "Store Overview & Welcome";
+    }
+
+    // 11. Fallback: Clean up prompt into a concise 3-5 word capitalized title
+    const clean = raw.replace(/[?!.,;:()]/g, '').trim();
+    const words = clean.split(/\s+/).slice(0, 5);
+    if (words.length > 0 && words[0]) {
+      return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
+
+    return "Business Consultation";
   }
 }

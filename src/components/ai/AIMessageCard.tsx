@@ -8,6 +8,7 @@ import {
   type AIChatMessage,
 } from '../../types/ai.ts';
 import { UrsellaSymbolMark } from '../common/UrsellaLogo.tsx';
+import { sanitizeFollowUpSuggestions } from '../../utils/ai-prompt.utils.ts';
 import {
   Check,
   Copy,
@@ -528,10 +529,10 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
           </div>
         </div>
 
-        {/* Conversational Follow-up Suggestion Chips */}
+        {/* Conversational Follow-up Suggestion Chips (framed as user requests) */}
         {structured?.followUpSuggestions && structured.followUpSuggestions.length > 0 && (onSelectPrompt || onInsertPrompt) && (
           <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {structured.followUpSuggestions.map((suggestion, idx) => (
+            {sanitizeFollowUpSuggestions(structured.followUpSuggestions).map((suggestion, idx) => (
               <button
                 key={idx}
                 onClick={() => {

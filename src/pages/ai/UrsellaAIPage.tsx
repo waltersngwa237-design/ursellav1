@@ -317,6 +317,23 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       appendUniqueMessage(assistantMsg);
       await AIService.saveMessage(assistantMsg);
 
+      // Dynamically assign unique intent-based title to conversation
+      const currentConv = conversations.find((c) => c.id === convId);
+      const isPlaceholder = !currentConv ||
+        currentConv.title === 'New Conversation' ||
+        currentConv.title === 'New Chat' ||
+        currentConv.title === 'Business Advisory' ||
+        currentConv.title === 'Business Consultation' ||
+        !currentConv.title.trim();
+
+      if (isPlaceholder || messages.length <= 1) {
+        const uniqueIntentTitle = AIService.generateTitleFromMessage(textToSend, res.intent);
+        AIService.renameConversation(activeBusiness.id, convId, uniqueIntentTitle);
+        setConversations((prev) =>
+          prev.map((c) => (c.id === convId ? { ...c, title: uniqueIntentTitle } : c))
+        );
+      }
+
       // AI advisor messages should start reading from the top after AI responds
       setTimeout(() => {
         scrollToMessageTop(assistantMsgId);
@@ -331,7 +348,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         conversation_id: convId,
         business_id: activeBusiness.id,
         role: 'assistant',
-        content: 'I encountered an issue analyzing your business records. Please try again.',
+        content: 'I encountered an issue retrieving your store records. Please try again.',
         metadata: {
           error: errMsg,
         },
@@ -347,22 +364,15 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     }
   };
 
-  // Create new conversation
-  const handleNewConversation = async () => {
-    if (!activeBusiness?.id) return;
-    try {
-      const newConv = await AIService.createConversation(
-        activeBusiness.id,
-        user?.id || 'demo-user',
-        'New Conversation'
-      );
-      setConversations((prev) => [newConv, ...prev]);
-      setActiveConversationId(newConv.id);
-      setMessages([]);
-      setIsSidebarOpen(false);
-      setShowOptionsMenu(false);
-    } catch (e) {
-      console.warn('Failed to create new conversation:', e);
+  // Create new conversation - resets active conversation so first prompt names it with user's intent
+  const handleNewConversation = () => {
+    setActiveConversationId(null);
+    setMessages([]);
+    setError(null);
+    setIsSidebarOpen(false);
+    setShowOptionsMenu(false);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
     }
   };
 
@@ -966,7 +976,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '150ms' }} />
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                   <span className={`text-xs ml-1 font-medium ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
-                    Ursella is analyzing business data...
+                    Ursella is thinking...
                   </span>
                 </div>
               </div>

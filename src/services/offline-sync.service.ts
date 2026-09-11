@@ -142,17 +142,37 @@ class OfflineSyncServiceClass {
    * Update item failure status
    */
   private markFailed(itemId: string, errorMsg: string) {
-    const queue = this.getQueue().map((item) => {
+    const queue = this.getQueue();
+    const updated: SyncQueueItem[] = [];
+
+    for (const item of queue) {
       if (item.id === itemId) {
-        return {
+        const newRetryCount = item.retryCount + 1;
+        // If an item fails 3 times, log and drop it so it does not block the UI or offline banner indefinitely
+        if (newRetryCount >= 3) {
+          console.warn(`[OfflineSyncService] Item ${item.id} (${item.type}) reached max retry limit (${newRetryCount}). Removing from active queue:`, errorMsg);
+          continue;
+        }
+        updated.push({
           ...item,
-          retryCount: item.retryCount + 1,
+          retryCount: newRetryCount,
           lastError: errorMsg,
-        };
+        });
+      } else {
+        updated.push(item);
       }
-      return item;
-    });
-    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+    }
+
+    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(updated));
+    this.notify();
+  }
+
+  /**
+   * Clears any stuck or dead items from the sync queue.
+   */
+  clearStaleQueue(): void {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.removeItem(SYNC_QUEUE_KEY);
     this.notify();
   }
 

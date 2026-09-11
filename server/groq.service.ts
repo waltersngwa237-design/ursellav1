@@ -4,6 +4,7 @@ import {
   getGroqApiKey,
   logAIProvenance,
 } from './ai-config.ts';
+import { sanitizeFollowUpSuggestions } from './ai-prompt.utils.ts';
 import type { AIStructuredResponse, AIDailyBrief } from '../src/types/ai.ts';
 import type { ChatReasoningContext } from './gemini.service.ts';
 
@@ -99,11 +100,7 @@ export class GroqService {
             anomaliesDetected: parsed.anomaliesDetected || [],
             confidence: parsed.confidence || 'high_confidence',
             dataSufficiencyNote: parsed.dataSufficiencyNote,
-            followUpSuggestions: parsed.followUpSuggestions || [
-              'How are my sales today?',
-              'Which products are low on stock?',
-              'Who owes me money?',
-            ],
+            followUpSuggestions: sanitizeFollowUpSuggestions(parsed.followUpSuggestions),
             proposedAction: parsed.proposedAction,
             responseSource: 'GROQ_RESPONSE',
             provider: 'groq',

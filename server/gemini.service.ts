@@ -121,8 +121,8 @@ Respond with a JSON object strictly adhering to this schema:
   ],
   "confidence": "high_confidence" | "moderate_confidence" | "insufficient_data",
   "followUpSuggestions": [
-    "Contextual follow-up question 1",
-    "Contextual follow-up question 2"
+    "User question or request 1",
+    "User question or request 2"
   ],
   "proposedAction": {
     "actionType": "create_product" | "create_inventory_adjustment",
@@ -133,7 +133,13 @@ Respond with a JSON object strictly adhering to this schema:
     "payload": { ... }
   }
 }
-(Note: Include keyMetrics only if directly relevant to the question. Leave empty [] for greetings, navigation, or general concept explanations).`;
+(Note: Include keyMetrics only if directly relevant to the question. Leave empty [] for greetings, navigation, or general concept explanations).
+
+7. FOLLOW-UP SUGGESTIONS PERSPECTIVE (CRITICAL):
+The "followUpSuggestions" are buttons that the MERCHANT will click to ask Ursella what THEY need next.
+- They MUST be phrased from the USER'S perspective requesting what they need (e.g. "Check my sales from last week", "Show me products low on stock", "Who owes me money?", "Help me reorder this item", "What was my profit on cement?").
+- They MUST NEVER be phrased as the AI asking the user ("Would you like me to...", "Do you want to...", "Should I...", "Would you like...").
+- Keep them concise (3-7 words) and directly relevant.`;
   }
 
   /**
@@ -373,6 +379,61 @@ ${
   }
 
   /**
+   * Sanitizes follow-up suggestions so that every prompt represents
+   * the merchant needing a service (User perspective) rather than
+   * the AI asking if the merchant wants something (AI perspective).
+   */
+  public static sanitizeFollowUpSuggestions(suggestions: unknown): string[] {
+    if (!Array.isArray(suggestions) || suggestions.length === 0) {
+      return ['How are my sales today?', 'Which products are low on stock?'];
+    }
+
+    const cleaned = suggestions
+      .map((s) => {
+        if (!s || typeof s !== 'string') return '';
+        let clean = s.trim();
+
+        // Convert AI offers/questions into user requests
+        clean = clean
+          .replace(/^would you like me to\s+/i, '')
+          .replace(/^would you like to\s+/i, '')
+          .replace(/^would you like\s+/i, 'Show me ')
+          .replace(/^do you want me to\s+/i, '')
+          .replace(/^do you want to\s+/i, '')
+          .replace(/^do you want\s+/i, 'Show me ')
+          .replace(/^should i\s+/i, '')
+          .replace(/^shall i\s+/i, '')
+          .replace(/^can i help you\s+/i, 'Help me ')
+          .replace(/^can i\s+/i, '')
+          .replace(/^do you need me to\s+/i, '')
+          .replace(/^do you need help\s+(?:with|to)?\s*/i, 'Help me ')
+          .replace(/^do you need to\s+/i, '')
+          .replace(/^do you have any questions about\s+/i, 'Tell me more about ')
+          .replace(/^let me know if you want to\s+/i, '')
+          .replace(/^if you want, I can\s+/i, '');
+
+        clean = clean.trim();
+        if (!clean) return '';
+
+        // Capitalize first letter
+        clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+
+        // Remove trailing question mark if it was converted from an AI offer to an imperative user action
+        if (clean.endsWith('?') && !/^(how|what|who|which|where|why|can you|is|are)\b/i.test(clean)) {
+          clean = clean.slice(0, -1).trim();
+        }
+
+        return clean;
+      })
+      .filter((s) => s.length > 3)
+      .slice(0, 4);
+
+    return cleaned.length > 0
+      ? cleaned
+      : ['How are my sales today?', 'Which products are low on stock?'];
+  }
+
+  /**
    * Parses and validates raw AI JSON output.
    */
   private static parseChatStructuredResponse(
@@ -397,9 +458,7 @@ ${
         observations: Array.isArray(parsed.observations) ? parsed.observations : [],
         recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
         confidence: parsed.confidence || 'high_confidence',
-        followUpSuggestions: Array.isArray(parsed.followUpSuggestions)
-          ? parsed.followUpSuggestions
-          : ['How are my sales today?', 'What is my best-selling product?'],
+        followUpSuggestions: GeminiService.sanitizeFollowUpSuggestions(parsed.followUpSuggestions),
         proposedAction: parsed.proposedAction,
         responseSource: source,
         provider,
