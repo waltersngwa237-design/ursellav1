@@ -34,9 +34,9 @@ function isValidUUID(str: string): boolean {
 async function verifyTenantRequest(
   req: express.Request,
   businessId: string
-): Promise<{ authorized: boolean; userId?: string; error?: string; status?: number }> {
+): Promise<{ authorized: boolean; userId?: string; role?: 'owner' | 'admin' | 'staff'; error?: string; status?: number }> {
   if (!isValidUUID(businessId)) {
-    return { authorized: true };
+    return { authorized: true, userId: 'dev-user', role: 'owner' };
   }
 
   const isServerSupabaseConfigured = Boolean(
@@ -44,7 +44,7 @@ async function verifyTenantRequest(
   ) && !(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').includes('placeholder.supabase.co');
 
   if (!isServerSupabaseConfigured) {
-    return { authorized: true };
+    return { authorized: true, userId: 'local-user', role: 'owner' };
   }
 
   const authHeader = req.headers.authorization;
@@ -68,16 +68,16 @@ async function verifyTenantRequest(
     }
 
     const userId = userData.user.id;
-    const hasAccess = await BusinessToolsService.verifyTenantAccess(userId, businessId);
-    if (!hasAccess) {
+    const membership = await BusinessToolsService.getTenantMembership(userId, businessId);
+    if (!membership.authorized) {
       return {
         authorized: false,
         status: 403,
-        error: 'Access denied: You are not authorized to view or analyze data for this business.',
+        error: 'Access denied: You are not authorized to view or perform actions for this business.',
       };
     }
 
-    return { authorized: true, userId };
+    return { authorized: true, userId, role: membership.role || 'owner' };
   } catch (err: any) {
     return {
       authorized: false,
@@ -459,6 +459,11 @@ app.post('/api/insights/scan', async (req, res) => {
     const { businessId, snapshot, config, businessMetadata } = req.body;
     if (!businessId) return res.status(400).json({ error: 'businessId is required' });
 
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
     const rawEvents = await EventDetectionService.scanBusiness(businessId, snapshot, config);
     const insights = await ProactiveAIService.processDetectedEvents(businessId, rawEvents, businessMetadata);
 
@@ -476,13 +481,18 @@ app.post('/api/insights/scan', async (req, res) => {
 });
 
 // 2. Get active/filtered insights
-app.get('/api/insights', (req, res) => {
+app.get('/api/insights', async (req, res) => {
   try {
     const businessId = req.query.businessId as string;
     const category = (req.query.category as string) || 'all';
     const status = (req.query.status as string) || 'all';
 
     if (!businessId) return res.status(400).json({ error: 'businessId query param required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     const insights = ProactiveAIService.getInsights(businessId, { category, status });
     return res.json(insights);
@@ -492,13 +502,18 @@ app.get('/api/insights', (req, res) => {
 });
 
 // 3. Update insight status (seen, dismissed, acted_on)
-app.post('/api/insights/:id/status', (req, res) => {
+app.post('/api/insights/:id/status', async (req, res) => {
   try {
     const insightId = req.params.id;
     const { businessId, status } = req.body;
 
     if (!businessId || !status) {
       return res.status(400).json({ error: 'businessId and status are required' });
+    }
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
     }
 
     const success = ProactiveAIService.updateInsightStatus(businessId, insightId, status);
@@ -509,10 +524,15 @@ app.post('/api/insights/:id/status', (req, res) => {
 });
 
 // 4. Get today's top prioritized actions ("What should I do today?")
-app.get('/api/priorities/today', (req, res) => {
+app.get('/api/priorities/today', async (req, res) => {
   try {
     const businessId = req.query.businessId as string;
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     const priorities = ProactiveAIService.getTodayPriorities(businessId);
     return res.json(priorities);
@@ -522,14 +542,19 @@ app.get('/api/priorities/today', (req, res) => {
 });
 
 // 5. Action Proposals (Human Approval flow)
-app.post('/api/actions/propose', (req, res) => {
+app.post('/api/actions/propose', async (req, res) => {
   try {
     const { businessId, insightId, actionType, title, description, payload, requestedBy, requiresRole, impactPreview } = req.body;
     if (!businessId || !actionType || !title) {
       return res.status(400).json({ error: 'Missing required action proposal fields' });
     }
 
-    const proposal = ActionExecutorService.proposeAction({
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
+    const proposal = await ActionExecutorService.proposeAction({
       business_id: businessId,
       insight_id: insightId || null,
       action_type: actionType,
@@ -548,32 +573,45 @@ app.post('/api/actions/propose', (req, res) => {
   }
 });
 
-app.get('/api/actions/proposals', (req, res) => {
+app.get('/api/actions/proposals', async (req, res) => {
   try {
     const businessId = req.query.businessId as string;
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
 
-    const proposals = ActionExecutorService.getActionProposals(businessId);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
+    const proposals = await ActionExecutorService.getActionProposals(businessId);
     return res.json(proposals);
   } catch (error: any) {
     return res.status(500).json({ error: 'Failed to list action proposals' });
   }
 });
 
-// 6. Execute approved action with atomic security & audit log
+// 6. Execute approved action with authoritative security, RBAC enforcement & audit log
 app.post('/api/actions/execute', async (req, res) => {
   try {
-    const { actionId, businessId, userId, userRole = 'owner', actionType, payload, idempotencyKey, isAIGenerated } = req.body;
+    const { actionId, businessId, actionType, payload, idempotencyKey, isAIGenerated } = req.body;
 
-    if (!businessId || !userId || !actionType || !payload) {
-      return res.status(400).json({ error: 'Missing required execution fields: businessId, userId, actionType, payload' });
+    if (!businessId || !actionType || !payload) {
+      return res.status(400).json({ error: 'Missing required execution fields: businessId, actionType, payload' });
     }
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
+    const verifiedUserId = authCheck.userId || req.body.userId || 'system';
+    const verifiedUserRole = authCheck.role || 'staff';
 
     const execResult = await ActionExecutorService.executeAction({
       actionId,
       businessId,
-      userId,
-      userRole,
+      userId: verifiedUserId,
+      userRole: verifiedUserRole,
       actionType,
       payload,
       idempotencyKey: idempotencyKey || `exec_${Date.now()}`,
@@ -591,12 +629,17 @@ app.post('/api/actions/execute', async (req, res) => {
   }
 });
 
-app.post('/api/actions/reject', (req, res) => {
+app.post('/api/actions/reject', async (req, res) => {
   try {
-    const { actionId, userId, businessId } = req.body;
+    const { actionId, businessId } = req.body;
     if (!actionId || !businessId) return res.status(400).json({ error: 'actionId and businessId required' });
 
-    const success = ActionExecutorService.rejectAction(actionId, userId || 'user', businessId);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
+    const success = await ActionExecutorService.rejectAction(actionId, authCheck.userId || 'user', businessId);
     return res.json({ success, actionId, status: 'rejected' });
   } catch (error: any) {
     return res.status(500).json({ error: 'Failed to reject action' });
@@ -604,12 +647,17 @@ app.post('/api/actions/reject', (req, res) => {
 });
 
 // 7. Audit Logs / History
-app.get('/api/actions/audit-logs', (req, res) => {
+app.get('/api/actions/audit-logs', async (req, res) => {
   try {
     const businessId = req.query.businessId as string;
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
 
-    const logs = ActionExecutorService.getAuditLogs(businessId);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
+    const logs = await ActionExecutorService.getAuditLogs(businessId);
     return res.json(logs);
   } catch (error: any) {
     return res.status(500).json({ error: 'Failed to get audit logs' });
@@ -617,12 +665,17 @@ app.get('/api/actions/audit-logs', (req, res) => {
 });
 
 // 8. Reminders & Tasks Management
-app.get('/api/reminders', (req, res) => {
+app.get('/api/reminders', async (req, res) => {
   try {
     const businessId = req.query.businessId as string;
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
 
-    const reminders = ActionExecutorService.getReminders(businessId);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
+    const reminders = await ActionExecutorService.getReminders(businessId);
     return res.json(reminders);
   } catch (error: any) {
     return res.status(500).json({ error: 'Failed to get reminders' });
@@ -631,13 +684,18 @@ app.get('/api/reminders', (req, res) => {
 
 app.post('/api/reminders', async (req, res) => {
   try {
-    const { businessId, userId, title, description, dueDate, priority, relatedEntityType, relatedEntityId, relatedEntityName } = req.body;
+    const { businessId, title, description, dueDate, priority, relatedEntityType, relatedEntityId, relatedEntityName } = req.body;
     if (!businessId || !title) return res.status(400).json({ error: 'businessId and title required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     const result = await ActionExecutorService.executeAction({
       businessId,
-      userId: userId || 'user',
-      userRole: 'owner',
+      userId: authCheck.userId || 'user',
+      userRole: authCheck.role || 'staff',
       actionType: 'create_reminder',
       payload: {
         title,
@@ -657,26 +715,36 @@ app.post('/api/reminders', async (req, res) => {
   }
 });
 
-app.patch('/api/reminders/:id', (req, res) => {
+app.patch('/api/reminders/:id', async (req, res) => {
   try {
     const reminderId = req.params.id;
     const { businessId, status } = req.body;
     if (!businessId || !status) return res.status(400).json({ error: 'businessId and status required' });
 
-    const success = ActionExecutorService.updateReminderStatus(reminderId, businessId, status);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
+    const success = await ActionExecutorService.updateReminderStatus(reminderId, businessId, status);
     return res.json({ success, reminderId, status });
   } catch (error: any) {
     return res.status(500).json({ error: 'Failed to update reminder' });
   }
 });
 
-app.delete('/api/reminders/:id', (req, res) => {
+app.delete('/api/reminders/:id', async (req, res) => {
   try {
     const reminderId = req.params.id;
     const businessId = req.query.businessId as string;
     if (!businessId) return res.status(400).json({ error: 'businessId query param required' });
 
-    const success = ActionExecutorService.deleteReminder(reminderId, businessId);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
+    const success = await ActionExecutorService.deleteReminder(reminderId, businessId);
     return res.json({ success, reminderId });
   } catch (error: any) {
     return res.status(500).json({ error: 'Failed to delete reminder' });
@@ -688,6 +756,11 @@ app.get('/api/notifications', async (req, res) => {
   try {
     const businessId = req.query.businessId as string;
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     let notifications = ProactiveAIService.getNotifications(businessId);
     if (notifications.length === 0) {
@@ -707,10 +780,15 @@ app.get('/api/notifications', async (req, res) => {
   }
 });
 
-app.post('/api/notifications/read-all', (req, res) => {
+app.post('/api/notifications/read-all', async (req, res) => {
   try {
     const { businessId } = req.body;
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     ProactiveAIService.markAllNotificationsRead(businessId);
     return res.json({ success: true });
@@ -719,11 +797,16 @@ app.post('/api/notifications/read-all', (req, res) => {
   }
 });
 
-app.delete('/api/notifications/:id', (req, res) => {
+app.delete('/api/notifications/:id', async (req, res) => {
   try {
     const notificationId = req.params.id;
     const businessId = (req.query.businessId as string) || (req.body?.businessId as string);
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     const success = ProactiveAIService.deleteNotification(businessId, notificationId);
     return res.json({ success, notificationId });
@@ -732,10 +815,15 @@ app.delete('/api/notifications/:id', (req, res) => {
   }
 });
 
-app.post('/api/notifications/clear-all', (req, res) => {
+app.post('/api/notifications/clear-all', async (req, res) => {
   try {
     const { businessId } = req.body;
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     const success = ProactiveAIService.clearAllNotifications(businessId);
     return res.json({ success });
@@ -744,11 +832,16 @@ app.post('/api/notifications/clear-all', (req, res) => {
   }
 });
 
-app.post('/api/notifications/:id/toggle-read', (req, res) => {
+app.post('/api/notifications/:id/toggle-read', async (req, res) => {
   try {
     const notificationId = req.params.id;
     const { businessId } = req.body;
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     const success = ProactiveAIService.toggleNotificationRead(businessId, notificationId);
     return res.json({ success, notificationId });
@@ -758,10 +851,15 @@ app.post('/api/notifications/:id/toggle-read', (req, res) => {
 });
 
 // 10. Preferences
-app.get('/api/preferences/notifications', (req, res) => {
+app.get('/api/preferences/notifications', async (req, res) => {
   try {
     const businessId = req.query.businessId as string;
     if (!businessId) return res.status(400).json({ error: 'businessId required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     const prefs = ProactiveAIService.getPreferences(businessId);
     return res.json(prefs);
@@ -770,10 +868,15 @@ app.get('/api/preferences/notifications', (req, res) => {
   }
 });
 
-app.post('/api/preferences/notifications', (req, res) => {
+app.post('/api/preferences/notifications', async (req, res) => {
   try {
     const { businessId, preferences } = req.body;
     if (!businessId || !preferences) return res.status(400).json({ error: 'businessId and preferences required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
 
     const updated = ProactiveAIService.savePreferences(businessId, preferences);
     return res.json(updated);
@@ -790,11 +893,18 @@ app.get('/api/push/config', (req, res) => {
   });
 });
 
-app.post('/api/push/subscribe', (req, res) => {
+app.post('/api/push/subscribe', async (req, res) => {
   try {
     const { businessId, subscription, userId } = req.body;
     if (!subscription || !subscription.endpoint || !subscription.keys) {
       return res.status(400).json({ error: 'Invalid PushSubscription payload' });
+    }
+
+    if (businessId && businessId !== 'default') {
+      const authCheck = await verifyTenantRequest(req, businessId);
+      if (!authCheck.authorized) {
+        return res.status(authCheck.status || 403).json({ error: authCheck.error });
+      }
     }
 
     const saved = PushNotificationService.registerSubscription(businessId || 'default', subscription, userId);
@@ -821,6 +931,13 @@ app.post('/api/push/unsubscribe', (req, res) => {
 app.post('/api/push/send-test', async (req, res) => {
   try {
     const { businessId, subscription } = req.body;
+
+    if (businessId) {
+      const authCheck = await verifyTenantRequest(req, businessId);
+      if (!authCheck.authorized) {
+        return res.status(authCheck.status || 403).json({ error: authCheck.error });
+      }
+    }
 
     if (subscription && subscription.endpoint) {
       const result = await PushNotificationService.sendToSubscription(subscription, {
@@ -879,6 +996,11 @@ app.post('/api/push/send-morning-brief', async (req, res) => {
       });
     }
 
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
     const result = await PushNotificationService.sendToBusiness(businessId, {
       title: `☀️ Morning Executive Brief: ${businessName}`,
       body: `Your daily business briefing is ready. Tap to review revenue insights and today's operational priorities.`,
@@ -918,6 +1040,11 @@ app.get('/api/subscription', async (req, res) => {
     const businessId = req.query.businessId as string;
     if (!businessId) return res.status(400).json({ error: 'businessId query param required' });
 
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
     const subscription = await SubscriptionService.getBusinessSubscription(businessId);
     return res.json(subscription);
   } catch (error: any) {
@@ -930,6 +1057,11 @@ app.post('/api/subscription/checkout', async (req, res) => {
     const { businessId, planId, billingCycle = 'monthly', provider = 'momo', customerEmail, phoneNumber, network } = req.body;
     if (!businessId || !planId) {
       return res.status(400).json({ error: 'businessId and planId are required' });
+    }
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
     }
 
     const response = await PaymentProviderService.initiatePayment({
@@ -984,9 +1116,18 @@ app.post('/api/data/import/execute', async (req, res) => {
       return res.status(400).json({ error: 'businessId, entityType, and rows array are required' });
     }
 
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
+    if (authCheck.role && authCheck.role === 'staff') {
+      return res.status(403).json({ error: 'Permission denied: Bulk data import requires owner or admin privileges.' });
+    }
+
     const result = await DataIOService.executeImport({
       businessId,
-      userId,
+      userId: authCheck.userId || userId,
       entityType,
       rows,
     });
@@ -1080,9 +1221,14 @@ app.post('/api/feedback/submit', async (req, res) => {
       return res.status(400).json({ error: 'businessId and feedbackType are required' });
     }
 
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
     const result = await FeedbackService.submitFeedback({
       businessId,
-      userId,
+      userId: authCheck.userId || userId,
       feedbackType,
       rating,
       comment,

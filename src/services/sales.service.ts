@@ -102,7 +102,8 @@ export const SalesService = {
             }
             console.warn('[SalesService] Supabase RPC failed, executing offline and queueing sync:', error.message);
           } else {
-            return { sale_id: data as string, error: null };
+            const saleId = typeof data === 'string' ? data : (data?.sale_id || data?.id || (data ? String(data) : null));
+            return { sale_id: saleId, error: null };
           }
         } catch (rpcErr) {
           console.warn('[SalesService] Network error during sale RPC, executing offline:', rpcErr);

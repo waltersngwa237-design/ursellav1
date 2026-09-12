@@ -99,7 +99,18 @@ export class BusinessToolsService {
    * Multi-tenant security rule: NEVER fail open.
    */
   public static async verifyTenantAccess(userId: string, businessId: string): Promise<boolean> {
-    if (!userId || !businessId) return false;
+    const membership = await this.getTenantMembership(userId, businessId);
+    return membership.authorized;
+  }
+
+  /**
+   * Retrieves user's verified business membership role.
+   */
+  public static async getTenantMembership(
+    userId: string,
+    businessId: string
+  ): Promise<{ authorized: boolean; role?: 'owner' | 'admin' | 'staff' }> {
+    if (!userId || !businessId) return { authorized: false };
     try {
       const { data, error } = await serverSupabase
         .from('business_members')
@@ -109,11 +120,11 @@ export class BusinessToolsService {
         .maybeSingle();
 
       if (error || !data) {
-        return false;
+        return { authorized: false };
       }
-      return true;
+      return { authorized: true, role: (data.role as 'owner' | 'admin' | 'staff') || 'owner' };
     } catch {
-      return false;
+      return { authorized: false };
     }
   }
 

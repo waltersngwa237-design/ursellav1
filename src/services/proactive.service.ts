@@ -20,6 +20,7 @@ import { InventoryService } from './inventory.service.ts';
 import { ExpenseService } from './expense.service.ts';
 import { ProductService } from './product.service.ts';
 import { OfflineSyncService, type SyncItemType } from './offline-sync.service.ts';
+import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 
 const CACHED_INSIGHTS_KEY = 'ursella_cached_insights_';
 const INSIGHT_STATUS_KEY = 'ursella_insight_status_';
@@ -27,6 +28,24 @@ const LOCAL_AUDIT_LOGS_KEY = 'ursella_local_audit_logs_';
 const LOCAL_REMINDERS_KEY = 'ursella_local_reminders_';
 
 export class ProactiveService {
+  /**
+   * Generates authorization headers with Supabase session access token.
+   */
+  private static async getAuthHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    try {
+      if (isSupabaseConfigured) {
+        const { data } = await supabase.auth.getSession();
+        if (data?.session?.access_token) {
+          headers['Authorization'] = `Bearer ${data.session.access_token}`;
+        }
+      }
+    } catch {
+      // Local / preview fallback
+    }
+    return headers;
+  }
+
   /**
    * Scan business data to detect events and generate proactive insights.
    */
@@ -40,7 +59,7 @@ export class ProactiveService {
 
       const response = await fetch('/api/insights/scan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({ businessId, snapshot }),
       });
 
@@ -84,7 +103,9 @@ export class ProactiveService {
         return this.getLocalOrCachedInsights(businessId, category, status);
       }
 
-      const response = await fetch(`/api/insights?businessId=${encodeURIComponent(businessId)}&category=${category}&status=${status}`);
+      const response = await fetch(`/api/insights?businessId=${encodeURIComponent(businessId)}&category=${category}&status=${status}`, {
+        headers: await this.getAuthHeaders(),
+      });
       if (!response.ok) throw new Error('Failed to fetch insights');
       let data: BusinessInsight[] = await response.json();
 
@@ -140,7 +161,7 @@ export class ProactiveService {
 
       const response = await fetch(`/api/insights/${encodeURIComponent(insightId)}/status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({ businessId, status }),
       });
       return response.ok;
@@ -157,7 +178,9 @@ export class ProactiveService {
       let priorities: DailyPriorityItem[] = [];
 
       if (typeof navigator === 'undefined' || navigator.onLine) {
-        const response = await fetch(`/api/priorities/today?businessId=${encodeURIComponent(businessId)}`);
+        const response = await fetch(`/api/priorities/today?businessId=${encodeURIComponent(businessId)}`, {
+          headers: await this.getAuthHeaders(),
+        });
         if (response.ok) {
           const data = await response.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -183,7 +206,7 @@ export class ProactiveService {
     try {
       const response = await fetch('/api/actions/propose', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({
           businessId: proposal.business_id,
           insightId: proposal.insight_id,
@@ -238,7 +261,7 @@ export class ProactiveService {
       try {
         const response = await fetch('/api/actions/execute', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await this.getAuthHeaders(),
           body: JSON.stringify({
             actionId: params.actionId,
             businessId: params.businessId,
@@ -563,7 +586,7 @@ export class ProactiveService {
     try {
       const response = await fetch('/api/actions/reject', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({ actionId, userId, businessId }),
       });
       return response.ok;
@@ -577,7 +600,9 @@ export class ProactiveService {
    */
   public static async getAuditLogs(businessId: string): Promise<ActionAuditLog[]> {
     try {
-      const response = await fetch(`/api/actions/audit-logs?businessId=${encodeURIComponent(businessId)}`);
+      const response = await fetch(`/api/actions/audit-logs?businessId=${encodeURIComponent(businessId)}`, {
+        headers: await this.getAuthHeaders(),
+      });
       if (!response.ok) return [];
       return await response.json();
     } catch {
@@ -590,7 +615,9 @@ export class ProactiveService {
    */
   public static async getReminders(businessId: string): Promise<BusinessReminder[]> {
     try {
-      const response = await fetch(`/api/reminders?businessId=${encodeURIComponent(businessId)}`);
+      const response = await fetch(`/api/reminders?businessId=${encodeURIComponent(businessId)}`, {
+        headers: await this.getAuthHeaders(),
+      });
       if (!response.ok) return [];
       return await response.json();
     } catch {
@@ -612,7 +639,7 @@ export class ProactiveService {
     try {
       const response = await fetch('/api/reminders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify(params),
       });
       return await response.json();
@@ -629,7 +656,7 @@ export class ProactiveService {
     try {
       const response = await fetch(`/api/reminders/${encodeURIComponent(reminderId)}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({ businessId, status }),
       });
       return response.ok;
@@ -642,6 +669,7 @@ export class ProactiveService {
     try {
       const response = await fetch(`/api/reminders/${encodeURIComponent(reminderId)}?businessId=${encodeURIComponent(businessId)}`, {
         method: 'DELETE',
+        headers: await this.getAuthHeaders(),
       });
       return response.ok;
     } catch {
@@ -760,7 +788,9 @@ export class ProactiveService {
   public static async getNotifications(businessId: string): Promise<AppNotification[]> {
     let serverNotifications: AppNotification[] = [];
     try {
-      const response = await fetch(`/api/notifications?businessId=${encodeURIComponent(businessId)}`);
+      const response = await fetch(`/api/notifications?businessId=${encodeURIComponent(businessId)}`, {
+        headers: await this.getAuthHeaders(),
+      });
       if (response.ok) {
         serverNotifications = await response.json();
       }
@@ -823,7 +853,7 @@ export class ProactiveService {
     try {
       const response = await fetch('/api/notifications/read-all', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({ businessId }),
       });
       return response.ok;
@@ -845,6 +875,7 @@ export class ProactiveService {
     try {
       const response = await fetch(`/api/notifications/${encodeURIComponent(notificationId)}?businessId=${encodeURIComponent(businessId)}`, {
         method: 'DELETE',
+        headers: await this.getAuthHeaders(),
       });
       return response.ok;
     } catch {
@@ -868,7 +899,7 @@ export class ProactiveService {
     try {
       const response = await fetch(`/api/notifications/${encodeURIComponent(notificationId)}/toggle-read`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({ businessId }),
       });
       return response.ok;
@@ -887,7 +918,7 @@ export class ProactiveService {
     try {
       const response = await fetch('/api/notifications/clear-all', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({ businessId }),
       });
       return response.ok;
@@ -901,7 +932,9 @@ export class ProactiveService {
    */
   public static async getPreferences(businessId: string): Promise<NotificationPreferences> {
     try {
-      const response = await fetch(`/api/preferences/notifications?businessId=${encodeURIComponent(businessId)}`);
+      const response = await fetch(`/api/preferences/notifications?businessId=${encodeURIComponent(businessId)}`, {
+        headers: await this.getAuthHeaders(),
+      });
       if (!response.ok) throw new Error();
       return await response.json();
     } catch {
@@ -924,7 +957,7 @@ export class ProactiveService {
     try {
       const response = await fetch('/api/preferences/notifications', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({ businessId, preferences }),
       });
       if (!response.ok) return null;

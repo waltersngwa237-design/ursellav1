@@ -543,7 +543,7 @@ export const AnalyticsService = {
         0
       );
       inventoryValuation = activeProducts.reduce(
-        (acc, p) => acc + Number(p.stock_quantity || 0) * Number(p.cost_price || 0),
+        (acc, p) => acc + (p.product_type === 'service' ? 0 : Number(p.stock_quantity || 0) * Number(p.cost_price || 0)),
         0
       );
     }
@@ -603,12 +603,12 @@ export const AnalyticsService = {
       0
     );
 
-    // 7. Inventory
+    // 7. Inventory (Excluding services which do not track physical stock)
     const lowStockCount = activeProducts.filter(
-      (p) => p.stock_quantity > 0 && p.stock_quantity <= (p.minimum_stock_level || 5)
+      (p) => p.product_type !== 'service' && p.stock_quantity > 0 && p.stock_quantity <= (p.minimum_stock_level || 5)
     ).length;
 
-    const outOfStockCount = activeProducts.filter((p) => p.stock_quantity === 0).length;
+    const outOfStockCount = activeProducts.filter((p) => p.product_type !== 'service' && p.stock_quantity === 0).length;
 
     const financialOverview: FinancialOverviewMetrics = {
       revenue,
@@ -857,13 +857,17 @@ export const AnalyticsService = {
         const velocity = Number((perf.unitsSold / daysEvaluated).toFixed(2));
 
         let stockStatus: 'out_of_stock' | 'low_stock' | 'healthy' | 'slow_moving' = 'healthy';
-        if (p.stock_quantity === 0) stockStatus = 'out_of_stock';
-        else if (p.stock_quantity <= (p.minimum_stock_level || 5)) stockStatus = 'low_stock';
-        else if (perf.unitsSold === 0 && new Date(p.created_at).getTime() < Date.now() - 14 * 86400000) {
+        if (p.product_type === 'service') {
+          stockStatus = 'healthy';
+        } else if (p.stock_quantity === 0) {
+          stockStatus = 'out_of_stock';
+        } else if (p.stock_quantity <= (p.minimum_stock_level || 5)) {
+          stockStatus = 'low_stock';
+        } else if (perf.unitsSold === 0 && new Date(p.created_at).getTime() < Date.now() - 14 * 86400000) {
           stockStatus = 'slow_moving';
         }
 
-        const daysRemaining = velocity > 0 ? Number((p.stock_quantity / velocity).toFixed(1)) : null;
+        const daysRemaining = p.product_type !== 'service' && velocity > 0 ? Number((p.stock_quantity / velocity).toFixed(1)) : null;
 
         return {
           id: p.id,

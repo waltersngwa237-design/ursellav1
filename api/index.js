@@ -1,6 +1,6 @@
 // server.ts
 import express from "express";
-import path from "path";
+import path2 from "path";
 
 // server/business-tools.service.ts
 import { createClient } from "@supabase/supabase-js";
@@ -443,15 +443,22 @@ var BusinessToolsService = class {
    * Multi-tenant security rule: NEVER fail open.
    */
   static async verifyTenantAccess(userId, businessId) {
-    if (!userId || !businessId) return false;
+    const membership = await this.getTenantMembership(userId, businessId);
+    return membership.authorized;
+  }
+  /**
+   * Retrieves user's verified business membership role.
+   */
+  static async getTenantMembership(userId, businessId) {
+    if (!userId || !businessId) return { authorized: false };
     try {
       const { data, error } = await serverSupabase.from("business_members").select("id, role").eq("business_id", businessId).eq("user_id", userId).maybeSingle();
       if (error || !data) {
-        return false;
+        return { authorized: false };
       }
-      return true;
+      return { authorized: true, role: data.role || "owner" };
     } catch {
-      return false;
+      return { authorized: false };
     }
   }
   /**
@@ -959,9 +966,294 @@ var BusinessToolsService = class {
 };
 
 // server/intent.service.ts
-function classifyBusinessQuery(query) {
+function classifyBusinessQuery(query, history) {
   const q = query.toLowerCase().trim();
-  if (q.includes("business name") || q.includes("store name") || q.includes("shop name") || q.includes("name of my business") || q.includes("name of this business") || q.includes("what is my store") || q.includes("what is my business") || q.includes("about my store") || q.includes("about my business") || q.includes("who am i") || q.includes("who is the owner") || q.includes("operating currency") || q.includes("what currency") || q.includes("which currency") || q.includes("currency am i using") || q.includes("currency do we use") || q.includes("timezone") || q.includes("what timezone")) {
+  const isGreetingOnly = /^(hello|hi|hey|good\s+(morning|afternoon|evening|day)|greetings|howdy|salut|bonjour|bon courage|yo|hola)[\s!.,?]*$/i.test(
+    q
+  ) || /^(who\s+are\s+you|what\s+can\s+you\s+do|how\s+are\s+you|how\s+do\s+you\s+work|what\s+is\s+ursella|help\s+me|help)[\s!.,?]*$/i.test(
+    q
+  ) || /^(thanks|thank\s+you|merci|great|awesome|understood|got\s+it|ok|okay)[\s!.,?]*$/i.test(
+    q
+  );
+  if (isGreetingOnly) {
+    return {
+      intent: "greeting",
+      domain: "conversational",
+      timePeriod: "all_time",
+      requiredTools: [],
+      suggestedTimeHorizonDays: 0,
+      confidence: 0.99,
+      primaryGoal: "Engage warmly and conversationally with the merchant without querying database records."
+    };
+  }
+  if (q.startsWith("take me to ") || q.startsWith("go to ") || q.startsWith("navigate to ") || q.startsWith("open ") || q.startsWith("show me the ") || q === "take me to inventory" || q === "go to inventory" || q === "go to sales" || q === "open pos" || q === "open settings") {
+    const isNavigation = q.includes("inventory") || q.includes("products") || q.includes("sales") || q.includes("pos") || q.includes("debtors") || q.includes("customers") || q.includes("expenses") || q.includes("settings") || q.includes("dashboard") || q.includes("catalog");
+    if (isNavigation && !q.includes("how much") && !q.includes("why") && !q.includes("what is")) {
+      return {
+        intent: "navigation",
+        domain: "store_info",
+        timePeriod: "all_time",
+        requiredTools: [],
+        suggestedTimeHorizonDays: 0,
+        confidence: 0.98,
+        primaryGoal: "Guide the merchant directly to the requested application screen."
+      };
+    }
+  }
+  const recentHistory = (history || []).slice(-6);
+  const lastUserMsg = [...recentHistory].reverse().find((m) => m.role === "user")?.content.toLowerCase() || "";
+  const lastAssistantMsg = [...recentHistory].reverse().find((m) => m.role === "assistant")?.content.toLowerCase() || "";
+  const isAnaphoraOrContinuation = q === "check it" || q === "check that" || q === "check this" || q === "look into it" || q === "diagnose it" || q === "investigate it" || q === "why is that?" || q === "why is that" || q === "why?" || q === "why" || q.startsWith("what about ") || q.startsWith("how about ") || q.startsWith("and ") || q === "do that" || q === "yes" || q === "go ahead" || q === "proceed" || q === "apply it" || q === "confirm it" || q.includes("compare it") || q.includes("tell me more about that");
+  if (isAnaphoraOrContinuation && recentHistory.length > 0) {
+    const productFollowUpMatch = q.match(/^(?:what\s+about|how\s+about|and)\s+(?:the\s+)?([a-z0-9\s_-]+)\??$/i);
+    if (productFollowUpMatch) {
+      const extractedEntity = productFollowUpMatch[1].trim();
+      return {
+        intent: "analysis",
+        domain: "products",
+        timePeriod: "last_30_days",
+        requiredTools: ["get_product_performance"],
+        suggestedTimeHorizonDays: 30,
+        confidence: 0.95,
+        isEntitySpecific: true,
+        entityHint: extractedEntity,
+        resolvedContextTopic: "product_margin_continuation",
+        primaryGoal: `Continue product analysis specifically targeting "${extractedEntity}".`
+      };
+    }
+    if (q === "do that" || q === "yes" || q === "go ahead" || q === "proceed" || q === "apply it") {
+      return {
+        intent: "action_confirmation",
+        domain: "products",
+        timePeriod: "all_time",
+        requiredTools: ["get_product_performance"],
+        suggestedTimeHorizonDays: 1,
+        confidence: 0.95,
+        resolvedContextTopic: "action_confirmation",
+        primaryGoal: "Confirm execution of the proposed action discussed in the previous message."
+      };
+    }
+    if (lastUserMsg.includes("slow") || lastUserMsg.includes("sales") || lastAssistantMsg.includes("slow") || lastAssistantMsg.includes("sales volume") || lastAssistantMsg.includes("product demand")) {
+      return {
+        intent: "diagnosis",
+        domain: "sales",
+        timePeriod: "comparison_period",
+        requiredTools: ["get_sales_summary", "get_period_comparison", "get_inventory_alerts"],
+        suggestedTimeHorizonDays: 30,
+        confidence: 0.95,
+        resolvedContextTopic: "sales_slowdown_diagnosis",
+        primaryGoal: "Diagnose sales slowdown by checking recent sales trajectory, period comparison, and inventory availability."
+      };
+    }
+    if (lastUserMsg.includes("stock") || lastUserMsg.includes("inventory") || lastAssistantMsg.includes("inventory")) {
+      return {
+        intent: "diagnosis",
+        domain: "inventory",
+        timePeriod: "all_time",
+        requiredTools: ["get_inventory_alerts", "get_product_performance"],
+        suggestedTimeHorizonDays: 30,
+        confidence: 0.94,
+        resolvedContextTopic: "inventory_continuation",
+        primaryGoal: "Check inventory stock levels and replenishment priorities from prior context."
+      };
+    }
+    if (lastUserMsg.includes("debt") || lastUserMsg.includes("owe") || lastAssistantMsg.includes("debt")) {
+      return {
+        intent: "fact_retrieval",
+        domain: "debtors",
+        timePeriod: "all_time",
+        requiredTools: ["get_customer_balances"],
+        suggestedTimeHorizonDays: 30,
+        confidence: 0.95,
+        resolvedContextTopic: "debtor_continuation",
+        primaryGoal: "Inspect customer balances and overdue credit based on preceding discussion."
+      };
+    }
+  }
+  const isEducationalConcept = (q.includes("explain") || q.startsWith("what is ") || q.startsWith("what does ") || q.startsWith("how to calculate ") || q.startsWith("how do you calculate ") || q.startsWith("difference between ")) && (q.includes("gross margin") || q.includes("net profit") || q.includes("profit margin") || q.includes("cogs") || q.includes("cost of goods") || q.includes("fifo") || q.includes("working capital") || q.includes("markup") || q.includes("break even") || q.includes("breakeven") || q.includes("cash flow") || q.includes("depreciation") || q.includes("inventory turnover") || q.includes("safety stock")) && !q.includes("my ") && !q.includes("our ") && !q.includes("store") && !q.includes("business") && !q.includes("today") && !q.includes("this month");
+  if (isEducationalConcept) {
+    return {
+      intent: "explanation",
+      domain: "profitability",
+      timePeriod: "all_time",
+      requiredTools: [],
+      // ZERO database retrieval!
+      suggestedTimeHorizonDays: 0,
+      confidence: 0.98,
+      primaryGoal: "Provide a clear, conversational explanation of the business financial concept with practical examples, without querying store database records."
+    };
+  }
+  if (q.startsWith("add ") || q.startsWith("create ") || q.startsWith("register ") || q.startsWith("new product") || q.startsWith("ajouter ") || q.startsWith("cr\xE9er ") || q.includes("add product") || q.includes("create product") || q.includes("new product") || q.includes("add new item") || q.includes("add to inventory") || q.includes("add to catalog") || q.includes("add stock") || q.includes("restock") || q.includes("reapprovisionner")) {
+    let extractedEntity;
+    const addUnitsMatch = q.match(/add\s+\d+\s*(?:units?|pcs?|items?|bags?|cartons?|kg|bottles?|pieces?)?\s*(?:of\s+)?([a-z0-9\s_-]+)/i);
+    if (addUnitsMatch) {
+      extractedEntity = addUnitsMatch[1].trim();
+    }
+    return {
+      intent: "action_proposal",
+      domain: "products",
+      timePeriod: "all_time",
+      requiredTools: ["get_product_performance"],
+      // Only product catalog needed!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.98,
+      isEntitySpecific: true,
+      entityHint: extractedEntity,
+      primaryGoal: "Validate product catalog entry, check existing stock, and prepare proposed action for confirmation."
+    };
+  }
+  const isExplicitReportRequested = q.includes("full business analysis") || q.includes("full analysis") || q.includes("detailed performance report") || q.includes("comprehensive diagnostics") || q.includes("detailed report") || q.includes("business overview report") || q.includes("comprehensive analysis") || q.includes("full report") || q.includes("complete business analysis");
+  if (isExplicitReportRequested) {
+    return {
+      intent: "full_report",
+      domain: "multi_domain",
+      timePeriod: "last_30_days",
+      isReportMode: true,
+      requiredTools: [
+        "get_business_overview",
+        "get_today_sales_summary",
+        "get_inventory_alerts",
+        "get_customer_balances",
+        "get_business_health"
+      ],
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.99,
+      primaryGoal: "Generate an in-depth, comprehensive executive report with structured sections as explicitly requested by the merchant."
+    };
+  }
+  const isBestSellingOrProductMargin = q.includes("best selling") || q.includes("best-selling") || q.includes("top product") || q.includes("top selling") || q.includes("fastest selling") || q.includes("best seller") || q.includes("most sold") || q.includes("makes me the most money") || q.includes("make me the most money") || q.includes("most profitable product") || q.includes("highest margin product") || q.includes("highest profit product") || q.includes("which product") || q.includes("what product") || q.includes("product performance") || q.includes("slow moving product");
+  if (isBestSellingOrProductMargin) {
+    return {
+      intent: "analysis",
+      domain: "products",
+      timePeriod: "last_30_days",
+      requiredTools: ["get_product_performance"],
+      // Products ONLY!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.96,
+      isEntitySpecific: false,
+      primaryGoal: "Retrieve product sales velocity, volume, and unit economics to answer top product inquiries directly."
+    };
+  }
+  if (q.includes("today") || q.includes("sell today") || q.includes("sold today") || q.includes("sales today") || q.includes("revenue today") || q.includes("orders today")) {
+    return {
+      intent: "fact_retrieval",
+      domain: "sales",
+      timePeriod: "today",
+      requiredTools: ["get_today_sales_summary"],
+      // Today only!
+      suggestedTimeHorizonDays: 1,
+      confidence: 0.98,
+      primaryGoal: "Retrieve today sales revenue, transaction count, and orders directly."
+    };
+  }
+  if (q.includes("yesterday") || q.includes("sales yesterday") || q.includes("sold yesterday")) {
+    return {
+      intent: "fact_retrieval",
+      domain: "sales",
+      timePeriod: "yesterday",
+      requiredTools: ["get_sales_summary"],
+      // Sales summary only!
+      suggestedTimeHorizonDays: 2,
+      confidence: 0.95,
+      primaryGoal: "Retrieve sales revenue and orders for yesterday."
+    };
+  }
+  if (q.includes("this month") || q.includes("make this month") || q.includes("made this month") || q.includes("monthly sales")) {
+    return {
+      intent: "fact_retrieval",
+      domain: "sales",
+      timePeriod: "this_month",
+      requiredTools: ["get_sales_summary"],
+      // Sales summary only!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.95,
+      primaryGoal: "Retrieve recorded sales and revenue for this month."
+    };
+  }
+  if (q.includes("sales have been slow") || q.includes("sales are slow") || q.includes("slow lately") || q.includes("how are my sales doing") || q.includes("how are sales doing") || q.includes("how are my sales") || q.includes("sales drop") || q.includes("drop in sales") || q.includes("sales down")) {
+    return {
+      intent: "diagnosis",
+      domain: "sales",
+      timePeriod: "comparison_period",
+      requiredTools: ["get_sales_summary", "get_period_comparison"],
+      // Relevant sales history & comparison only!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.95,
+      primaryGoal: "Analyze sales trajectory against previous period to answer sales performance and slowdown concerns."
+    };
+  }
+  if (q.includes("why did my profit drop") || q.includes("why did profit drop") || q.includes("profit drop") || q.includes("profit down")) {
+    return {
+      intent: "diagnosis",
+      domain: "profitability",
+      timePeriod: "comparison_period",
+      requiredTools: ["get_business_overview", "get_period_comparison", "get_expense_summary"],
+      // Relevant revenue, COGS, expenses and comparison only!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.95,
+      primaryGoal: "Diagnose profit change by comparing revenue, COGS, and operating expenses against previous period."
+    };
+  }
+  if (q.includes("low stock") || q.includes("running low") || q.includes("out of stock") || q.includes("inventory") || q.includes("stock level") || q.includes("items in stock") || q.includes("how much stock") || q.includes("depleted") || q.includes("stockout")) {
+    return {
+      intent: "fact_retrieval",
+      domain: "inventory",
+      timePeriod: "all_time",
+      requiredTools: ["get_inventory_alerts"],
+      // Inventory alerts only!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.96,
+      primaryGoal: "Identify low-stock and out-of-stock items needing replenishment."
+    };
+  }
+  if (q.includes("who owes") || q.includes("debt") || q.includes("debtor") || q.includes("unpaid") || q.includes("receivable") || q.includes("owing") || q.includes("credit balance") || q.includes("collect money") || q.includes("customers owe") || q.includes("owe me") || q.includes("money owed")) {
+    return {
+      intent: "fact_retrieval",
+      domain: "debtors",
+      timePeriod: "all_time",
+      requiredTools: ["get_customer_balances"],
+      // Customer balances only!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.96,
+      primaryGoal: "Retrieve outstanding customer receivables and debtor balances."
+    };
+  }
+  if (q.includes("expense") || q.includes("spending") || q.includes("spent") || q.includes("costs") || q.includes("operating cost") || q.includes("where am i spending")) {
+    return {
+      intent: "analysis",
+      domain: "expenses",
+      timePeriod: "this_month",
+      requiredTools: ["get_expense_summary"],
+      // Expense summary only!
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.94,
+      primaryGoal: "Retrieve operating expenditures and cost breakdowns."
+    };
+  }
+  if (q.includes("cash flow") || q.includes("cash collected") || q.includes("liquidity") || q.includes("money in") || q.includes("inflow")) {
+    return {
+      intent: "analysis",
+      domain: "cash_flow",
+      timePeriod: "last_30_days",
+      requiredTools: ["get_cash_flow"],
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.92,
+      primaryGoal: "Evaluate cash inflows vs operational outflows."
+    };
+  }
+  if (q.includes("fifo") || q.includes("cost drift") || q.includes("cost basis") || q.includes("inventory valuation") || q.includes("cost layer")) {
+    return {
+      intent: "fifo_audit",
+      domain: "fifo_costing",
+      timePeriod: "all_time",
+      requiredTools: ["get_fifo_inventory_valuation"],
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.97,
+      primaryGoal: "Run FIFO inventory valuation and layer inspection."
+    };
+  }
+  if (q.includes("business name") || q.includes("store name") || q.includes("operating currency") || q.includes("what currency") || q.includes("timezone") || q.includes("who am i")) {
     return {
       intent: "identity_lookup",
       domain: "store_info",
@@ -969,190 +1261,18 @@ function classifyBusinessQuery(query) {
       requiredTools: ["get_business_overview"],
       suggestedTimeHorizonDays: 1,
       confidence: 0.98,
-      primaryGoal: "Identify store settings, active currency, timezone, or business identity."
-    };
-  }
-  if (q.includes("fifo") || q.includes("cost drift") || q.includes("cost basis") || q.includes("inventory valuation") || q.includes("valuation by product") || q.includes("cost layer") || q.includes("first in first out") || q.includes("cost of inventory")) {
-    return {
-      intent: "fifo_audit",
-      domain: "fifo_costing",
-      timePeriod: "all_time",
-      requiredTools: ["get_fifo_inventory_valuation", "get_inventory_alerts", "get_product_performance"],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.98,
-      primaryGoal: "Run pure FIFO ledger valuation, layer breakdown, and cost drift audit."
-    };
-  }
-  const isProductLevel = q.includes("best selling") || q.includes("top product") || q.includes("top selling") || q.includes("fastest selling") || q.includes("best seller") || q.includes("highest margin product") || q.includes("most profitable product") || q.includes("margin on product") || q.includes("product margin") || q.includes("product-level") || q.includes("by product") || q.includes("per product") || q.includes("slow moving") || q.includes("product sales") || q.includes("product performance") || q.includes("which product") || q.includes("what product") || q.includes("margin on") || q.includes("profit on") || q.includes("cost of") || q.includes("price of");
-  if (isProductLevel) {
-    return {
-      intent: "analysis",
-      domain: "products",
-      timePeriod: "last_30_days",
-      requiredTools: ["get_product_performance", "get_inventory_alerts"],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.95,
-      isEntitySpecific: true,
-      primaryGoal: "Analyze product catalog unit economics, unit margin %, FIFO COGS, velocity, and stock levels."
-    };
-  }
-  if (q.includes("daily brief") || q.includes("morning brief") || q.includes("start my day") || q.includes("today briefing") || q.includes("today brief") || q.includes("daily report") || q.includes("day report") || q.includes("morning update")) {
-    return {
-      intent: "daily_brief",
-      domain: "multi_domain",
-      timePeriod: "today",
-      requiredTools: ["get_daily_brief_facts", "get_today_sales_summary", "get_inventory_alerts", "get_customer_balances"],
-      suggestedTimeHorizonDays: 1,
-      confidence: 0.96,
-      primaryGoal: "Synthesize comprehensive daily executive briefing across today sales, inventory alerts, and debtor follow-ups."
-    };
-  }
-  if (q.includes("who owes") || q.includes("debt") || q.includes("debtor") || q.includes("unpaid") || q.includes("receivable") || q.includes("owing") || q.includes("credit balance") || q.includes("collect money") || q.includes("customers owe") || q.includes("owe me") || q.includes("money owed") || q.includes("pending payment") || q.includes("uncollected")) {
-    const isRecommendation = q.includes("who should i call") || q.includes("who to collect") || q.includes("priority");
-    return {
-      intent: isRecommendation ? "recommendation" : "fact_retrieval",
-      domain: "debtors",
-      timePeriod: "all_time",
-      requiredTools: ["get_customer_balances"],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.95,
-      primaryGoal: "Retrieve outstanding customer debts, credit balances, and debtor contact details."
-    };
-  }
-  if (q.includes("low stock") || q.includes("running low") || q.includes("out of stock") || q.includes("restock") || q.includes("inventory") || q.includes("stock level") || q.includes("stockout") || q.includes("reorder") || q.includes("stock valuation") || q.includes("how much stock") || q.includes("items in stock") || q.includes("depleted")) {
-    const isRecommendation = q.includes("what should i restock") || q.includes("what to buy") || q.includes("priority");
-    return {
-      intent: isRecommendation ? "recommendation" : "fact_retrieval",
-      domain: "inventory",
-      timePeriod: "all_time",
-      requiredTools: ["get_inventory_alerts", "get_product_performance"],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.94,
-      primaryGoal: "Check stock quantities, identify out-of-stock and low-stock SKUs, and evaluate replenishment urgency."
-    };
-  }
-  if (q.includes("expense") || q.includes("spending") || q.includes("spent") || q.includes("spending the most") || q.includes("costs") || q.includes("where am i spending") || q.includes("operating expense") || q.includes("cost breakdown") || q.includes("bills") || q.includes("rent") || q.includes("salaries") || q.includes("utilities")) {
-    const isMonth = q.includes("this month") || q.includes("month");
-    const isWeek = q.includes("this week") || q.includes("week");
-    return {
-      intent: "analysis",
-      domain: "expenses",
-      timePeriod: isWeek ? "this_week" : isMonth ? "this_month" : "last_30_days",
-      requiredTools: ["get_expense_summary"],
-      suggestedTimeHorizonDays: isWeek ? 7 : 30,
-      confidence: 0.92,
-      primaryGoal: "Analyze operating expenses, cost categories, and major expenditure drivers."
-    };
-  }
-  if (q.includes("cash flow") || q.includes("cash collected") || q.includes("money in") || q.includes("inflow") || q.includes("outflow") || q.includes("net cash") || q.includes("liquidity") || q.includes("deposits") || q.includes("cash vs credit")) {
-    return {
-      intent: "analysis",
-      domain: "cash_flow",
-      timePeriod: "last_30_days",
-      requiredTools: ["get_cash_flow", "get_expense_summary"],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.9,
-      primaryGoal: "Evaluate cash inflows from payments vs cash outflows from operational expenses."
-    };
-  }
-  if (q.includes("gross margin") || q.includes("net profit") || q.includes("profit margin") || q.includes("profitable") || q.includes("margins") || q.includes("profitability") || q.includes("cogs") || q.includes("cost of goods") || q.includes("gross profit")) {
-    return {
-      intent: "analysis",
-      domain: "profitability",
-      timePeriod: "last_30_days",
-      requiredTools: ["get_business_overview", "get_today_sales_summary", "get_product_performance"],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.91,
-      primaryGoal: "Examine business-wide gross margin percentage, total cost of goods sold, and operating net profit."
-    };
-  }
-  if (q.includes("why are sales") || q.includes("sales down") || q.includes("sales up") || q.includes("compared") || q.includes("compare") || q.includes("vs last") || q.includes("growth") || q.includes("drop in sales") || q.includes("trend") || q.includes("contraction") || q.includes("this week vs last week") || q.includes("this month vs last month")) {
-    return {
-      intent: "comparison",
-      domain: "sales",
-      timePeriod: "comparison_period",
-      requiredTools: ["get_period_comparison", "get_sales_summary", "get_product_performance"],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.93,
-      primaryGoal: "Compare current period metrics with previous period to diagnose trends and variations."
-    };
-  }
-  if (q.includes("today") || q.includes("sell today") || q.includes("sold today") || q.includes("sales today") || q.includes("revenue today") || q.includes("profit today") || q.includes("orders today") || q.includes("what did i sell today") || q.includes("how much did i sell today") || q.includes("how are my sales today")) {
-    return {
-      intent: "fact_retrieval",
-      domain: "sales",
-      timePeriod: "today",
-      requiredTools: ["get_today_sales_summary"],
-      suggestedTimeHorizonDays: 1,
-      confidence: 0.97,
-      primaryGoal: "Answer exact sales revenue, transaction count, gross profit, and cash collected for today."
-    };
-  }
-  if (q.includes("yesterday") || q.includes("sales yesterday") || q.includes("revenue yesterday") || q.includes("sold yesterday")) {
-    return {
-      intent: "fact_retrieval",
-      domain: "sales",
-      timePeriod: "yesterday",
-      requiredTools: ["get_sales_summary"],
-      suggestedTimeHorizonDays: 2,
-      confidence: 0.95,
-      primaryGoal: "Answer sales revenue and order counts for yesterday."
-    };
-  }
-  if (q.includes("focus on") || q.includes("what should i do") || q.includes("advice") || q.includes("recommend") || q.includes("priority") || q.includes("priorities") || q.includes("how to improve") || q.includes("next step") || q.includes("action plan")) {
-    return {
-      intent: "recommendation",
-      domain: "multi_domain",
-      timePeriod: "last_30_days",
-      requiredTools: [
-        "get_business_overview",
-        "get_inventory_alerts",
-        "get_customer_balances",
-        "get_business_health"
-      ],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.88,
-      primaryGoal: "Formulate actionable, prioritized business actions grounded in health, inventory, and debtors."
-    };
-  }
-  if (q.includes("sales") || q.includes("revenue") || q.includes("transactions") || q.includes("orders") || q.includes("turnover")) {
-    const isWeek = q.includes("this week") || q.includes("week");
-    const isMonth = q.includes("this month") || q.includes("month");
-    return {
-      intent: "analysis",
-      domain: "sales",
-      timePeriod: isWeek ? "this_week" : isMonth ? "this_month" : "last_30_days",
-      requiredTools: ["get_sales_summary", "get_business_overview"],
-      suggestedTimeHorizonDays: isWeek ? 7 : 30,
-      confidence: 0.9,
-      primaryGoal: "Analyze sales volume, total revenue, and average transaction values for the requested timeframe."
-    };
-  }
-  if (q.includes("customer") || q.includes("clients") || q.includes("buyer")) {
-    return {
-      intent: "analysis",
-      domain: "customers",
-      timePeriod: "last_30_days",
-      requiredTools: ["get_customer_balances", "get_sales_summary"],
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.88,
-      primaryGoal: "Provide registered customer counts, purchasing activity, and receivables."
+      primaryGoal: "Answer store configuration, name, currency, or timezone."
     };
   }
   return {
-    intent: "general_overview",
+    intent: "conversational",
     domain: "multi_domain",
-    timePeriod: "last_30_days",
-    requiredTools: [
-      "get_business_overview",
-      "get_today_sales_summary",
-      "get_inventory_alerts",
-      "get_customer_balances",
-      "get_business_health"
-    ],
-    suggestedTimeHorizonDays: 30,
-    confidence: 0.8,
-    primaryGoal: "Provide balanced business summary covering revenue, margins, inventory alerts, and debtor balance."
+    timePeriod: "today",
+    requiredTools: ["get_today_sales_summary"],
+    // Minimal pulse only!
+    suggestedTimeHorizonDays: 1,
+    confidence: 0.85,
+    primaryGoal: "Respond naturally to the merchant using immediate daily sales pulse."
   };
 }
 
@@ -1200,135 +1320,106 @@ function getGeminiClient() {
   }
   return geminiClientInstance;
 }
+var GROQ_API_ENDPOINT = "https://api.groq.com/openai/v1";
+var GROQ_PRODUCTION_MODEL = "openai/gpt-oss-120b";
+function getGroqApiKey() {
+  const key = process.env.GROQ_API_KEY?.trim();
+  if (key && key.length > 0 && key !== "placeholder-key" && !key.includes("MY_GROQ_API_KEY")) {
+    return key;
+  }
+  return null;
+}
 function logAIProvenance(meta) {
-  const statusEmoji = meta.source === "GEMINI_RESPONSE" ? "\u2728 [GEMINI_LIVE]" : "\u{1F6E1}\uFE0F [DETERMINISTIC_FALLBACK]";
+  const provider = meta.provider || (meta.source === "GEMINI_RESPONSE" ? "gemini" : meta.source === "GROQ_RESPONSE" ? "groq" : "deterministic_fallback");
+  const statusEmoji = provider === "gemini" ? "\u2728 [GEMINI_LIVE]" : provider === "groq" ? "\u26A1 [GROQ_SECONDARY]" : "\u{1F6E1}\uFE0F [DETERMINISTIC_FALLBACK]";
   console.log(
-    `[AI Provenance] ${statusEmoji} endpoint=${meta.endpoint} business=${meta.businessId} model=${meta.model} source=${meta.source} latency=${meta.latencyMs}ms${meta.error ? ` err="${meta.error}"` : ""}`
+    `[AI Provenance] ${statusEmoji} provider: ${provider} endpoint=${meta.endpoint} business=${meta.businessId} model=${meta.model} source=${meta.source} latency=${meta.latencyMs}ms${meta.error ? ` err="${meta.error}"` : ""}`
   );
 }
 
-// server/gemini.service.ts
-var GeminiService = class {
-  /**
-   * Builds the strict Ursella AI system instruction enforcing the 9-step reasoning workflow.
-   */
-  static buildSystemInstruction(ctx) {
-    return `You are Ursella AI, the elite executive business operating co-pilot inside Ursella Business OS.
-You are providing high-level operational intelligence, financial diagnostics, and strategic advisory to the business owner of "${ctx.businessName}" (${ctx.businessType}).
-
-PLATFORM CONTEXT & GROUND TRUTH:
-- Active Enterprise: "${ctx.businessName}" (${ctx.businessType})
-- Operating Currency: "${ctx.currency}". Always format every financial figure with "${ctx.currency}".
-- Timezone: "${ctx.timezone}". Reference Date: ${ctx.currentDateIso.split("T")[0]}.
-
-RESPONSE STYLE: FLAGSHIP GEMINI EXECUTIVE INTELLIGENCE
-You provide thorough, comprehensive, deeply analytical, and actionable responses. DO NOT give ultra-short or single-line answers.
-
-STRUCTURE EVERY RESPONSE WITH THE FOLLOWING SECTIONS:
-1. ### Executive Summary
-   - State the authoritative, verified factual figures directly in the opening sentence.
-   - Summarize the immediate status of the requested topic clearly and concisely.
-
-2. ### Analytical Diagnostics & Data Breakdown
-   - Break down the underlying drivers (e.g. breakdown by SKU, customer debtor balances, cash collection velocity, margin percentages, or stock replenishment lead times).
-   - Use bullet points, bold key figures, and concise comparison metrics.
-
-3. ### Operational Observations & Risk Assessment
-   - Highlight potential bottlenecks, cash flow leakage, stockout vulnerabilities, margin compression, or overdue credit exposure based on the real data.
-
-4. ### Strategic Recommendations & Tactical Playbook
-   - Provide 2 to 3 concrete, high-leverage action items the merchant can execute immediately in their store or system.
-
-CRITICAL INTEGRITY RULES:
-- STRICT MATHEMATICAL GROUNDING: Base all figures strictly on the verified facts in the context JSON. NEVER hallucinate or invent numbers.
-- If data is empty or zero, explain clearly what that implies and guide the user on what activity to record.
-- NEVER substitute store-wide aggregate reports when asked about a specific product, customer, or category.
-
-OUTPUT FORMAT:
-Respond with a JSON object strictly adhering to this schema:
-{
-  "answer": "A comprehensive, beautifully formatted Markdown response with clear headers (### Executive Summary, ### Analytical Breakdown, ### Strategic Playbook), bullet points, bold figures, and actionable business depth.",
-  "keyMetrics": [
-    { "label": "Metric Name", "value": 12000, "formattedValue": "${ctx.currency} 12,000", "trend": "positive" | "negative" | "neutral" }
-  ],
-  "recommendations": [
-    {
-      "id": "rec-1",
-      "title": "Action Title",
-      "reasoning": "Detailed rationale explaining why this action is critical",
-      "actionSuggestion": "Step-by-step actionable instruction",
-      "priority": "high" | "medium" | "low"
-    }
-  ],
-  "confidence": "high_confidence" | "moderate_confidence" | "insufficient_data",
-  "followUpSuggestions": [
-    "Contextual follow-up question 1",
-    "Contextual follow-up question 2",
-    "Contextual follow-up question 3"
-  ]
-}`;
+// server/ai-prompt.utils.ts
+function sanitizeFollowUpSuggestion(suggestion) {
+  if (!suggestion || typeof suggestion !== "string") return "";
+  let clean = suggestion.trim();
+  clean = clean.replace(/^would you like me to\s+/i, "").replace(/^would you like to\s+/i, "").replace(/^would you like\s+/i, "Show me ").replace(/^do you want me to\s+/i, "").replace(/^do you want to\s+/i, "").replace(/^do you want\s+/i, "Show me ").replace(/^should i\s+/i, "").replace(/^shall i\s+/i, "").replace(/^can i help you\s+/i, "Help me ").replace(/^can i\s+/i, "").replace(/^do you need me to\s+/i, "").replace(/^do you need help\s+(?:with|to)?\s*/i, "Help me ").replace(/^do you need to\s+/i, "").replace(/^do you have any questions about\s+/i, "Tell me more about ").replace(/^let me know if you want to\s+/i, "").replace(/^if you want, I can\s+/i, "").trim();
+  if (!clean) return "";
+  clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+  if (clean.endsWith("?") && !/^(how|what|who|which|where|why|can you|is|are)\b/i.test(clean)) {
+    clean = clean.slice(0, -1).trim();
   }
+  return clean;
+}
+function sanitizeFollowUpSuggestions(suggestions) {
+  if (!Array.isArray(suggestions) || suggestions.length === 0) {
+    return ["How are my sales today?", "Which products are low on stock?"];
+  }
+  const cleaned = suggestions.map((s) => sanitizeFollowUpSuggestion(s)).filter((s) => s.length > 3);
+  return cleaned.length > 0 ? cleaned.slice(0, 4) : ["How are my sales today?", "Which products are low on stock?"];
+}
+
+// server/groq.service.ts
+var GroqService = class {
   /**
-   * Executes AI Chat reasoning.
+   * Executes AI Chat reasoning using Groq API as secondary fallback.
+   * Model: openai/gpt-oss-120b
    */
-  static async generateChatResponse(userMessage, ctx) {
-    const ai = getGeminiClient();
-    const contextPrompt = `
-=== BUSINESS CONTEXT & RELEVANT FACTUAL METRICS ===
-Active Store: ${ctx.businessName} (${ctx.businessType})
-Currency: ${ctx.currency}
-Timezone: ${ctx.timezone}
-Reference Date: ${ctx.currentDateIso}
-
-${ctx.parsedIntent ? `=== INTERPRETED REASONING GOAL ===
-Intent: ${ctx.parsedIntent.intent}
-Domain: ${ctx.parsedIntent.domain}
-Time Period: ${ctx.parsedIntent.timePeriod}
-Goal: ${ctx.parsedIntent.primaryGoal}
-` : ""}
-
-=== VERIFIED BUSINESS DATA (GROUND TRUTH) ===
-${JSON.stringify(ctx.toolResults, null, 2)}
-
-=== USER CONVERSATION HISTORY ===
-${ctx.conversationHistory?.length ? ctx.conversationHistory.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n") : "No previous history."}
-
-=== CURRENT USER QUESTION ===
-"${userMessage}"
-`;
-    const model = getActiveGeminiModel();
-    const startTime = Date.now();
-    if (!ai) {
-      logAIProvenance({
-        endpoint: "generateChatResponse",
-        businessId: ctx.businessName,
-        source: "DETERMINISTIC_FALLBACK",
-        model,
-        latencyMs: 0,
-        error: "GEMINI_API_KEY is not configured or client initialization failed"
-      });
-      return this.generateDeterministicFallback(userMessage, ctx);
+  static async generateChatResponse(systemInstruction, contextPrompt, ctx, timeoutMs = 12e3) {
+    const apiKey = getGroqApiKey();
+    if (!apiKey) {
+      console.warn("[Groq Router] GROQ_API_KEY is not configured in server environment.");
+      return null;
     }
+    if (ctx.testSimulation === "all-fail") {
+      console.warn("[Groq Router] Simulated secondary provider failure: all-fail");
+      return null;
+    }
+    const startTime = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: contextPrompt,
-        config: {
-          systemInstruction: this.buildSystemInstruction(ctx),
-          responseMimeType: "application/json",
+      const response = await fetch(`${GROQ_API_ENDPOINT}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: GROQ_PRODUCTION_MODEL,
+          messages: [
+            {
+              role: "system",
+              content: systemInstruction
+            },
+            {
+              role: "user",
+              content: contextPrompt
+            }
+          ],
+          response_format: { type: "json_object" },
           temperature: 0.2
-        }
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        throw new Error(`Groq API returned HTTP ${response.status}: ${errorText.slice(0, 250)}`);
+      }
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || "";
       const latencyMs = Date.now() - startTime;
-      const responseText = response.text || "";
+      if (!content || typeof content !== "string") {
+        throw new Error("Groq API returned empty response content");
+      }
       try {
-        const parsed = JSON.parse(responseText);
+        const parsed = JSON.parse(content);
         if (parsed && typeof parsed.answer === "string") {
           logAIProvenance({
             endpoint: "generateChatResponse",
             businessId: ctx.businessName,
-            source: "GEMINI_RESPONSE",
-            model,
+            source: "GROQ_RESPONSE",
+            provider: "groq",
+            model: GROQ_PRODUCTION_MODEL,
             latencyMs
           });
           return {
@@ -1340,103 +1431,93 @@ ${ctx.conversationHistory?.length ? ctx.conversationHistory.map((m) => `${m.role
             anomaliesDetected: parsed.anomaliesDetected || [],
             confidence: parsed.confidence || "high_confidence",
             dataSufficiencyNote: parsed.dataSufficiencyNote,
-            followUpSuggestions: parsed.followUpSuggestions || [
-              "How are my sales today?",
-              "Which products are low on stock?",
-              "Who owes me money?"
-            ],
+            followUpSuggestions: sanitizeFollowUpSuggestions(parsed.followUpSuggestions),
             proposedAction: parsed.proposedAction,
-            responseSource: "GEMINI_RESPONSE"
+            responseSource: "GROQ_RESPONSE",
+            provider: "groq"
           };
         }
       } catch (parseError) {
         logAIProvenance({
           endpoint: "generateChatResponse",
           businessId: ctx.businessName,
-          source: "GEMINI_RESPONSE",
-          model,
+          source: "GROQ_RESPONSE",
+          provider: "groq",
+          model: GROQ_PRODUCTION_MODEL,
           latencyMs,
           error: `JSON parse warning: ${parseError?.message}`
         });
         return {
-          answer: responseText,
+          answer: content,
           confidence: "moderate_confidence",
           followUpSuggestions: ["What else should I focus on?"],
-          responseSource: "GEMINI_RESPONSE"
+          responseSource: "GROQ_RESPONSE",
+          provider: "groq"
         };
       }
     } catch (err) {
+      clearTimeout(timeoutId);
       const latencyMs = Date.now() - startTime;
-      console.warn(`[Gemini Chat API Error] Model="${model}" failed after ${latencyMs}ms:`, err?.message || err);
+      const isTimeout = err?.name === "AbortError";
+      const errMsg = isTimeout ? `Groq request timed out after ${timeoutMs}ms` : err?.message || String(err);
+      console.warn(`[Groq API Error] Model="${GROQ_PRODUCTION_MODEL}" failed after ${latencyMs}ms:`, errMsg);
       logAIProvenance({
         endpoint: "generateChatResponse",
         businessId: ctx.businessName,
-        source: "DETERMINISTIC_FALLBACK",
-        model,
+        source: "GROQ_RESPONSE",
+        provider: "groq",
+        model: GROQ_PRODUCTION_MODEL,
         latencyMs,
-        error: err?.message || String(err)
+        error: errMsg
       });
+      return null;
     }
-    return this.generateDeterministicFallback(userMessage, ctx);
+    return null;
   }
   /**
-   * Generates Daily Business Brief.
+   * Executes secondary Daily Brief generation using Groq API.
    */
-  static async generateDailyBrief(ctx) {
-    const ai = getGeminiClient();
-    const model = getActiveGeminiModel();
-    const startTime = Date.now();
-    const briefFacts = ctx.toolResults.get_daily_brief_facts || ctx.toolResults.get_today_sales_summary;
-    const today = briefFacts?.todayMetrics || {
-      revenueToday: briefFacts?.revenue || 0,
-      transactionCountToday: briefFacts?.salesCount || 0,
-      cashCollectedToday: briefFacts?.cashCollected || 0,
-      expensesToday: 0,
-      grossProfitToday: briefFacts?.grossProfit || 0,
-      grossMarginPctToday: briefFacts?.grossMarginPct || 0
-    };
-    const debtors = briefFacts?.debtorAlerts || { debtorsCount: 0, totalOutstandingDebt: 0 };
-    if (!ai) {
-      logAIProvenance({
-        endpoint: "generateDailyBrief",
-        businessId: ctx.businessName,
-        source: "DETERMINISTIC_FALLBACK",
-        model,
-        latencyMs: 0,
-        error: "GEMINI_API_KEY not configured"
-      });
-      return this.generateDeterministicDailyBrief(ctx, briefFacts);
+  static async generateDailyBrief(prompt, systemInstruction, ctx, today, debtors, timeoutMs = 12e3) {
+    const apiKey = getGroqApiKey();
+    if (!apiKey) return null;
+    if (ctx.testSimulation === "all-fail") {
+      return null;
     }
+    const startTime = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const prompt = `Generate a concise, professional executive Daily Business Brief for "${ctx.businessName}" based on today's factual metrics in timezone ${ctx.timezone}:
-${JSON.stringify(briefFacts, null, 2)}
-
-Return a valid JSON object matching the schema:
-{
-  "headline": "Punchy 1-sentence headline of today's status",
-  "executiveSummary": "2-3 sentence overview answering today's revenue, gross margin, cash collection, and immediate risks.",
-  "keyTakeaways": ["Takeaway 1", "Takeaway 2", "Takeaway 3"],
-  "inventoryAlerts": ["Alert 1"],
-  "debtFollowUps": ["Follow up 1"],
-  "recommendedFocusToday": "Clear top strategic priority for today",
-  "confidence": "high_confidence" | "moderate_confidence" | "insufficient_data"
-}`;
-      const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          systemInstruction: `You are Ursella AI. Generate an accurate, grounded Daily Business Brief for ${ctx.businessName} in currency ${ctx.currency}. Never invent numbers. Answer performance facts directly.`,
-          responseMimeType: "application/json",
+      const response = await fetch(`${GROQ_API_ENDPOINT}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: GROQ_PRODUCTION_MODEL,
+          messages: [
+            { role: "system", content: systemInstruction },
+            { role: "user", content: prompt }
+          ],
+          response_format: { type: "json_object" },
           temperature: 0.2
-        }
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
+      if (!response.ok) {
+        throw new Error(`Groq HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || "{}";
+      const parsed = JSON.parse(content);
       const latencyMs = Date.now() - startTime;
-      const parsed = JSON.parse(response.text || "{}");
       logAIProvenance({
         endpoint: "generateDailyBrief",
         businessId: ctx.businessName,
-        source: "GEMINI_RESPONSE",
-        model,
+        source: "GROQ_RESPONSE",
+        provider: "groq",
+        model: GROQ_PRODUCTION_MODEL,
         latencyMs
       });
       return {
@@ -1459,58 +1540,359 @@ Return a valid JSON object matching the schema:
         confidence: parsed.confidence || (today.transactionCountToday >= 5 ? "high_confidence" : "insufficient_data")
       };
     } catch (err) {
-      const latencyMs = Date.now() - startTime;
-      console.warn(`[Gemini Daily Brief API Error] Model="${model}" failed after ${latencyMs}ms:`, err?.message || err);
-      logAIProvenance({
-        endpoint: "generateDailyBrief",
-        businessId: ctx.businessName,
-        source: "DETERMINISTIC_FALLBACK",
-        model,
-        latencyMs,
-        error: err?.message || String(err)
+      clearTimeout(timeoutId);
+      return null;
+    }
+  }
+};
+
+// server/gemini.service.ts
+var GeminiService = class _GeminiService {
+  /**
+   * Builds the conversational Ursella AI system instruction.
+   */
+  static buildSystemInstruction(ctx) {
+    const isReportMode = Boolean(ctx.parsedIntent?.isReportMode);
+    return `You are Ursella AI, a trusted, highly knowledgeable business advisor speaking directly with the merchant who owns "${ctx.businessName}" (${ctx.businessType}).
+You communicate like an experienced human business advisor: natural, conversational, warm, sharp, and direct.
+You are NOT a rigid report generator.
+
+PLATFORM CONTEXT & GROUND TRUTH:
+- Active Enterprise: "${ctx.businessName}" (${ctx.businessType})
+- Operating Currency: "${ctx.currency}". Always format every financial figure with "${ctx.currency}".
+- Timezone: "${ctx.timezone}". Reference Date: ${ctx.currentDateIso.split("T")[0]}.
+
+CONVERSATIONAL BEHAVIOR & ANSWER PRIORITY:
+1. ALWAYS ANSWER THE USER'S ACTUAL QUESTION IMMEDIATELY IN THE FIRST SENTENCE.
+   - Additional context should support the answer, not bury it.
+   - Keep responses proportional to what was asked. For standard questions, respond in 1-3 conversational, insightful paragraphs using clear natural language, bolding key figures.
+   - Do NOT dump every available metric into the response.
+
+2. STRUCTURE RULES (CONVERSATIONAL vs REPORT MODE):
+${isReportMode ? `- REPORT MODE IS EXPLICITLY REQUESTED BY THE USER:
+  Structure your analysis into clear, professional sections:
+  ### Executive Summary
+  - Summarize key findings directly.
+  ### Analytical Diagnostics & Data Breakdown
+  - Drill into relevant metrics, percentages, margins, and comparisons.
+  ### Strategic Recommendations
+  - Provide 2-3 concrete, high-leverage operational action steps.` : `- NORMAL CONVERSATIONAL MODE (Default):
+  Respond naturally and directly to the user's message.
+  DO NOT use or prepend boilerplate report headers like "### Executive Summary", "### Analytical Diagnostics & Data Breakdown", or "### Strategic Recommendations & Tactical Playbook". Write conversationally as an advisor talking to the merchant.`}
+
+3. CONVERSATIONAL MEMORY & MULTI-TURN CONTINUITY:
+- Maintain the current conversation's context.
+- The AI must understand references such as:
+  'it', 'that', 'them', 'those products', 'the first one', 'what about the hoodies?', 'compare it with last month', 'check it', 'do that', 'yes', 'no', 'go ahead'
+  based on the immediately preceding conversation.
+- Never treat every message as an isolated question or force the merchant to repeat the subject.
+- Continue previous trains of thought seamlessly (e.g., if the user previously said 'Sales have been slow lately' and then says 'Check it', diagnose the sales slowdown directly; if discussing which product makes the most money and the user asks 'What about the hoodies?', analyze the hoodies' margins and revenue directly).
+
+4. BUSINESS REASONING & INTEGRITY (FACT vs INFERENCE vs RECOMMENDATION):
+- Strictly distinguish between:
+  * FACT: 'Your recorded sales today are ${ctx.currency} 0.' (Must be grounded strictly in verified data).
+  * INFERENCE: 'This may indicate a slower sales day, or orders have not been entered into the system yet.'
+  * RECOMMENDATION: 'If you want to generate sales today, I would first contact existing customers before discounting products.'
+- NEVER present an inference or recommendation as an established business fact.
+- NEVER fabricate: supplier agreements, delivery times, customer behavior, market trends, competitor activity, future events, discounts, budgets, percentages, financial conditions, or business policies.
+- If data is insufficient or zero, say so simply and clearly.
+- Do not assume that one day of zero sales means the business has a cash-flow problem.
+- Do not recommend arbitrary discounts or spending amounts without supporting evidence.
+
+5. PRODUCT ACTIONS & CATALOG MANAGEMENT:
+- When the merchant asks to add, create, or restock a product (e.g. "Add 20 units of Milo" or "Add 50 bags of Cement at 4500 selling, 3800 cost"):
+  * Summarize the product name, unit of measure, quantity, and unit economics in a friendly, conversational response.
+  * In the JSON output, include the "proposedAction" object (category: "product_creation" or "inventory_restock", phaseStatus: "ready_for_execution").
+  * Inform the merchant they can confirm the addition with 1 click using the card below.
+  * DO NOT generate an unrelated full-business analysis report.
+
+6. OUTPUT FORMAT:
+Respond with a JSON object strictly adhering to this schema:
+{
+  "answer": "Your natural, conversational response in Markdown (or structured report if Report Mode was explicitly requested).",
+  "keyMetrics": [
+    { "label": "Metric Name", "value": 12000, "formattedValue": "${ctx.currency} 12,000", "trend": "positive" | "negative" | "neutral" }
+  ],
+  "recommendations": [
+    {
+      "id": "rec-1",
+      "title": "Action Title",
+      "reasoning": "Clear rationale",
+      "actionSuggestion": "Actionable step",
+      "priority": "high" | "medium" | "low"
+    }
+  ],
+  "confidence": "high_confidence" | "moderate_confidence" | "insufficient_data",
+  "followUpSuggestions": [
+    "User question or request 1",
+    "User question or request 2"
+  ],
+  "proposedAction": {
+    "actionType": "create_product" | "create_inventory_adjustment",
+    "title": "Action Title",
+    "description": "Action Description",
+    "category": "product_creation" | "inventory_restock",
+    "phaseStatus": "ready_for_execution",
+    "payload": { ... }
+  }
+}
+(Note: Include keyMetrics only if directly relevant to the question. Leave empty [] for greetings, navigation, or general concept explanations).
+
+7. FOLLOW-UP SUGGESTIONS PERSPECTIVE (CRITICAL):
+The "followUpSuggestions" are buttons that the MERCHANT will click to ask Ursella what THEY need next.
+- They MUST be phrased from the USER'S perspective requesting what they need (e.g. "Check my sales from last week", "Show me products low on stock", "Who owes me money?", "Help me reorder this item", "What was my profit on cement?").
+- They MUST NEVER be phrased as the AI asking the user ("Would you like me to...", "Do you want to...", "Should I...", "Would you like...").
+- Keep them concise (3-7 words) and directly relevant.`;
+  }
+  /**
+   * Primary entry point for generating conversational AI chat responses.
+   * Employs the resilient multi-provider routing strategy:
+   * 1. Gemini (primary) -> with 1 bounded retry for transient faults
+   * 2. Groq (secondary) -> production llama/gpt model
+   * 3. Deterministic Reasoning Engine Fallback (guaranteed response)
+   */
+  static async generateChatResponse(userMessage, ctx) {
+    const ai = getGeminiClient();
+    const contextPrompt = `
+=== BUSINESS CONTEXT & RELEVANT FACTUAL METRICS ===
+Active Store: ${ctx.businessName} (${ctx.businessType})
+Currency: ${ctx.currency}
+Timezone: ${ctx.timezone}
+Reference Date: ${ctx.currentDateIso}
+
+${ctx.parsedIntent ? `=== INTERPRETED REASONING GOAL ===
+Intent: ${ctx.parsedIntent.intent}
+Domain: ${ctx.parsedIntent.domain}
+Time Period: ${ctx.parsedIntent.timePeriod}
+Goal: ${ctx.parsedIntent.primaryGoal}
+Report Mode: ${ctx.parsedIntent.isReportMode ? "YES" : "NO"}
+${ctx.parsedIntent.entityHint ? `Entity Target: ${ctx.parsedIntent.entityHint}` : ""}
+${ctx.parsedIntent.resolvedContextTopic ? `Resolved Topic: ${ctx.parsedIntent.resolvedContextTopic}` : ""}
+` : ""}
+
+=== VERIFIED BUSINESS DATA (GROUND TRUTH) ===
+${JSON.stringify(ctx.toolResults, null, 2)}
+
+=== USER CONVERSATION HISTORY ===
+${ctx.conversationHistory?.length ? ctx.conversationHistory.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n") : "No previous history."}
+
+=== CURRENT USER QUESTION ===
+"${userMessage}"
+`;
+    const model = getActiveGeminiModel();
+    const startTime = Date.now();
+    const systemInstruction = this.buildSystemInstruction(ctx);
+    let geminiError = null;
+    if (ai && ctx.testSimulation !== "gemini-503" && ctx.testSimulation !== "gemini-429" && ctx.testSimulation !== "gemini-timeout" && ctx.testSimulation !== "all-fail") {
+      try {
+        console.log(`[AI Routing] Calling primary provider: gemini (${model})...`);
+        const geminiPromise = ai.models.generateContent({
+          model,
+          contents: contextPrompt,
+          config: {
+            systemInstruction,
+            responseMimeType: "application/json",
+            temperature: 0.2
+          }
+        });
+        const response = await this.withTimeout(
+          geminiPromise,
+          12e3,
+          "Gemini request timed out after 12000ms"
+        );
+        const latencyMs = Date.now() - startTime;
+        const responseText = response.text || "";
+        if (responseText) {
+          console.log("[AI Routing] provider: gemini");
+          logAIProvenance({
+            endpoint: "generateChatResponse",
+            businessId: ctx.businessName,
+            source: "GEMINI_RESPONSE",
+            provider: "gemini",
+            model,
+            latencyMs
+          });
+          return this.parseChatStructuredResponse(responseText, ctx, "GEMINI_RESPONSE", "gemini");
+        }
+      } catch (err) {
+        console.warn(`[AI Routing] Gemini primary provider failed:`, err?.message || err);
+        geminiError = err;
+      }
+    } else {
+      if (ctx.testSimulation === "gemini-503") {
+        const err = new Error("503 Service Unavailable: High upstream model load (simulated)");
+        err.status = 503;
+        geminiError = err;
+      } else if (ctx.testSimulation === "gemini-429") {
+        const err = new Error("429 Too Many Requests: Rate limit exceeded (simulated)");
+        err.status = 429;
+        geminiError = err;
+      } else if (ctx.testSimulation === "gemini-timeout") {
+        const err = new Error("Gemini request timed out after 12000ms (simulated)");
+        err.name = "TimeoutError";
+        err.status = 504;
+        geminiError = err;
+      } else if (ctx.testSimulation === "all-fail") {
+        geminiError = new Error("Simulated upstream failure (all-fail)");
+      } else {
+        geminiError = new Error("GEMINI_API_KEY is not configured or client initialization failed");
+      }
+    }
+    if (this.isTemporaryGeminiError(geminiError) && ctx.testSimulation !== "all-fail") {
+      console.warn(
+        `[AI Routing] Gemini temporary failure (${geminiError?.message || geminiError}). Initiating 1 bounded retry...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (ai && !ctx.testSimulation?.startsWith("gemini-")) {
+        try {
+          const retryPromise = ai.models.generateContent({
+            model,
+            contents: contextPrompt,
+            config: {
+              systemInstruction,
+              responseMimeType: "application/json",
+              temperature: 0.2
+            }
+          });
+          const response = await this.withTimeout(
+            retryPromise,
+            8e3,
+            "Gemini retry timed out after 8000ms"
+          );
+          const latencyMs = Date.now() - startTime;
+          const responseText = response.text || "";
+          if (responseText) {
+            console.log("[AI Routing] provider: gemini (succeeded on retry)");
+            logAIProvenance({
+              endpoint: "generateChatResponse",
+              businessId: ctx.businessName,
+              source: "GEMINI_RESPONSE",
+              provider: "gemini",
+              model,
+              latencyMs
+            });
+            return this.parseChatStructuredResponse(responseText, ctx, "GEMINI_RESPONSE", "gemini");
+          }
+        } catch (retryErr) {
+          console.warn(
+            `[AI Routing] Gemini retry attempt failed (${retryErr?.message || retryErr}). Proceeding to Groq fallback.`
+          );
+          geminiError = retryErr;
+        }
+      } else {
+        console.warn(`[AI Routing] Simulated Gemini temporary failure verified. Proceeding to Groq fallback.`);
+      }
+    }
+    console.log(`[AI Routing] Calling secondary provider: groq (${GROQ_PRODUCTION_MODEL})...`);
+    try {
+      const groqResponse = await GroqService.generateChatResponse(
+        systemInstruction,
+        contextPrompt,
+        ctx,
+        12e3
+      );
+      if (groqResponse) {
+        console.log("[AI Routing] provider: groq");
+        return groqResponse;
+      }
+    } catch (groqErr) {
+      console.warn(`[AI Routing] Groq provider failed:`, groqErr?.message || groqErr);
+    }
+    console.log("[AI Routing] provider: deterministic_fallback");
+    return this.generateDeterministicFallback(userMessage, ctx);
+  }
+  /**
+   * Detects whether an error from Gemini is temporary and suitable for a bounded retry.
+   */
+  static isTemporaryGeminiError(err) {
+    if (!err) return false;
+    const msg = (err.message || "").toLowerCase();
+    const status = err.status || err.statusCode;
+    if (status === 503 || status === 429 || status === 504 || status === 502) return true;
+    if (msg.includes("503") || msg.includes("429") || msg.includes("rate limit") || msg.includes("resource exhausted")) return true;
+    if (msg.includes("timeout") || msg.includes("timed out") || err.name === "TimeoutError") return true;
+    if (msg.includes("econnreset") || msg.includes("etimedout") || msg.includes("network error") || msg.includes("socket hang up")) return true;
+    return false;
+  }
+  /**
+   * Helper timeout promise wrapper.
+   */
+  static withTimeout(promise, ms, errorMsg) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const err = new Error(errorMsg);
+        err.name = "TimeoutError";
+        reject(err);
+      }, ms);
+      promise.then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      }).catch((err) => {
+        clearTimeout(timer);
+        reject(err);
       });
-      return this.generateDeterministicDailyBrief(ctx, briefFacts);
+    });
+  }
+  /**
+   * Sanitizes follow-up suggestions so that every prompt represents
+   * the merchant needing a service (User perspective) rather than
+   * the AI asking if the merchant wants something (AI perspective).
+   */
+  static sanitizeFollowUpSuggestions(suggestions) {
+    if (!Array.isArray(suggestions) || suggestions.length === 0) {
+      return ["How are my sales today?", "Which products are low on stock?"];
+    }
+    const cleaned = suggestions.map((s) => {
+      if (!s || typeof s !== "string") return "";
+      let clean = s.trim();
+      clean = clean.replace(/^would you like me to\s+/i, "").replace(/^would you like to\s+/i, "").replace(/^would you like\s+/i, "Show me ").replace(/^do you want me to\s+/i, "").replace(/^do you want to\s+/i, "").replace(/^do you want\s+/i, "Show me ").replace(/^should i\s+/i, "").replace(/^shall i\s+/i, "").replace(/^can i help you\s+/i, "Help me ").replace(/^can i\s+/i, "").replace(/^do you need me to\s+/i, "").replace(/^do you need help\s+(?:with|to)?\s*/i, "Help me ").replace(/^do you need to\s+/i, "").replace(/^do you have any questions about\s+/i, "Tell me more about ").replace(/^let me know if you want to\s+/i, "").replace(/^if you want, I can\s+/i, "");
+      clean = clean.trim();
+      if (!clean) return "";
+      clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+      if (clean.endsWith("?") && !/^(how|what|who|which|where|why|can you|is|are)\b/i.test(clean)) {
+        clean = clean.slice(0, -1).trim();
+      }
+      return clean;
+    }).filter((s) => s.length > 3).slice(0, 4);
+    return cleaned.length > 0 ? cleaned : ["How are my sales today?", "Which products are low on stock?"];
+  }
+  /**
+   * Parses and validates raw AI JSON output.
+   */
+  static parseChatStructuredResponse(rawText, ctx, source, provider) {
+    try {
+      let cleaned = rawText.trim();
+      if (cleaned.startsWith("```json")) {
+        cleaned = cleaned.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+      } else if (cleaned.startsWith("```")) {
+        cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
+      }
+      const parsed = JSON.parse(cleaned);
+      return {
+        answer: parsed.answer || "Analysis complete.",
+        keyMetrics: Array.isArray(parsed.keyMetrics) ? parsed.keyMetrics : [],
+        observations: Array.isArray(parsed.observations) ? parsed.observations : [],
+        recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
+        confidence: parsed.confidence || "high_confidence",
+        followUpSuggestions: _GeminiService.sanitizeFollowUpSuggestions(parsed.followUpSuggestions),
+        proposedAction: parsed.proposedAction,
+        responseSource: source,
+        provider
+      };
+    } catch (parseError) {
+      console.warn(`[AI Engine] Failed to parse structured JSON from ${provider}, using text fallback:`, parseError);
+      return {
+        answer: rawText,
+        confidence: "moderate_confidence",
+        responseSource: source,
+        provider,
+        followUpSuggestions: ["How are my sales today?", "Which products are low on stock?"]
+      };
     }
   }
   /**
-   * Deterministic Daily Brief generator when AI API is unavailable.
-   */
-  static generateDeterministicDailyBrief(ctx, briefFacts) {
-    const today = briefFacts?.todayMetrics || {
-      revenueToday: briefFacts?.revenue || 0,
-      transactionCountToday: briefFacts?.salesCount || 0,
-      cashCollectedToday: briefFacts?.cashCollected || 0,
-      expensesToday: 0
-    };
-    const inv = briefFacts?.inventoryAlerts || { lowStockCount: 0, outOfStockCount: 0 };
-    const debtors = briefFacts?.debtorAlerts || { debtorsCount: 0, totalOutstandingDebt: 0 };
-    return {
-      generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      businessName: ctx.businessName,
-      currency: ctx.currency,
-      headline: today.revenueToday > 0 ? `Daily Briefing: ${ctx.currency} ${today.revenueToday.toLocaleString()} recorded in sales today across ${today.transactionCountToday} orders.` : `Daily Briefing: Ready for trading. No sales recorded yet today.`,
-      executiveSummary: `Today ${ctx.businessName} has recorded ${ctx.currency} ${today.revenueToday.toLocaleString()} in revenue with ${ctx.currency} ${today.cashCollectedToday.toLocaleString()} in cash collected. You currently have ${inv.outOfStockCount} out of stock item(s) and ${debtors.debtorsCount} customer(s) with outstanding credit balances.`,
-      performanceSnapshot: {
-        revenue: today.revenueToday,
-        transactions: today.transactionCountToday,
-        amountCollected: today.cashCollectedToday,
-        expenses: today.expensesToday,
-        outstandingReceivables: debtors.totalOutstandingDebt
-      },
-      keyTakeaways: [
-        `Revenue: ${ctx.currency} ${today.revenueToday.toLocaleString()} across ${today.transactionCountToday} transaction(s).`,
-        `Cash Collections: ${ctx.currency} ${today.cashCollectedToday.toLocaleString()} received.`,
-        `Receivables Balance: ${ctx.currency} ${debtors.totalOutstandingDebt.toLocaleString()} owed across ${debtors.debtorsCount} customer account(s).`
-      ],
-      inventoryAlerts: inv.outOfStockCount > 0 || inv.lowStockCount > 0 ? [`${inv.outOfStockCount} product(s) out of stock, ${inv.lowStockCount} below minimum threshold.`] : ["All inventory SKUs are currently adequately stocked."],
-      debtFollowUps: debtors.debtorsCount > 0 ? [`${debtors.debtorsCount} debtor account(s) totaling ${ctx.currency} ${debtors.totalOutstandingDebt.toLocaleString()}.`] : ["No overdue customer receivables recorded."],
-      recommendedFocusToday: inv.outOfStockCount > 0 ? "Prepare restock orders for depleted inventory items to avoid stockouts." : debtors.totalOutstandingDebt > 0 ? "Send payment reminder notices to customer debtor accounts." : "Focus on ringing up sales and customer engagement today.",
-      confidence: today.transactionCountToday >= 5 ? "high_confidence" : "insufficient_data"
-    };
-  }
-  /**
-   * Deterministic fallback reasoning engine when Gemini API is offline or key unconfigured.
-   * Guarantees strict relevance: only answers what was asked, answering directly in the first sentence.
+   * Authoritative Deterministic Fallback Engine.
+   * Produces natural, conversational responses matching the updated communication standards.
    */
   static generateDeterministicFallback(query, ctx) {
     const q = query.toLowerCase().trim();
@@ -1525,377 +1907,604 @@ Return a valid JSON object matching the schema:
     const expenses = ctx.toolResults.get_expense_summary || {};
     const cashFlow = ctx.toolResults.get_cash_flow || {};
     const currency = ctx.currency || "XAF";
-    if (q.includes("business name") || q.includes("store name") || q.includes("shop name") || q.includes("name of my business") || q.includes("what is my store") || q.includes("what is my business") || q.includes("who am i") || q.includes("about my store")) {
+    const isExplicitReport = Boolean(ctx.parsedIntent?.isReportMode);
+    if (ctx.parsedIntent?.intent === "greeting" || /^(hello|hi|hey|good\s+(morning|afternoon|evening|day)|greetings|howdy|salut|bonjour|yo|hola)[\s!.,?]*$/i.test(q) || /^(who\s+are\s+you|what\s+can\s+you\s+do|how\s+are\s+you|what\s+is\s+ursella|help)[\s!.,?]*$/i.test(q)) {
       return {
-        answer: `Your active business is **${ctx.businessName}** (${ctx.businessType}), operating in **${currency}** under the **${ctx.timezone}** timezone.${ctx.ownerName ? ` Owned by ${ctx.ownerName}.` : ""}`,
-        keyMetrics: [
-          { label: "Business Name", value: ctx.businessName, formattedValue: ctx.businessName, trend: "neutral" },
-          { label: "Currency", value: currency, formattedValue: currency, trend: "neutral" }
-        ],
-        followUpSuggestions: ["How are my sales today?", "Who owes me money?", "Which products are low on stock?"],
+        answer: `Hello! I'm your Ursella AI advisor for **${ctx.businessName}**.
+
+I can help you check your live sales, identify low-stock items needing replenishment, review customer credit balances, analyze your product margins, or register products in your catalog. What would you like to look at today?`,
         confidence: "high_confidence",
-        responseSource: "DETERMINISTIC_FALLBACK"
+        responseSource: "DETERMINISTIC_FALLBACK",
+        provider: "deterministic_fallback",
+        keyMetrics: [],
+        recommendations: [],
+        followUpSuggestions: [
+          "How are my sales today?",
+          "What is my best-selling product?",
+          "Which products are low on stock?",
+          "Who owes me money?"
+        ]
       };
     }
-    if (q.includes("currency") || q.includes("what currency") || q.includes("which currency") || q.includes("currency am i using")) {
+    if (ctx.parsedIntent?.intent === "navigation") {
+      let targetName = "the main dashboard";
+      if (q.includes("inventory") || q.includes("product") || q.includes("catalog")) targetName = "**Inventory & Products**";
+      else if (q.includes("sale") || q.includes("order")) targetName = "**Sales & Orders**";
+      else if (q.includes("pos")) targetName = "**POS / Point of Sale**";
+      else if (q.includes("debt") || q.includes("customer")) targetName = "**Customers & Credit**";
+      else if (q.includes("expense")) targetName = "**Expenses**";
+      else if (q.includes("setting")) targetName = "**Settings**";
       return {
-        answer: `Your store's active operating currency is **${currency}**. All transactions, catalog prices, inventory valuations, and debtor balances are recorded in ${currency}.`,
-        keyMetrics: [{ label: "Operating Currency", value: currency, formattedValue: currency, trend: "neutral" }],
-        followUpSuggestions: ["How are my sales today?", "What is my total receivables?"],
+        answer: `You can access ${targetName} directly from the navigation menu on the left side of your screen.`,
         confidence: "high_confidence",
-        responseSource: "DETERMINISTIC_FALLBACK"
+        responseSource: "DETERMINISTIC_FALLBACK",
+        provider: "deterministic_fallback",
+        keyMetrics: [],
+        recommendations: [],
+        followUpSuggestions: [
+          "How are my sales today?",
+          "Which products are low on stock?"
+        ]
       };
     }
-    if (q.includes("who owes") || q.includes("debt") || q.includes("debtor") || q.includes("unpaid") || q.includes("receivable") || q.includes("owing") || q.includes("credit balance") || q.includes("collect money")) {
-      const totalDebt = Number(debtors.totalOutstandingDebt || 0);
-      const debtorCount = Number(debtors.debtorsCount || 0);
-      const topList = debtors.topDebtors || [];
-      if (debtorCount === 0 || totalDebt === 0) {
+    if (ctx.parsedIntent?.intent === "explanation") {
+      if (q.includes("gross margin") || q.includes("margin")) {
         return {
-          answer: `You currently have **no outstanding customer debts** (0 unpaid customer balances recorded).`,
-          keyMetrics: [
-            { label: "Outstanding Receivables", value: 0, formattedValue: `${currency} 0`, trend: "positive" },
-            { label: "Debtor Accounts", value: 0, formattedValue: "0", trend: "positive" }
-          ],
-          recommendations: [],
-          followUpSuggestions: ["How are my sales today?", "Do I have any low-stock products?"],
+          answer: `**Gross margin** is the percentage of revenue your business keeps after paying the direct cost of purchasing or producing the goods sold (COGS).
+
+**Formula:**
+$$\\text{Gross Margin (\\%)} = \\frac{\\text{Revenue} - \\text{COGS}}{\\text{Revenue}} \\times 100$$
+
+For example, if you buy an item for ${currency} 3,000 and sell it for ${currency} 5,000, your gross profit is ${currency} 2,000 and your gross margin is **40%**. A higher gross margin gives you more cash buffer to cover operating expenses like rent, utilities, and staff.`,
           confidence: "high_confidence",
-          responseSource: "DETERMINISTIC_FALLBACK"
+          responseSource: "DETERMINISTIC_FALLBACK",
+          provider: "deterministic_fallback",
+          keyMetrics: [],
+          recommendations: [],
+          followUpSuggestions: [
+            "Which products make me the most money?",
+            "What is my gross profit this month?"
+          ]
         };
       }
-      const topDebtor = topList[0];
-      const debtorBreakdown = topList.map((d, i) => `${i + 1}. **${d.name}**: ${currency} ${Number(d.debtAmount).toLocaleString()}${d.phone ? ` (\u{1F4DE} ${d.phone})` : ""}`).join("\n");
-      return {
-        answer: `### Executive Summary
-You currently have **${debtorCount} customer account(s)** with outstanding credit balances totaling **${currency} ${totalDebt.toLocaleString()}**.
-
-### Debtor Portfolio Breakdown
-${debtorBreakdown}
-
-### Receivables Risk Analysis
-- **Top Concentration:** The single largest outstanding credit belongs to **${topDebtor?.name || "Top Debtor"}** at **${currency} ${Number(topDebtor?.debtAmount || 0).toLocaleString()}** (${totalDebt > 0 ? Math.round(Number(topDebtor?.debtAmount || 0) / totalDebt * 100) : 0}% of total receivables).
-- **Working Capital Impact:** Uncollected debts directly constrains your purchasing power for fast-moving inventory.
-
-### Strategic Playbook
-1. **Immediate Phone Follow-Up:** Dispatch payment reminders or payment links via WhatsApp/SMS to the top 3 debtor accounts.
-2. **Implement Credit Limits:** Place a temporary freeze on new credit purchases for accounts with overdue balances older than 14 days.`,
-        keyMetrics: [
-          { label: "Total Outstanding Debt", value: totalDebt, formattedValue: `${currency} ${totalDebt.toLocaleString()}`, trend: "negative" },
-          { label: "Debtor Accounts", value: debtorCount, formattedValue: `${debtorCount}`, trend: "neutral" },
-          { label: "Top Debtor Exposure", value: Number(topDebtor?.debtAmount || 0), formattedValue: `${currency} ${Number(topDebtor?.debtAmount || 0).toLocaleString()}`, trend: "negative" }
-        ],
-        recommendations: [
-          {
-            id: "rec-debt-collection",
-            title: `Contact ${topDebtor?.name || "Top Debtors"}`,
-            reasoning: `Collecting ${currency} ${totalDebt.toLocaleString()} will immediately improve operating liquidity.`,
-            actionSuggestion: topDebtor?.phone ? `Send SMS or call ${topDebtor.name} at ${topDebtor.phone}.` : "Review credit sales in the Customers module.",
-            priority: "high"
-          }
-        ],
-        followUpSuggestions: ["How are my sales today?", "What is my current cash flow?"],
-        confidence: "high_confidence",
-        responseSource: "DETERMINISTIC_FALLBACK"
-      };
-    }
-    if (q.includes("fifo") || q.includes("cost drift") || q.includes("cost basis") || q.includes("inventory valuation") || q.includes("valuation by product") || q.includes("cost layer")) {
-      const fifoData = ctx.toolResults.get_fifo_inventory_valuation || {};
-      const totals = fifoData.totals || {};
-      const totalVal = Number(totals.inventoryValue || inv.totalInventoryValuation || 0);
-      const unitsOnHand = Number(totals.unitsOnHand || 0);
-      const warnings = fifoData.warnings || [];
-      const costDrift = fifoData.costDrift || { totalDrift: 0, saleLinesCompared: 0 };
-      return {
-        answer: `### Executive Summary
-Your authoritative **FIFO Inventory Asset Valuation** is **${currency} ${totalVal.toLocaleString()}** representing **${unitsOnHand > 0 ? unitsOnHand : inv.totalActiveSKUs || 0}** ${unitsOnHand > 0 ? "units on hand" : "active catalog SKUs"}.
-
-### Costing & COGS Diagnostics
-- **Historical FIFO COGS:** ${currency} ${Number(totals.cogs || 0).toLocaleString()}
-- **Cost Drift Variance:** ${currency} ${Number(costDrift.totalDrift || 0).toLocaleString()} across ${costDrift.saleLinesCompared} audited transaction lines
-${warnings.length > 0 ? `- **Audit Notes:** ${warnings.join("; ")}` : "- **Audit Status:** Zero cost discrepancy detected across recorded stock batches."}
-
-### Inventory Capital Optimization
-- Ensure purchasing batches reflect seasonal supplier price renegotiations to preserve gross margin integrity.`,
-        keyMetrics: [
-          { label: "FIFO Valuation", value: totalVal, formattedValue: `${currency} ${totalVal.toLocaleString()}`, trend: "neutral" },
-          { label: "FIFO COGS", value: Number(totals.cogs || 0), formattedValue: `${currency} ${Number(totals.cogs || 0).toLocaleString()}`, trend: "neutral" },
-          { label: "Cost Drift", value: Number(costDrift.totalDrift || 0), formattedValue: `${currency} ${Number(costDrift.totalDrift || 0).toLocaleString()}`, trend: costDrift.totalDrift === 0 ? "positive" : "neutral" }
-        ],
-        followUpSuggestions: ["Which products are low on stock?", "What is my gross profit?"],
-        confidence: "high_confidence",
-        responseSource: "DETERMINISTIC_FALLBACK"
-      };
-    }
-    if (q.includes("low stock") || q.includes("running low") || q.includes("out of stock") || q.includes("restock") || q.includes("inventory") || q.includes("stock level") || q.includes("stockout") || q.includes("reorder")) {
-      const outCount = Number(inv.outOfStockCount || 0);
-      const lowCount = Number(inv.lowStockCount || 0);
-      const criticalItems = inv.criticalItemsToRestock || [];
-      const totalSKUs = Number(inv.totalActiveSKUs || 0);
-      const valuation = Number(inv.totalInventoryValuation || 0);
-      if (outCount === 0 && lowCount === 0) {
+      if (q.includes("cogs") || q.includes("cost of goods")) {
         return {
-          answer: `### Executive Summary
-All **${totalSKUs} active product SKUs** in your catalog are fully stocked with zero critical stockouts or low-inventory alerts.
+          answer: `**Cost of Goods Sold (COGS)** represents the direct costs incurred to acquire or produce the products you sold during a period.
 
-### Stock Health Overview
-- **Total Stock Asset Value (at cost):** ${currency} ${valuation.toLocaleString()}
-- **Stock Depletion Risk:** Minimal. All catalog items are maintained comfortably above their designated safety stock thresholds.
-
-### Next Operational Steps
-- Maintain current replenishment schedules and monitor sales velocity across weekend peak hours.`,
-          keyMetrics: [
-            { label: "Out of Stock SKUs", value: 0, formattedValue: "0", trend: "positive" },
-            { label: "Low Stock SKUs", value: 0, formattedValue: "0", trend: "positive" },
-            { label: "Inventory Value", value: valuation, formattedValue: `${currency} ${valuation.toLocaleString()}`, trend: "neutral" }
-          ],
-          recommendations: [],
-          followUpSuggestions: ["What are my top selling products?", "How are my sales today?"],
+It includes purchase costs and direct inbound freight, but excludes general operating expenses like rent, electricity, or administrative overhead. In Ursella, COGS is tracked automatically using authoritative FIFO (First-In, First-Out) costing.`,
           confidence: "high_confidence",
-          responseSource: "DETERMINISTIC_FALLBACK"
+          responseSource: "DETERMINISTIC_FALLBACK",
+          provider: "deterministic_fallback",
+          keyMetrics: [],
+          recommendations: [],
+          followUpSuggestions: [
+            "What is my FIFO inventory valuation?",
+            "What is my best-selling product?"
+          ]
         };
       }
-      const itemsList = criticalItems.map((item) => `- **${item.name}**: ${item.currentStock} units remaining (${item.status === "OUT_OF_STOCK" ? "\u{1F534} Depleted / Out of Stock" : `\u26A0\uFE0F Below safety minimum: ${item.minimumStockLevel}`})`).join("\n");
+      if (q.includes("working capital") || q.includes("capital")) {
+        return {
+          answer: `**Working capital** is the cash and short-term assets available for your day-to-day business operations.
+
+It is calculated as **Current Assets** (cash on hand, bank balances, inventory, unpaid customer debts) minus **Current Liabilities** (supplier payables and short-term bills). Maintaining positive working capital ensures you can replenish high-demand inventory and pay operational costs without liquidity freezes.`,
+          confidence: "high_confidence",
+          responseSource: "DETERMINISTIC_FALLBACK",
+          provider: "deterministic_fallback",
+          keyMetrics: [],
+          recommendations: [],
+          followUpSuggestions: [
+            "What is my current cash flow?",
+            "Who owes me money?"
+          ]
+        };
+      }
+    }
+    if (ctx.parsedIntent?.resolvedContextTopic === "sales_slowdown_diagnosis" || q === "check it" && !q.includes("stock")) {
+      const totalRev2 = Number(salesSummary.totalRevenue || overview.revenue || 0);
+      const txCount2 = Number(salesSummary.transactionCount || overview.transaction_count || 0);
+      const revGrowth = comp?.revenueGrowthPct;
+      const outOfStock = Number(inv.outOfStockCount || 0);
+      const lowStock = Number(inv.lowStockCount || 0);
+      const hasDrop = revGrowth !== void 0 && revGrowth < 0;
+      const dropText = hasDrop ? `Sales are down **${Math.abs(revGrowth)}%** compared to the prior period.` : revGrowth !== void 0 && revGrowth > 0 ? `Sales are actually up **+${revGrowth}%** compared to the prior period.` : `Recent volume stands at ${currency} ${totalRev2.toLocaleString()} across ${txCount2} orders.`;
+      let stockFinding = "";
+      if (outOfStock > 0 || lowStock > 0) {
+        stockFinding = `You have **${outOfStock} depleted item(s)** and **${lowStock} low-stock item(s)**. Out-of-stock items may be directly suppressing daily sales volume.`;
+      } else {
+        stockFinding = `All catalog items are currently stocked, so the slower pace appears related to general customer foot-traffic or purchase frequency rather than inventory shortages.`;
+      }
       return {
-        answer: `### Executive Summary
-Inventory alert: You have **${outCount} item(s) completely depleted (0 stock)** and **${lowCount} item(s) operating below minimum reorder thresholds**.
+        answer: `Looking into your sales pace:
 
-### Critical Stockout & Low Stock Items
-${itemsList}
+${dropText} In the last 30 days, your store recorded **${currency} ${totalRev2.toLocaleString()}** across **${txCount2}** transaction(s).
 
-### Revenue Impact & Stockout Risks
-- **Immediate Sales Forfeiture:** Depleted SKUs are actively causing walk-outs and unfulfilled customer requests at checkout.
-- **Supplier Lead Time:** If supplier replenishment takes 2\u20134 days, current low-stock SKUs will hit zero inventory before next delivery.
-
-### Strategic Restocking Playbook
-1. **Trigger Purchase Orders:** Open the Stock Management module to record replenishment batches for depleted lines immediately.
-2. **Prioritize High-Velocity Lines:** Focus available working capital on top-selling items to protect daily gross profit.`,
-        keyMetrics: [
-          { label: "Out of Stock", value: outCount, formattedValue: `${outCount}`, trend: outCount > 0 ? "negative" : "neutral" },
-          { label: "Low Stock", value: lowCount, formattedValue: `${lowCount}`, trend: lowCount > 0 ? "negative" : "neutral" }
-        ],
-        recommendations: [
-          {
-            id: "rec-restock-urgency",
-            title: "Place Supplier Purchase Order",
-            reasoning: `${outCount + lowCount} SKUs are depleted or near stockout, risking lost customer sales.`,
-            actionSuggestion: "Navigate to Stock module to issue purchase orders for depleted SKUs.",
-            priority: "high"
-          }
-        ],
-        followUpSuggestions: ["Which products make me the most money?", "How are my sales today?"],
+**Key observations:**
+- **Inventory status:** ${stockFinding}
+- **Next step:** If you want to boost sales today, reaching out directly to past regular buyers or featuring your top-margin items at the register is a practical place to start.`,
         confidence: "high_confidence",
-        responseSource: "DETERMINISTIC_FALLBACK"
+        responseSource: "DETERMINISTIC_FALLBACK",
+        provider: "deterministic_fallback",
+        keyMetrics: [
+          { label: "Recent Revenue", value: totalRev2, formattedValue: `${currency} ${totalRev2.toLocaleString()}`, trend: hasDrop ? "negative" : "neutral" },
+          { label: "Out of Stock SKUs", value: outOfStock, formattedValue: `${outOfStock}`, trend: outOfStock > 0 ? "negative" : "positive" }
+        ],
+        followUpSuggestions: [
+          "What is my best-selling product?",
+          "Which products are low on stock?",
+          "How are my sales today?"
+        ]
+      };
+    }
+    if (ctx.parsedIntent?.resolvedContextTopic === "product_margin_continuation" || ctx.parsedIntent?.entityHint || q.startsWith("what about ")) {
+      const entityHint = (ctx.parsedIntent?.entityHint || q.replace(/^(what\s+about|how\s+about|and)\s+(the\s+)?/i, "")).replace(/\?$/, "").trim();
+      const matchedProduct = products.find((p) => p.name?.toLowerCase().includes(entityHint.toLowerCase()));
+      if (matchedProduct) {
+        const uMargin = matchedProduct.catalogUnitMarginPct ?? matchedProduct.marginPct ?? 0;
+        const fifoCost = matchedProduct.fifoUnitCostAverage ?? matchedProduct.costPrice ?? 0;
+        const sellPrice = Number(matchedProduct.sellingPrice || 0);
+        const stock = matchedProduct.stockQuantity ?? 0;
+        const unitsSold = matchedProduct.unitsSold ?? 0;
+        const unitProfit = sellPrice - Number(fifoCost);
+        return {
+          answer: `For **${matchedProduct.name}**, you're selling at **${currency} ${sellPrice.toLocaleString()}** with a **${uMargin}% unit margin** (${currency} ${unitProfit.toLocaleString()} profit per unit).
+
+You currently have **${stock} unit(s)** on hand with **${unitsSold} sold** in the current period.`,
+          confidence: "high_confidence",
+          responseSource: "DETERMINISTIC_FALLBACK",
+          provider: "deterministic_fallback",
+          keyMetrics: [
+            { label: `${matchedProduct.name} Price`, value: sellPrice, formattedValue: `${currency} ${sellPrice.toLocaleString()}`, trend: "neutral" },
+            { label: "Unit Margin", value: uMargin, formattedValue: `${uMargin}%`, trend: uMargin >= 30 ? "positive" : "neutral" },
+            { label: "Stock On Hand", value: stock, formattedValue: `${stock}`, trend: stock > 5 ? "positive" : "negative" }
+          ],
+          followUpSuggestions: [
+            "Which product makes me the most money?",
+            "What is my best-selling product?",
+            "Which products are low on stock?"
+          ]
+        };
+      } else {
+        return {
+          answer: `I checked your catalog, but could not find a product matching **"${entityHint}"**. You can register it anytime by saying "Add [quantity] of ${entityHint} at [selling price]".`,
+          confidence: "insufficient_data",
+          responseSource: "DETERMINISTIC_FALLBACK",
+          provider: "deterministic_fallback",
+          followUpSuggestions: [
+            "What is my best-selling product?",
+            "Which product makes me the most money?"
+          ]
+        };
+      }
+    }
+    if (q.startsWith("add ") || q.startsWith("create ") || q.startsWith("register ") || q.startsWith("new product") || q.startsWith("ajouter ") || q.startsWith("cr\xE9er ") || q.includes("add product") || q.includes("create product") || q.includes("add to inventory") || q.includes("add to catalog") || q.includes("add stock") || q.includes("restock")) {
+      let detectedUnit = "piece";
+      let detectedQty = 1;
+      const unitRegex = /(\d+(?:\.\d+)?)\s*(bags?|sacs?|cartons?|boxes|box|caisses?|boites?|boîtes?|kgs?|kilos?|kilograms?|g|grams?|grammes?|litres?|liters?|l|bottles?|bouteilles?|cans?|canettes?|packs?|paquets?|pieces?|pcs?|pc|unit[ée]s?|pairs?|paires?|rolls?|rouleaux?|yards?|meters?|m[èe]tres?)/i;
+      const unitMatch = query.match(unitRegex);
+      if (unitMatch) {
+        detectedQty = parseFloat(unitMatch[1]) || 1;
+        const rawUnit = unitMatch[2].toLowerCase();
+        if (rawUnit.startsWith("sac") || rawUnit.startsWith("bag")) detectedUnit = "bag";
+        else if (rawUnit.startsWith("carton") || rawUnit.startsWith("box") || rawUnit.startsWith("caisse") || rawUnit.startsWith("boit")) detectedUnit = "carton";
+        else if (rawUnit.startsWith("kg") || rawUnit.startsWith("kilo")) detectedUnit = "kg";
+        else if (rawUnit === "g" || rawUnit.startsWith("gram")) detectedUnit = "g";
+        else if (rawUnit.startsWith("lit") || rawUnit === "l") detectedUnit = "L";
+        else if (rawUnit.startsWith("bottl") || rawUnit.startsWith("bouteil")) detectedUnit = "bottle";
+        else if (rawUnit.startsWith("can")) detectedUnit = "can";
+        else if (rawUnit.startsWith("pack") || rawUnit.startsWith("paquet")) detectedUnit = "pack";
+        else if (rawUnit.startsWith("pair")) detectedUnit = "pair";
+        else if (rawUnit.startsWith("roll") || rawUnit.startsWith("rouleau")) detectedUnit = "roll";
+        else if (rawUnit.startsWith("yard") || rawUnit.startsWith("meter") || rawUnit.startsWith("m\xE8tr")) detectedUnit = "m";
+        else detectedUnit = "piece";
+      } else {
+        const qtyMatch = query.match(/(?:qty|quantity|quantité|stock|count|initial stock)[:\s]*(\d+)/i) || query.match(/\b(\d+)\s*(?:items|units|articles)\b/i);
+        if (qtyMatch) {
+          detectedQty = parseInt(qtyMatch[1], 10) || 1;
+        }
+      }
+      let sellingPrice = 0;
+      let costPrice = 0;
+      const sellMatch = query.match(/(?:selling|sell|price|selling price|sell price|prix|prix de vente)[:\s]*(\d+(?:[.,]\d+)?)/i) || query.match(/at\s+(\d+(?:[.,]\d+)?)\s*(?:selling|each|unit|fcfa|xaf|\$)?/i);
+      if (sellMatch) {
+        sellingPrice = parseFloat(sellMatch[1].replace(",", "")) || 0;
+      }
+      const costMatch = query.match(/(?:cost|cost price|buy price|achat|prix d'achat)[:\s]*(\d+(?:[.,]\d+)?)/i) || query.match(/and\s+(\d+(?:[.,]\d+)?)\s*(?:cost|cost price|buying)/i);
+      if (costMatch) {
+        costPrice = parseFloat(costMatch[1].replace(",", "")) || 0;
+      }
+      let cleanProductName = query.replace(/^(add|create|register|new product|ajouter|créer)\s+/i, "").replace(/\b(?:product|item|article)\b/gi, "").replace(unitRegex, "").replace(/(?:qty|quantity|quantité|stock|count)[:\s]*\d+/gi, "").replace(/(?:selling|sell|price|cost|cost price|at|and)[:\s]*\d+(?:[.,]\d+)?/gi, "").replace(/\b(?:fcfa|xaf|\$|usd)\b/gi, "").replace(/\s+/g, " ").trim();
+      if (!cleanProductName || cleanProductName.length < 2) {
+        cleanProductName = "Commercial Item";
+      }
+      const existingProduct = products.find(
+        (p) => p.name?.toLowerCase().trim() === cleanProductName.toLowerCase()
+      );
+      const isRestockOnly = (q.includes("restock") || q.includes("reapprovisionner")) && existingProduct;
+      if (isRestockOnly && existingProduct) {
+        return {
+          answer: `I've prepared a stock adjustment for **${existingProduct.name}** to add **+${detectedQty} ${detectedUnit}**. This will increase your recorded stock from ${existingProduct.stock_quantity || 0} to **${(existingProduct.stock_quantity || 0) + detectedQty} ${detectedUnit}**.
+
+Please confirm the adjustment below.`,
+          keyMetrics: [
+            { label: "Adjustment Qty", value: detectedQty, formattedValue: `+${detectedQty} ${detectedUnit}`, trend: "positive" },
+            { label: "Current Stock", value: existingProduct.stock_quantity || 0, formattedValue: `${existingProduct.stock_quantity || 0} ${detectedUnit}`, trend: "neutral" }
+          ],
+          proposedAction: {
+            actionType: "create_inventory_adjustment",
+            title: `Restock: ${existingProduct.name}`,
+            description: `Add +${detectedQty} ${detectedUnit} to ${existingProduct.name}`,
+            category: "inventory_restock",
+            phaseStatus: "ready_for_execution",
+            payload: {
+              productId: existingProduct.id,
+              productName: existingProduct.name,
+              adjustmentQuantity: detectedQty,
+              unit_of_measure: detectedUnit,
+              reason: "Restock via Ursella AI"
+            }
+          },
+          confidence: "high_confidence",
+          responseSource: "DETERMINISTIC_FALLBACK",
+          provider: "deterministic_fallback",
+          followUpSuggestions: [
+            "Which products are low on stock?",
+            "What is my best-selling product?",
+            "How are my sales today?"
+          ]
+        };
+      }
+      const marginAmount = sellingPrice > 0 && costPrice > 0 ? sellingPrice - costPrice : 0;
+      const marginPercent = sellingPrice > 0 && marginAmount > 0 ? Math.round(marginAmount / sellingPrice * 100) : 0;
+      return {
+        answer: `I've prepared the catalog registration for **${cleanProductName}** with an initial stock of **${detectedQty} ${detectedUnit}** at **${currency} ${sellingPrice.toLocaleString()}** selling price${costPrice > 0 ? ` (cost: ${currency} ${costPrice.toLocaleString()})` : ""}.${marginPercent > 0 ? ` This gives you a **${marginPercent}%** unit margin (${currency} ${marginAmount.toLocaleString()} profit per ${detectedUnit}).` : ""}
+
+You can review the details and confirm the addition below.`,
+        keyMetrics: [
+          { label: "Initial Stock", value: detectedQty, formattedValue: `${detectedQty} ${detectedUnit}`, trend: "positive" },
+          { label: "Selling Price", value: sellingPrice, formattedValue: `${currency} ${sellingPrice.toLocaleString()}`, trend: "neutral" },
+          ...marginPercent > 0 ? [{ label: "Gross Margin", value: marginPercent, formattedValue: `${marginPercent}%`, trend: "positive" }] : []
+        ],
+        proposedAction: {
+          actionType: "create_product",
+          title: `Add Product: ${cleanProductName}`,
+          description: `Register ${cleanProductName} with initial stock of ${detectedQty} ${detectedUnit} at ${currency} ${sellingPrice.toLocaleString()}`,
+          category: "product_creation",
+          phaseStatus: "ready_for_execution",
+          payload: {
+            name: cleanProductName,
+            unit_of_measure: detectedUnit,
+            stock_quantity: detectedQty,
+            cost_price: costPrice,
+            selling_price: sellingPrice,
+            minimum_stock_level: 5,
+            description: "Registered via Ursella AI"
+          }
+        },
+        confidence: "high_confidence",
+        responseSource: "DETERMINISTIC_FALLBACK",
+        provider: "deterministic_fallback",
+        followUpSuggestions: [
+          "Which products are low on stock?",
+          "What is my best-selling product?",
+          "How are my sales today?"
+        ]
+      };
+    }
+    if (q.includes("best selling") || q.includes("best-selling") || q.includes("top product") || q.includes("top selling") || q.includes("fastest selling") || q.includes("most sold")) {
+      if (!products || products.length === 0) {
+        return {
+          answer: `You do not have any recorded product sales in your catalog yet. Once you record sales through POS or Orders, I'll identify your fastest-moving items here.`,
+          keyMetrics: [],
+          confidence: "insufficient_data",
+          responseSource: "DETERMINISTIC_FALLBACK",
+          provider: "deterministic_fallback",
+          followUpSuggestions: ["How are my sales today?", "Which products are low on stock?"]
+        };
+      }
+      const sortedByVolume = [...products].sort((a, b) => (b.unitsSold || 0) - (a.unitsSold || 0));
+      const topVolume = sortedByVolume[0];
+      return {
+        answer: `Your best-selling product by volume is **${topVolume.name}** with **${topVolume.unitsSold || 0} unit(s) sold**, generating **${currency} ${Number(topVolume.revenue || 0).toLocaleString()}** in revenue (unit gross margin: **${topVolume.marginPct || 0}%**).
+
+You currently have **${topVolume.stockQuantity || 0} unit(s)** remaining in stock.`,
+        keyMetrics: [
+          { label: "Units Sold", value: topVolume.unitsSold || 0, formattedValue: `${topVolume.unitsSold || 0}`, trend: "positive" },
+          { label: "Revenue", value: Number(topVolume.revenue || 0), formattedValue: `${currency} ${Number(topVolume.revenue || 0).toLocaleString()}`, trend: "positive" },
+          { label: "Units on Hand", value: topVolume.stockQuantity || 0, formattedValue: `${topVolume.stockQuantity || 0}`, trend: (topVolume.stockQuantity || 0) > 5 ? "positive" : "negative" }
+        ],
+        confidence: "high_confidence",
+        responseSource: "DETERMINISTIC_FALLBACK",
+        provider: "deterministic_fallback",
+        followUpSuggestions: [
+          "Which product makes me the most money?",
+          "Which products are low on stock?",
+          "How are my sales today?"
+        ]
+      };
+    }
+    if (q.includes("makes me the most money") || q.includes("make me the most money") || q.includes("most profitable product") || q.includes("highest profit product") || q.includes("highest margin product")) {
+      if (!products || products.length === 0) {
+        return {
+          answer: `No product margin data is recorded in your catalog yet. Once purchase costs and sales prices are established, your highest profit contributors will be tracked here.`,
+          keyMetrics: [],
+          confidence: "insufficient_data",
+          responseSource: "DETERMINISTIC_FALLBACK",
+          provider: "deterministic_fallback",
+          followUpSuggestions: ["How are my sales today?", "Which products are low on stock?"]
+        };
+      }
+      const sortedByProfit = [...products].sort((a, b) => {
+        const profitA = (a.revenue || 0) - (a.cogs || 0);
+        const profitB = (b.revenue || 0) - (b.cogs || 0);
+        return profitB - profitA;
+      });
+      const topProfit = sortedByProfit[0];
+      const gp = (topProfit.revenue || 0) - (topProfit.cogs || 0);
+      return {
+        answer: `Your strongest product by gross profit is **${topProfit.name}**, generating **${currency} ${Number(gp).toLocaleString()}** in profit (${topProfit.unitsSold || 0} units sold at a **${topProfit.marginPct || 0}%** margin).
+
+Current stock on hand is **${topProfit.stockQuantity || 0} unit(s)**.`,
+        keyMetrics: [
+          { label: "Gross Profit", value: gp, formattedValue: `${currency} ${Number(gp).toLocaleString()}`, trend: "positive" },
+          { label: "Gross Margin", value: topProfit.marginPct || 0, formattedValue: `${topProfit.marginPct || 0}%`, trend: "positive" },
+          { label: "Stock On Hand", value: topProfit.stockQuantity || 0, formattedValue: `${topProfit.stockQuantity || 0}`, trend: "neutral" }
+        ],
+        confidence: "high_confidence",
+        responseSource: "DETERMINISTIC_FALLBACK",
+        provider: "deterministic_fallback",
+        followUpSuggestions: [
+          "What is my best-selling product?",
+          "Which products are low on stock?",
+          "What about the hoodies?"
+        ]
+      };
+    }
+    if (q.includes("this month") || q.includes("make this month") || q.includes("made this month")) {
+      const monthRev = Number(salesSummary.totalRevenue || overview.revenue || 0);
+      const monthOrders = Number(salesSummary.transactionCount || overview.transaction_count || 0);
+      const monthMargin = Number(salesSummary.grossMarginPct || overview.gross_margin || 0);
+      return {
+        answer: `This month, **${ctx.businessName}** has generated **${currency} ${monthRev.toLocaleString()}** in recorded sales across **${monthOrders}** order(s), with a **${monthMargin}%** gross margin.`,
+        keyMetrics: [
+          { label: "Monthly Revenue", value: monthRev, formattedValue: `${currency} ${monthRev.toLocaleString()}`, trend: "positive" },
+          { label: "Monthly Orders", value: monthOrders, formattedValue: `${monthOrders}`, trend: "neutral" },
+          { label: "Gross Margin", value: monthMargin, formattedValue: `${monthMargin}%`, trend: "positive" }
+        ],
+        confidence: "high_confidence",
+        responseSource: "DETERMINISTIC_FALLBACK",
+        provider: "deterministic_fallback",
+        followUpSuggestions: [
+          "How are my sales today?",
+          "What is my best-selling product?",
+          "Who owes me money?"
+        ]
       };
     }
     if (q.includes("today") || q.includes("sell today") || q.includes("sold today") || q.includes("sales today") || q.includes("revenue today") || q.includes("how are my sales today")) {
       const revToday = Number(todaySales.revenue ?? dailyBrief.todayMetrics?.revenueToday ?? 0);
       const txToday = Number(todaySales.salesCount ?? dailyBrief.todayMetrics?.transactionCountToday ?? 0);
       const cashToday = Number(todaySales.cashCollected ?? dailyBrief.todayMetrics?.cashCollectedToday ?? 0);
-      const gpToday = Number(todaySales.grossProfit ?? (revToday > 0 ? revToday * 0.35 : 0));
-      const marginPct = Number(todaySales.grossMarginPct ?? (revToday > 0 ? 35 : 0));
       if (txToday === 0) {
         return {
-          answer: `### Executive Summary
-No transactions have been logged yet today for **${ctx.businessName}** (${currency} 0 revenue across 0 orders).
+          answer: `No sales have been recorded yet today for **${ctx.businessName}** (${currency} 0 across 0 orders).
 
-### Today's Readiness Checklist
-- Verify that cashiers and POS registers are active in the **Sell / POS** module.
-- Check that opening cash float has been counted and catalog prices are up to date.`,
+If you have completed transactions today that have not yet been rung up, make sure they are entered in the **POS / Sales** module.`,
           keyMetrics: [
             { label: "Today's Revenue", value: 0, formattedValue: `${currency} 0`, trend: "neutral" },
             { label: "Today's Orders", value: 0, formattedValue: "0", trend: "neutral" }
           ],
-          recommendations: [],
-          followUpSuggestions: ["Which products are low on stock?", "Who owes me money?", "What were my sales this month?"],
           confidence: "high_confidence",
-          responseSource: "DETERMINISTIC_FALLBACK"
+          responseSource: "DETERMINISTIC_FALLBACK",
+          provider: "deterministic_fallback",
+          followUpSuggestions: [
+            "What is my best-selling product?",
+            "Which products are low on stock?",
+            "Who owes me money?"
+          ]
         };
       }
       return {
-        answer: `### Executive Summary
-Today, **${ctx.businessName}** has generated **${currency} ${revToday.toLocaleString()}** across **${txToday}** customer transaction${txToday > 1 ? "s" : ""}.
-
-### Performance Diagnostics
-- **Gross Profit Generated:** ${currency} ${gpToday.toLocaleString()} (Operating Gross Margin: **${marginPct}%**)
-- **Direct Cash Inflow:** ${currency} ${cashToday.toLocaleString()}
-- **Average Basket Value:** ${currency} ${txToday > 0 ? Math.round(revToday / txToday).toLocaleString() : "0"} per transaction
-
-### Tactical Observations
-- Momentum is active. Ensure front-line sales staff offer complementary items at checkout to increase average basket size.`,
+        answer: `Today, **${ctx.businessName}** has recorded **${currency} ${revToday.toLocaleString()}** in sales across **${txToday}** customer order(s), with **${currency} ${cashToday.toLocaleString()}** collected in cash.`,
         keyMetrics: [
           { label: "Today's Revenue", value: revToday, formattedValue: `${currency} ${revToday.toLocaleString()}`, trend: "positive" },
           { label: "Today's Orders", value: txToday, formattedValue: `${txToday}`, trend: "positive" },
-          { label: "Gross Margin", value: marginPct, formattedValue: `${marginPct}%`, trend: "positive" }
+          { label: "Cash Collected", value: cashToday, formattedValue: `${currency} ${cashToday.toLocaleString()}`, trend: "positive" }
         ],
-        followUpSuggestions: ["Who owes me money?", "Which products are low on stock?"],
         confidence: "high_confidence",
-        responseSource: "DETERMINISTIC_FALLBACK"
+        responseSource: "DETERMINISTIC_FALLBACK",
+        provider: "deterministic_fallback",
+        followUpSuggestions: [
+          "What is my best-selling product?",
+          "Who owes me money?",
+          "Which products are low on stock?"
+        ]
       };
     }
-    if (q.includes("best selling") || q.includes("top product") || q.includes("margin on product") || q.includes("highest margin") || q.includes("most profitable product") || q.includes("product") || q.includes("margin on") || q.includes("cost of") || q.includes("price of") || products && products.some((p) => q.includes(p.name.toLowerCase()) || p.sku && q.includes(p.sku.toLowerCase()))) {
-      if (!products || products.length === 0) {
+    if (q.includes("low stock") || q.includes("running low") || q.includes("out of stock") || q.includes("stock level") || q.includes("stockout") || q.includes("reorder")) {
+      const outCount = Number(inv.outOfStockCount || 0);
+      const lowCount = Number(inv.lowStockCount || 0);
+      const criticalItems = inv.criticalItemsToRestock || [];
+      const totalSKUs = Number(inv.totalActiveSKUs || 0);
+      if (outCount === 0 && lowCount === 0) {
         return {
-          answer: `No matching product performance data is available in the catalog.`,
-          keyMetrics: [],
-          followUpSuggestions: ["How are my sales today?", "Do I have low stock?"],
-          confidence: "insufficient_data",
-          responseSource: "DETERMINISTIC_FALLBACK"
-        };
-      }
-      const exactMatch = products.find(
-        (p) => q.includes(p.name.toLowerCase()) || p.sku && q.includes(p.sku.toLowerCase())
-      );
-      if (exactMatch) {
-        const uMargin = exactMatch.catalogUnitMarginPct ?? exactMatch.marginPct;
-        const fifoCost = exactMatch.fifoUnitCostAverage ?? exactMatch.costPrice;
-        const unitsSold = exactMatch.unitsSold ?? 0;
-        const stock = exactMatch.stockQuantity ?? 0;
-        return {
-          answer: `### Executive Summary
-Performance analysis for **${exactMatch.name}**: Selling at **${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}** with a **${uMargin}% unit gross margin** (${currency} ${(Number(exactMatch.sellingPrice) - Number(fifoCost)).toLocaleString()} unit profit).
-
-### Product Unit Economics
-- **Selling Price (RRP):** ${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}
-- **Unit Cost (FIFO Base):** ${currency} ${Number(fifoCost).toLocaleString()}
-- **Gross Profit per Unit:** ${currency} ${(Number(exactMatch.sellingPrice) - Number(fifoCost)).toLocaleString()} (**${uMargin}%**)
-- **Current Inventory On Hand:** ${stock} unit(s) ${stock <= 5 ? "\u26A0\uFE0F *(Low safety stock)*" : "\u2705 *(Adequately stocked)*"}
-- **Sales Velocity:** ${unitsSold} unit(s) sold in current period (Generated ${currency} ${Number(exactMatch.revenue || 0).toLocaleString()} revenue)
-
-### Strategic Merchandising Guidance
-${stock <= 5 ? "- \u{1F534} **Restock Action:** Current inventory is critical. Issue a replenishment order to prevent stockout during high-traffic hours." : "- \u{1F4C8} **Growth Action:** Given healthy margin and stock, feature this item as a recommended cross-sell at checkout."}`,
+          answer: `All **${totalSKUs} active product SKUs** in your catalog are adequately stocked with zero low-stock or out-of-stock alerts.`,
           keyMetrics: [
-            { label: `${exactMatch.name} Price`, value: exactMatch.sellingPrice, formattedValue: `${currency} ${Number(exactMatch.sellingPrice).toLocaleString()}`, trend: "neutral" },
-            { label: "Unit Margin", value: uMargin, formattedValue: `${uMargin}%`, trend: uMargin >= 30 ? "positive" : "neutral" },
-            { label: "Stock On Hand", value: stock, formattedValue: `${stock}`, trend: stock > 5 ? "positive" : "negative" }
+            { label: "Out of Stock", value: 0, formattedValue: "0", trend: "positive" },
+            { label: "Low Stock", value: 0, formattedValue: "0", trend: "positive" }
           ],
-          followUpSuggestions: ["Which products have higher margin?", "How are my sales today?"],
           confidence: "high_confidence",
-          responseSource: "DETERMINISTIC_FALLBACK"
+          responseSource: "DETERMINISTIC_FALLBACK",
+          provider: "deterministic_fallback",
+          followUpSuggestions: [
+            "What is my best-selling product?",
+            "How are my sales today?"
+          ]
         };
       }
-      const productList = products.slice(0, 10).map((p, i) => `${i + 1}. **${p.name}**: Selling at ${currency} ${Number(p.sellingPrice).toLocaleString()} (Gross Margin: **${p.marginPct}%**, Stock: ${p.stockQuantity})`).join("\n");
-      const topProduct = products[0];
+      const itemsList = criticalItems.map((item) => `- **${item.name}**: ${item.currentStock} unit(s) remaining (${item.status === "OUT_OF_STOCK" ? "\u{1F534} Depleted" : `\u26A0\uFE0F Below minimum of ${item.minimumStockLevel}`})`).join("\n");
       return {
-        answer: `### Executive Summary
-Your catalog leader by unit profitability is **${topProduct.name}** delivering an exceptional **${topProduct.marginPct}% gross margin**.
+        answer: `You currently have **${outCount} item(s) completely depleted** and **${lowCount} item(s) running below their safety threshold**:
 
-### Top High-Margin Product Highlights
-${productList}
+${itemsList}
 
-### Portfolio Strategy
-- **Protect Top Margin Contributors:** Ensure items with margins above 35% maintain consistent inventory availability.
-- **Bundle Strategy:** Pair high-margin accessories with staple items to increase average ticket value without discounting.`,
-        keyMetrics: products.slice(0, 3).map((p) => ({
-          label: p.name,
-          value: p.marginPct,
-          formattedValue: `${p.marginPct}% margin`,
-          trend: p.marginPct >= 30 ? "positive" : "neutral"
-        })),
-        followUpSuggestions: ["Which products are running low on stock?", "How are my sales today?"],
+I recommend prioritizing purchase orders for depleted items that drive regular customer foot traffic.`,
+        keyMetrics: [
+          { label: "Out of Stock", value: outCount, formattedValue: `${outCount}`, trend: outCount > 0 ? "negative" : "positive" },
+          { label: "Low Stock", value: lowCount, formattedValue: `${lowCount}`, trend: lowCount > 0 ? "negative" : "positive" }
+        ],
         confidence: "high_confidence",
-        responseSource: "DETERMINISTIC_FALLBACK"
+        responseSource: "DETERMINISTIC_FALLBACK",
+        provider: "deterministic_fallback",
+        followUpSuggestions: [
+          "What is my best-selling product?",
+          "How are my sales today?",
+          "What is my FIFO inventory valuation?"
+        ]
       };
     }
-    if (q.includes("expense") || q.includes("spending") || q.includes("costs") || q.includes("bills")) {
-      const totalExp = Number(expenses.totalExpenses || 0);
-      const topCats = expenses.topExpenseCategories || expenses.expensesByCategory || [];
-      if (totalExp === 0) {
+    if (q.includes("who owes") || q.includes("debt") || q.includes("debtor") || q.includes("unpaid") || q.includes("receivable") || q.includes("owe me")) {
+      const totalDebt = Number(debtors.totalOutstandingDebt || 0);
+      const debtorCount = Number(debtors.debtorsCount || 0);
+      const topList = debtors.topDebtors || [];
+      if (debtorCount === 0 || totalDebt === 0) {
         return {
-          answer: `### Executive Summary
-Zero operating expenses (**${currency} 0**) have been recorded for **${ctx.businessName}** in the active period.
-
-### Operational Advice
-- To ensure accurate Net Profit calculations in Ursella, record utility bills, rent, and supplier delivery costs in the **Expenses** module.`,
-          keyMetrics: [{ label: "Total Expenses", value: 0, formattedValue: `${currency} 0`, trend: "positive" }],
-          followUpSuggestions: ["How are my sales today?", "What is my current cash flow?"],
+          answer: `You currently have **no outstanding customer debts** (0 unpaid balances recorded).`,
+          keyMetrics: [
+            { label: "Outstanding Debt", value: 0, formattedValue: `${currency} 0`, trend: "positive" },
+            { label: "Debtor Accounts", value: 0, formattedValue: "0", trend: "positive" }
+          ],
           confidence: "high_confidence",
-          responseSource: "DETERMINISTIC_FALLBACK"
+          responseSource: "DETERMINISTIC_FALLBACK",
+          provider: "deterministic_fallback",
+          followUpSuggestions: ["How are my sales today?", "Which products are low on stock?"]
         };
       }
-      const catBreakdown = topCats.map((c) => `- **${c.category}**: ${currency} ${Number(c.amount).toLocaleString()} (${c.percentageOfTotal ?? c.percentage ?? 0}% of total spend)`).join("\n");
+      const debtorBreakdown = topList.map((d, i) => `${i + 1}. **${d.name}**: ${currency} ${Number(d.debtAmount).toLocaleString()}${d.phone ? ` (${d.phone})` : ""}`).join("\n");
       return {
-        answer: `### Executive Summary
-Total operating expenditure for the period is **${currency} ${totalExp.toLocaleString()}**.
+        answer: `You currently have **${debtorCount} customer account(s)** with outstanding credit balances totaling **${currency} ${totalDebt.toLocaleString()}**:
 
-### Expense Distribution by Category
-${catBreakdown}
+${debtorBreakdown}
 
-### Cost Control Opportunities
-- Review high-percentage cost categories for recurring subscription audits or supplier bulk terms.`,
+Reaching out to these customers will help recover working capital for inventory purchases.`,
         keyMetrics: [
-          { label: "Total Expenses", value: totalExp, formattedValue: `${currency} ${totalExp.toLocaleString()}`, trend: "neutral" },
-          { label: "Top Category", value: topCats[0]?.category || "N/A", formattedValue: `${topCats[0]?.category || "N/A"} (${currency} ${Number(topCats[0]?.amount || 0).toLocaleString()})`, trend: "neutral" }
+          { label: "Outstanding Receivables", value: totalDebt, formattedValue: `${currency} ${totalDebt.toLocaleString()}`, trend: "negative" },
+          { label: "Debtor Accounts", value: debtorCount, formattedValue: `${debtorCount}`, trend: "neutral" }
         ],
-        followUpSuggestions: ["What is my net profitability?", "How is my cash flow?"],
         confidence: "high_confidence",
-        responseSource: "DETERMINISTIC_FALLBACK"
+        responseSource: "DETERMINISTIC_FALLBACK",
+        provider: "deterministic_fallback",
+        followUpSuggestions: ["How are my sales today?", "What is my current cash flow?"]
       };
     }
-    if (q.includes("cash flow") || q.includes("cash collected") || q.includes("liquidity") || q.includes("inflow")) {
-      const cashIn = Number(cashFlow.cashInflow || cashFlow.cashInflows || 0);
-      const cashOut = Number(cashFlow.cashOutflow || cashFlow.cashOutflows || 0);
-      const netCash = Number(cashFlow.netCashFlow || 0);
-      return {
-        answer: `### Executive Summary
-Net cash flow for the trailing 30 days is **${netCash >= 0 ? "+" : ""}${currency} ${netCash.toLocaleString()}**.
-
-### Cash Liquidity Analysis
-- **Cash Inflows (Collections & Cash Sales):** ${currency} ${cashIn.toLocaleString()}
-- **Cash Outflows (Operating Spend & Stock Purchases):** ${currency} ${cashOut.toLocaleString()}
-- **Net Liquidity Movement:** **${netCash >= 0 ? "+" : ""}${currency} ${netCash.toLocaleString()}** (${netCash >= 0 ? "\u{1F7E2} Positive Cash Accretion" : "\u{1F534} Negative Cash Drain"})
-
-### Liquidity Safeguards
-- Accelerate debtor collections to bolster reserve buffers before upcoming supplier payables.`,
-        keyMetrics: [
-          { label: "Net Cash Flow", value: netCash, formattedValue: `${currency} ${netCash.toLocaleString()}`, trend: netCash >= 0 ? "positive" : "negative" },
-          { label: "Cash Inflow", value: cashIn, formattedValue: `${currency} ${cashIn.toLocaleString()}`, trend: "positive" },
-          { label: "Cash Outflow", value: cashOut, formattedValue: `${currency} ${cashOut.toLocaleString()}`, trend: "neutral" }
-        ],
-        followUpSuggestions: ["Who owes me money?", "What are my total expenses?"],
-        confidence: "high_confidence",
-        responseSource: "DETERMINISTIC_FALLBACK"
-      };
-    }
-    if (q.includes("overview") || q.includes("summary") || q.includes("health") || q.includes("performance") || q.includes("how is my business") || q.includes("how are we doing") || q.includes("status") || q.includes("report")) {
-      const totalRev = Number(overview.revenue || salesSummary.totalRevenue || 0);
-      const txCount = Number(overview.transaction_count || salesSummary.transactionCount || 0);
+    if (isExplicitReport) {
+      const totalRev2 = Number(overview.revenue || salesSummary.totalRevenue || 0);
+      const txCount2 = Number(overview.transaction_count || salesSummary.transactionCount || 0);
       const grossProfit = Number(overview.gross_profit || 0);
-      const grossMargin = Number(overview.gross_margin || 0);
+      const grossMargin2 = Number(overview.gross_margin || 0);
+      const outCount = Number(inv.outOfStockCount || 0);
+      const totalDebt = Number(debtors.totalOutstandingDebt || 0);
       return {
         answer: `### Executive Summary
-**${ctx.businessName}** has generated **${currency} ${totalRev.toLocaleString()}** in revenue across **${txCount}** completed transaction(s) over the last 30 days, achieving a **${grossMargin}% gross margin** (${currency} ${grossProfit.toLocaleString()} gross profit).
+**${ctx.businessName}** generated **${currency} ${totalRev2.toLocaleString()}** in revenue across **${txCount2}** completed transaction(s) over the last 30 days, achieving a **${grossMargin2}% gross margin** (${currency} ${grossProfit.toLocaleString()} gross profit).
 
-### Operational Diagnostics & Performance Pillars
-- **Revenue Throughput:** ${currency} ${totalRev.toLocaleString()} across ${txCount} customer checkouts
-- **Gross Profit Margin:** **${grossMargin}%** (${grossMargin >= 30 ? "Strong margin performance" : "Monitor unit pricing to protect margins"})
-- **Average Ticket Size:** ${currency} ${txCount > 0 ? Math.round(totalRev / txCount).toLocaleString() : "0"}
+### Analytical Diagnostics & Data Breakdown
+- **Revenue Volume:** ${currency} ${totalRev2.toLocaleString()} (${txCount2} transactions)
+- **Gross Margin:** **${grossMargin2}%**
+- **Inventory Health:** ${outCount} depleted SKU(s)
+- **Receivables Exposure:** ${currency} ${totalDebt.toLocaleString()} in open customer credit
 
-### Key Growth Actions
-1. **Focus on Inventory Continuity:** Review safety stock levels for top sellers to eliminate stockout losses.
-2. **Collect Open Receivables:** Monitor customer credit limits to keep operating cash conversion swift.`,
+### Strategic Recommendations
+1. **Protect Top Sellers:** Restock any depleted SKUs to avoid lost sales.
+2. **Collect Open Debts:** Send payment reminders to debtor accounts to recover liquid cash.
+3. **Maintain Margin Discipline:** Ensure sales prices cover rising replacement costs.`,
         keyMetrics: [
-          { label: "Revenue (30d)", value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: "positive" },
-          { label: "Transactions", value: txCount, formattedValue: `${txCount}`, trend: "positive" },
-          { label: "Gross Margin", value: grossMargin, formattedValue: `${grossMargin}%`, trend: grossMargin >= 30 ? "positive" : "neutral" }
+          { label: "Revenue (30d)", value: totalRev2, formattedValue: `${currency} ${totalRev2.toLocaleString()}`, trend: "positive" },
+          { label: "Gross Margin", value: grossMargin2, formattedValue: `${grossMargin2}%`, trend: grossMargin2 >= 30 ? "positive" : "neutral" },
+          { label: "Transactions", value: txCount2, formattedValue: `${txCount2}`, trend: "neutral" }
         ],
-        followUpSuggestions: ["How are my sales today?", "Who owes me money?", "Which products are low on stock?"],
-        confidence: txCount > 0 ? "high_confidence" : "insufficient_data",
-        responseSource: "DETERMINISTIC_FALLBACK"
+        confidence: "high_confidence",
+        responseSource: "DETERMINISTIC_FALLBACK",
+        provider: "deterministic_fallback",
+        followUpSuggestions: [
+          "What is my best-selling product?",
+          "Which products are low on stock?",
+          "How are my sales today?"
+        ]
       };
     }
+    const totalRev = Number(overview.revenue || salesSummary.totalRevenue || 0);
+    const txCount = Number(overview.transaction_count || salesSummary.transactionCount || 0);
+    const grossMargin = Number(overview.gross_margin || 0);
     return {
-      answer: `I could not identify the specific business metric or question you would like me to analyze for **${ctx.businessName}**.
+      answer: `Over the past 30 days, **${ctx.businessName}** has generated **${currency} ${totalRev.toLocaleString()}** across **${txCount}** transaction(s) with an operating gross margin of **${grossMargin}%**.
 
-Please ask a specific question such as checking today's sales, low stock items, customer debts, or operating expenses.`,
-      confidence: "insufficient_data",
-      dataSufficiencyNote: "Query was ambiguous or outside standard business metrics.",
+What specific part of your business would you like to explore? I can check today's sales, product profitability, low inventory, or customer debts.`,
+      keyMetrics: [
+        { label: "Revenue (30d)", value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: "positive" },
+        { label: "Gross Margin", value: grossMargin, formattedValue: `${grossMargin}%`, trend: "neutral" }
+      ],
+      confidence: txCount > 0 ? "high_confidence" : "insufficient_data",
       responseSource: "DETERMINISTIC_FALLBACK",
+      provider: "deterministic_fallback",
       followUpSuggestions: [
         "How are my sales today?",
+        "What is my best-selling product?",
         "Which products are low on stock?",
-        "Who owes me money?",
-        "What is my FIFO inventory valuation?"
+        "Who owes me money?"
       ]
+    };
+  }
+  /**
+   * Generates the Daily Business Brief summary.
+   */
+  static async generateDailyBrief(ctx) {
+    const briefFacts = ctx.toolResults.get_daily_brief_facts || {};
+    const currency = ctx.currency || "XAF";
+    const revenue = Number(briefFacts.todayMetrics?.revenueToday ?? 0);
+    const transactions = Number(briefFacts.todayMetrics?.transactionCountToday ?? 0);
+    const amountCollected = Number(briefFacts.todayMetrics?.cashCollectedToday ?? 0);
+    const expenses = Number(briefFacts.todayMetrics?.expensesToday ?? 0);
+    const outstandingReceivables = Number(briefFacts.debtorAlerts?.totalOutstandingDebt ?? 0);
+    const inventoryAlerts = [];
+    if (briefFacts.inventoryAlerts?.criticalItemsToRestock?.length) {
+      for (const item of briefFacts.inventoryAlerts.criticalItemsToRestock.slice(0, 4)) {
+        inventoryAlerts.push(`${item.name} (${item.currentStock} remaining - ${item.status})`);
+      }
+    }
+    const debtFollowUps = [];
+    if (briefFacts.debtorAlerts?.topDebtors?.length) {
+      for (const debtor of briefFacts.debtorAlerts.topDebtors.slice(0, 3)) {
+        debtFollowUps.push(`${debtor.name} owes ${currency} ${Number(debtor.debtAmount).toLocaleString()}`);
+      }
+    }
+    const headline = transactions > 0 ? `${transactions} transaction(s) logged today generating ${currency} ${revenue.toLocaleString()}` : `No transactions recorded yet today for ${ctx.businessName}`;
+    const keyTakeaways = [
+      `Today's Revenue: ${currency} ${revenue.toLocaleString()} across ${transactions} order(s)`,
+      `Cash Collected: ${currency} ${amountCollected.toLocaleString()}`
+    ];
+    if (outstandingReceivables > 0) {
+      keyTakeaways.push(`Open Customer Debt: ${currency} ${outstandingReceivables.toLocaleString()} across ${briefFacts.debtorAlerts?.debtorsCount || 0} account(s)`);
+    }
+    const recommendedFocusToday = inventoryAlerts.length > 0 ? `Review depleted inventory items to prevent missed sales.` : outstandingReceivables > 0 ? `Follow up with top debtor accounts to recover working capital.` : `Focus on customer checkout service and recording daily transactions.`;
+    return {
+      generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      businessName: ctx.businessName,
+      currency,
+      headline,
+      executiveSummary: `${ctx.businessName} has recorded ${transactions} order(s) today generating ${currency} ${revenue.toLocaleString()}. ${inventoryAlerts.length > 0 ? `${inventoryAlerts.length} product(s) require inventory replenishment.` : "Catalog inventory is adequately stocked."}`,
+      performanceSnapshot: {
+        revenue,
+        transactions,
+        amountCollected,
+        expenses,
+        outstandingReceivables
+      },
+      keyTakeaways,
+      inventoryAlerts,
+      debtFollowUps,
+      recommendedFocusToday,
+      confidence: "high_confidence"
     };
   }
 };
@@ -1944,11 +2553,29 @@ var InMemoryRateLimiter = class {
 var aiRateLimiter = new InMemoryRateLimiter(30, 60 * 1e3);
 
 // server/event-detection.service.ts
+var DEFAULT_DETECTION_CONFIG = {
+  salesDropThresholdPct: 18,
+  salesDropCriticalPct: 35,
+  salesSpikeThresholdPct: 35,
+  lowStockBufferMultiplier: 1,
+  depletionRiskDays: 3.5,
+  customerDebtLargeAmount: 5e4,
+  customerDebtCriticalAmount: 1e5,
+  customerInactiveDays: 30,
+  customerInactiveMinSpend: 5e4,
+  expenseSpikePct: 30,
+  highMarginThresholdPct: 40
+};
 var EventDetectionService = class {
   /**
    * Run full detection across all operational domains.
+   * Supports both server database querying and resilient client-supplied data snapshots.
    */
-  static async scanBusiness(businessId) {
+  static async scanBusiness(businessId, snapshot, customConfig) {
+    const config = {
+      ...DEFAULT_DETECTION_CONFIG,
+      ...customConfig
+    };
     const events = [];
     try {
       const [
@@ -1958,11 +2585,11 @@ var EventDetectionService = class {
         expenseMarginEvents,
         opportunityEvents
       ] = await Promise.all([
-        this.detectSalesEvents(businessId),
-        this.detectInventoryEvents(businessId),
-        this.detectCustomerEvents(businessId),
-        this.detectExpenseAndMarginEvents(businessId),
-        this.detectOpportunityEvents(businessId)
+        this.detectSalesEvents(businessId, snapshot, config),
+        this.detectInventoryEvents(businessId, snapshot, config),
+        this.detectCustomerEvents(businessId, snapshot, config),
+        this.detectExpenseAndMarginEvents(businessId, snapshot, config),
+        this.detectOpportunityEvents(businessId, snapshot, config)
       ]);
       events.push(
         ...salesEvents,
@@ -1979,23 +2606,39 @@ var EventDetectionService = class {
   /**
    * 1. SALES EVENTS: Drop, Spike, Large Sale
    */
-  static async detectSalesEvents(businessId) {
+  static async detectSalesEvents(businessId, snapshot, config = DEFAULT_DETECTION_CONFIG) {
     const events = [];
     const now = /* @__PURE__ */ new Date();
     const current7DaysStart = new Date(now.getTime() - 7 * 864e5);
     const prior7DaysStart = new Date(now.getTime() - 14 * 864e5);
-    const [{ data: currSales }, { data: priorSales }] = await Promise.all([
-      serverSupabase.from("sales").select("id, total, sold_at").eq("business_id", businessId).eq("sale_status", "completed").gte("sold_at", current7DaysStart.toISOString()),
-      serverSupabase.from("sales").select("id, total, sold_at").eq("business_id", businessId).eq("sale_status", "completed").gte("sold_at", prior7DaysStart.toISOString()).lt("sold_at", current7DaysStart.toISOString())
-    ]);
-    const currRev = currSales?.reduce((acc, s) => acc + Number(s.total || 0), 0) || 0;
-    const priorRev = priorSales?.reduce((acc, s) => acc + Number(s.total || 0), 0) || 0;
-    const currCount = currSales?.length || 0;
-    const priorCount = priorSales?.length || 0;
+    let currSales = [];
+    let priorSales = [];
+    if (snapshot?.sales && snapshot.sales.length > 0) {
+      for (const s of snapshot.sales) {
+        if (s.sale_status && s.sale_status !== "completed") continue;
+        const soldDate = new Date(s.sold_at || s.created_at || now);
+        if (soldDate >= current7DaysStart) {
+          currSales.push(s);
+        } else if (soldDate >= prior7DaysStart && soldDate < current7DaysStart) {
+          priorSales.push(s);
+        }
+      }
+    } else {
+      const [resCurr, resPrior] = await Promise.all([
+        serverSupabase.from("sales").select("id, total, sold_at").eq("business_id", businessId).eq("sale_status", "completed").gte("sold_at", current7DaysStart.toISOString()),
+        serverSupabase.from("sales").select("id, total, sold_at").eq("business_id", businessId).eq("sale_status", "completed").gte("sold_at", prior7DaysStart.toISOString()).lt("sold_at", current7DaysStart.toISOString())
+      ]);
+      currSales = resCurr.data || [];
+      priorSales = resPrior.data || [];
+    }
+    const currRev = currSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
+    const priorRev = priorSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
+    const currCount = currSales.length;
+    const priorCount = priorSales.length;
     if (priorCount >= 3 && priorRev > 0) {
       const revDiffPct = (currRev - priorRev) / priorRev * 100;
-      if (revDiffPct <= -18) {
-        const severity = revDiffPct <= -35 ? "critical" : "high";
+      if (revDiffPct <= -config.salesDropThresholdPct) {
+        const severity = revDiffPct <= -config.salesDropCriticalPct ? "critical" : "high";
         events.push({
           eventType: "sales_drop",
           category: "sales",
@@ -2025,7 +2668,7 @@ var EventDetectionService = class {
           }
         });
       }
-      if (revDiffPct >= 35 && currCount >= 3) {
+      if (revDiffPct >= config.salesSpikeThresholdPct && currCount >= 3) {
         events.push({
           eventType: "sales_spike",
           category: "sales",
@@ -2052,13 +2695,36 @@ var EventDetectionService = class {
   /**
    * 2. INVENTORY EVENTS: Out of Stock, Low Stock, Fast-Moving Depletion Risk
    */
-  static async detectInventoryEvents(businessId) {
+  static async detectInventoryEvents(businessId, snapshot, config = DEFAULT_DETECTION_CONFIG) {
     const events = [];
     const sevenDaysAgo = new Date(Date.now() - 7 * 864e5).toISOString();
-    const [{ data: products }, { data: saleItems }] = await Promise.all([
-      serverSupabase.from("products").select("id, name, stock_quantity, minimum_stock_level, cost_price, selling_price").eq("business_id", businessId).eq("is_active", true),
-      serverSupabase.from("sale_items").select("product_id, quantity").eq("business_id", businessId).gte("created_at", sevenDaysAgo)
-    ]);
+    let products = [];
+    let saleItems = [];
+    if (snapshot?.products && snapshot.products.length > 0) {
+      products = snapshot.products;
+      if (snapshot.saleItems && snapshot.saleItems.length > 0) {
+        saleItems = snapshot.saleItems;
+      } else if (snapshot.sales && snapshot.sales.length > 0) {
+        for (const s of snapshot.sales) {
+          const soldDate = s.sold_at || s.created_at || "";
+          if (soldDate >= sevenDaysAgo && Array.isArray(s.items)) {
+            for (const it of s.items) {
+              saleItems.push({
+                product_id: it.product_id || it.productId,
+                quantity: it.quantity
+              });
+            }
+          }
+        }
+      }
+    } else {
+      const [{ data: dbProducts }, { data: dbSaleItems }] = await Promise.all([
+        serverSupabase.from("products").select("id, name, stock_quantity, minimum_stock_level, cost_price, selling_price").eq("business_id", businessId).eq("is_active", true),
+        serverSupabase.from("sale_items").select("product_id, quantity").eq("business_id", businessId).gte("created_at", sevenDaysAgo)
+      ]);
+      products = dbProducts || [];
+      saleItems = dbSaleItems || [];
+    }
     if (!products || products.length === 0) return events;
     const velocityMap = {};
     for (const item of saleItems || []) {
@@ -2067,28 +2733,28 @@ var EventDetectionService = class {
       }
     }
     for (const prod of products) {
-      const stock = Number(prod.stock_quantity || 0);
-      const minStock = Number(prod.minimum_stock_level || 5);
+      const stock = Number(prod.stock_quantity ?? 0);
+      const minStock = Number(prod.minimum_stock_level ?? 5);
       const weeklyUnitsSold = velocityMap[prod.id] || 0;
       const dailyVelocity = weeklyUnitsSold / 7;
-      if (stock === 0) {
+      if (stock <= 0) {
         const hadRecentSales = weeklyUnitsSold > 0;
         events.push({
           eventType: "out_of_stock",
           category: "inventory",
-          severity: hadRecentSales ? "critical" : "high",
+          severity: hadRecentSales || stock < 0 ? "critical" : "high",
           confidence: "high",
-          title: `${prod.name} is Out of Stock`,
-          summary: `Current inventory is 0 units.${hadRecentSales ? ` Sold ${weeklyUnitsSold} units in the last 7 days.` : ""}`,
+          title: `${prod.name} is Out of Stock${stock < 0 ? ` (${stock} deficit)` : ""}`,
+          summary: `Current inventory is ${stock} units.${hadRecentSales ? ` Sold ${weeklyUnitsSold} units in the last 7 days.` : ""}`,
           explanation: {
-            whatHappened: `Inventory for "${prod.name}" has reached 0 units.`,
-            whyItMatters: `Zero stock causes lost sales and pushes regular customers to competitors.`,
-            whatYouCanDo: `Initiate a restock purchase with your supplier immediately.`
+            whatHappened: `Inventory for "${prod.name}" has reached ${stock} units.`,
+            whyItMatters: `Zero or negative stock causes immediate lost sales, unfulfilled commitments, and customer dissatisfaction.`,
+            whatYouCanDo: `Initiate a restock purchase order with your supplier immediately to replenish inventory.`
           },
           data: {
             productId: prod.id,
             productName: prod.name,
-            currentStock: 0,
+            currentStock: stock,
             minimumStockLevel: minStock,
             sevenDayUnitsSold: weeklyUnitsSold
           },
@@ -2097,13 +2763,13 @@ var EventDetectionService = class {
           actionPayload: {
             productId: prod.id,
             productName: prod.name,
-            currentStock: 0,
+            currentStock: stock,
             suggestedQuantity: Math.max(minStock * 2, Math.ceil(dailyVelocity * 14) || minStock),
             title: `Restock Order: ${prod.name}`,
             priority: "high"
           }
         });
-      } else if (dailyVelocity >= 0.8 && stock / dailyVelocity <= 3.5) {
+      } else if (dailyVelocity >= 0.8 && stock / dailyVelocity <= config.depletionRiskDays) {
         const daysRemaining = Number((stock / dailyVelocity).toFixed(1));
         events.push({
           eventType: "fast_moving_depletion",
@@ -2113,9 +2779,9 @@ var EventDetectionService = class {
           title: `${prod.name} Depletion Risk (${daysRemaining} Days of Stock Left)`,
           summary: `Selling ${dailyVelocity.toFixed(1)} units/day with only ${stock} units in stock. Estimated stockout in ${daysRemaining} days.`,
           explanation: {
-            whatHappened: `"${prod.name}" is selling faster than usual (${weeklyUnitsSold} units in 7 days) and only ${stock} units remain.`,
+            whatHappened: `"${prod.name}" is selling quickly (${weeklyUnitsSold} units in 7 days) and only ${stock} units remain.`,
             whyItMatters: `At this sales pace, the product will be completely sold out within ${daysRemaining} days.`,
-            whatYouCanDo: `Order replacement stock before stock completely runs dry.`
+            whatYouCanDo: `Order replacement stock now to arrive before current inventory completely runs dry.`
           },
           data: {
             productId: prod.id,
@@ -2136,7 +2802,7 @@ var EventDetectionService = class {
             priority: "high"
           }
         });
-      } else if (stock <= minStock && stock > 0) {
+      } else if (stock <= minStock * config.lowStockBufferMultiplier && stock > 0) {
         events.push({
           eventType: "low_stock",
           category: "inventory",
@@ -2147,7 +2813,7 @@ var EventDetectionService = class {
           explanation: {
             whatHappened: `"${prod.name}" has ${stock} units remaining, at or below your safety threshold of ${minStock}.`,
             whyItMatters: `Remaining stock is vulnerable to unexpected surges in customer demand.`,
-            whatYouCanDo: `Plan a replenishment order to restore stock above minimum threshold.`
+            whatYouCanDo: `Order a replenishment batch to maintain adequate buffer inventory.`
           },
           data: {
             productId: prod.id,
@@ -2162,7 +2828,7 @@ var EventDetectionService = class {
             productName: prod.name,
             currentStock: stock,
             suggestedQuantity: minStock * 2,
-            title: `Low Stock Restock: ${prod.name}`,
+            title: `Replenish: ${prod.name}`,
             priority: "medium"
           }
         });
@@ -2173,13 +2839,22 @@ var EventDetectionService = class {
   /**
    * 3. CUSTOMER EVENTS: Overdue Debt, Large Outstanding Balances, Inactive Customers
    */
-  static async detectCustomerEvents(businessId) {
+  static async detectCustomerEvents(businessId, snapshot, config = DEFAULT_DETECTION_CONFIG) {
     const events = [];
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 864e5).toISOString();
-    const [{ data: customers }, { data: sales }] = await Promise.all([
-      serverSupabase.from("customers").select("id, name, phone, email").eq("business_id", businessId).eq("is_active", true),
-      serverSupabase.from("sales").select("id, customer_id, total, amount_due, sale_status, sold_at").eq("business_id", businessId).eq("sale_status", "completed")
-    ]);
+    const thirtyDaysAgo = new Date(Date.now() - config.customerInactiveDays * 864e5).toISOString();
+    let customers = [];
+    let sales = [];
+    if (snapshot?.customers && snapshot.customers.length > 0) {
+      customers = snapshot.customers;
+      sales = snapshot.sales || [];
+    } else {
+      const [{ data: dbCust }, { data: dbSales }] = await Promise.all([
+        serverSupabase.from("customers").select("id, name, phone, email, total_debt, outstanding_balance").eq("business_id", businessId).eq("is_active", true),
+        serverSupabase.from("sales").select("id, customer_id, total, amount_due, sale_status, sold_at").eq("business_id", businessId).eq("sale_status", "completed")
+      ]);
+      customers = dbCust || [];
+      sales = dbSales || [];
+    }
     if (!customers || customers.length === 0) return events;
     const salesByCustomer = {};
     for (const s of sales || []) {
@@ -2192,15 +2867,17 @@ var EventDetectionService = class {
     }
     for (const c of customers) {
       const custSales = salesByCustomer[c.id] || [];
-      const debt = custSales.reduce((acc, s) => acc + (Number(s.amount_due) || 0), 0);
+      const calculatedDebt = custSales.reduce((acc, s) => acc + (Number(s.amount_due) || 0), 0);
+      const storedDebt = Number(c.outstanding_balance || c.total_debt || c.debt || 0);
+      const debt = Math.max(calculatedDebt, storedDebt);
       const totalSpent = custSales.reduce((acc, s) => acc + (Number(s.total) || 0), 0);
       const totalOrders = custSales.length;
       const sortedSales = [...custSales].sort(
-        (a, b) => new Date(b.sold_at).getTime() - new Date(a.sold_at).getTime()
+        (a, b) => new Date(b.sold_at || 0).getTime() - new Date(a.sold_at || 0).getTime()
       );
       const lastOrderAt = sortedSales[0]?.sold_at || null;
       if (debt > 0) {
-        const severity = debt >= 1e5 ? "high" : "medium";
+        const severity = debt >= config.customerDebtCriticalAmount ? "critical" : debt >= config.customerDebtLargeAmount ? "high" : "medium";
         events.push({
           eventType: "customer_balance_overdue",
           category: "customers",
@@ -2211,7 +2888,7 @@ var EventDetectionService = class {
           explanation: {
             whatHappened: `${c.name} has an unsettled balance of ${debt.toLocaleString()} from prior purchases.`,
             whyItMatters: `Uncollected customer credit constrains liquid cash flow needed for inventory and expenses.`,
-            whatYouCanDo: `Send a friendly payment reminder via SMS, WhatsApp, or phone call to collect the amount.`
+            whatYouCanDo: `Record a debt settlement payment or contact ${c.name} with a friendly reminder.`
           },
           data: {
             customerId: c.id,
@@ -2222,25 +2899,25 @@ var EventDetectionService = class {
             totalSpent
           },
           dedupKey: `overdue_balance_${c.id}`,
-          actionType: "send_customer_message",
+          actionType: "record_payment",
           actionPayload: {
             customerId: c.id,
             customerName: c.name,
             customerPhone: c.phone,
-            debtAmount: debt,
-            messageType: "payment_reminder",
-            draftMessage: `Hello ${c.name}, this is a gentle reminder regarding your outstanding balance of ${debt.toLocaleString()} with our store. Please let us know when it is convenient to settle. Thank you!`
+            amount: debt,
+            paymentMethod: "cash",
+            notes: `Debt settlement for ${c.name}`
           }
         });
       }
-      if (totalSpent >= 5e4 && lastOrderAt && lastOrderAt < thirtyDaysAgo && debt === 0) {
+      if (totalSpent >= config.customerInactiveMinSpend && lastOrderAt && lastOrderAt < thirtyDaysAgo && debt === 0) {
         events.push({
           eventType: "customer_inactive",
           category: "customers",
           severity: "low",
           confidence: "moderate",
           title: `VIP Follow-up: ${c.name} hasn't purchased recently`,
-          summary: `Customer with ${totalSpent.toLocaleString()} lifetime spend has been inactive for over 30 days.`,
+          summary: `Customer with ${totalSpent.toLocaleString()} lifetime spend has been inactive for over ${config.customerInactiveDays} days.`,
           explanation: {
             whatHappened: `${c.name}, a valuable customer with ${totalOrders || "multiple"} past purchases, has not visited in 30+ days.`,
             whyItMatters: `Re-engaging lapsed loyal customers is 5x cheaper than acquiring new foot traffic.`,
@@ -2270,18 +2947,34 @@ var EventDetectionService = class {
   /**
    * 4. EXPENSE & MARGIN EVENTS: Expense Spike, Gross Margin Deterioration
    */
-  static async detectExpenseAndMarginEvents(businessId) {
+  static async detectExpenseAndMarginEvents(businessId, snapshot, config = DEFAULT_DETECTION_CONFIG) {
     const events = [];
     const now = /* @__PURE__ */ new Date();
     const curr30Start = new Date(now.getTime() - 30 * 864e5).toISOString().split("T")[0];
     const prior30Start = new Date(now.getTime() - 60 * 864e5).toISOString().split("T")[0];
-    const [{ data: currExpenses }, { data: priorExpenses }] = await Promise.all([
-      serverSupabase.from("expenses").select("id, category, amount, expense_date").eq("business_id", businessId).gte("expense_date", curr30Start),
-      serverSupabase.from("expenses").select("id, category, amount, expense_date").eq("business_id", businessId).gte("expense_date", prior30Start).lt("expense_date", curr30Start)
-    ]);
-    const currTotal = currExpenses?.reduce((s, e) => s + Number(e.amount || 0), 0) || 0;
-    const priorTotal = priorExpenses?.reduce((s, e) => s + Number(e.amount || 0), 0) || 0;
-    if (priorTotal > 1e4 && currTotal > priorTotal * 1.3) {
+    let currExpenses = [];
+    let priorExpenses = [];
+    if (snapshot?.expenses && snapshot.expenses.length > 0) {
+      for (const e of snapshot.expenses) {
+        const expDate = e.expense_date || e.created_at || "";
+        if (expDate >= curr30Start) {
+          currExpenses.push(e);
+        } else if (expDate >= prior30Start && expDate < curr30Start) {
+          priorExpenses.push(e);
+        }
+      }
+    } else {
+      const [resCurr, resPrior] = await Promise.all([
+        serverSupabase.from("expenses").select("id, category, amount, expense_date").eq("business_id", businessId).gte("expense_date", curr30Start),
+        serverSupabase.from("expenses").select("id, category, amount, expense_date").eq("business_id", businessId).gte("expense_date", prior30Start).lt("expense_date", curr30Start)
+      ]);
+      currExpenses = resCurr.data || [];
+      priorExpenses = resPrior.data || [];
+    }
+    const currTotal = currExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    const priorTotal = priorExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    const multiplier = 1 + config.expenseSpikePct / 100;
+    if (priorTotal > 1e4 && currTotal > priorTotal * multiplier) {
       const jumpPct = Math.round((currTotal - priorTotal) / priorTotal * 100);
       events.push({
         eventType: "expense_spike",
@@ -2315,13 +3008,36 @@ var EventDetectionService = class {
   /**
    * 5. OPPORTUNITY EVENTS: High Margin Fast-Sellers, Revenue Opportunities
    */
-  static async detectOpportunityEvents(businessId) {
+  static async detectOpportunityEvents(businessId, snapshot, config = DEFAULT_DETECTION_CONFIG) {
     const events = [];
     const sevenDaysAgo = new Date(Date.now() - 7 * 864e5).toISOString();
-    const [{ data: products }, { data: saleItems }] = await Promise.all([
-      serverSupabase.from("products").select("id, name, selling_price, cost_price, stock_quantity").eq("business_id", businessId).eq("is_active", true),
-      serverSupabase.from("sale_items").select("product_id, quantity, total").eq("business_id", businessId).gte("created_at", sevenDaysAgo)
-    ]);
+    let products = [];
+    let saleItems = [];
+    if (snapshot?.products && snapshot.products.length > 0) {
+      products = snapshot.products;
+      if (snapshot.saleItems && snapshot.saleItems.length > 0) {
+        saleItems = snapshot.saleItems;
+      } else if (snapshot.sales && snapshot.sales.length > 0) {
+        for (const s of snapshot.sales) {
+          const soldDate = s.sold_at || s.created_at || "";
+          if (soldDate >= sevenDaysAgo && Array.isArray(s.items)) {
+            for (const it of s.items) {
+              saleItems.push({
+                product_id: it.product_id || it.productId,
+                quantity: it.quantity
+              });
+            }
+          }
+        }
+      }
+    } else {
+      const [{ data: dbProducts }, { data: dbSaleItems }] = await Promise.all([
+        serverSupabase.from("products").select("id, name, selling_price, cost_price, stock_quantity").eq("business_id", businessId).eq("is_active", true),
+        serverSupabase.from("sale_items").select("product_id, quantity, total").eq("business_id", businessId).gte("created_at", sevenDaysAgo)
+      ]);
+      products = dbProducts || [];
+      saleItems = dbSaleItems || [];
+    }
     if (!products || products.length === 0) return events;
     const unitsSoldMap = {};
     for (const item of saleItems || []) {
@@ -2334,7 +3050,7 @@ var EventDetectionService = class {
       const cost = Number(p.cost_price || 0);
       const margin = price > 0 ? (price - cost) / price * 100 : 0;
       const sold = unitsSoldMap[p.id] || 0;
-      if (margin >= 45 && sold >= 5 && Number(p.stock_quantity || 0) > 10) {
+      if (margin >= config.highMarginThresholdPct && sold >= 3 && Number(p.stock_quantity || 0) > 5) {
         events.push({
           eventType: "margin_improvement",
           category: "opportunities",
@@ -2386,6 +3102,9 @@ function generateUUID() {
 }
 
 // server/action-executor.service.ts
+var isServerSupabaseConfigured = Boolean(
+  process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+) && !(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "").includes("placeholder.supabase.co");
 var inMemoryActionProposals = /* @__PURE__ */ new Map();
 var inMemoryAuditLogs = [];
 var inMemoryReminders = [];
@@ -2393,8 +3112,9 @@ var executedIdempotencyKeys = /* @__PURE__ */ new Set();
 var ActionExecutorService = class {
   /**
    * Propose an action for human review & approval.
+   * Persists to Supabase table action_proposals with memory fallback.
    */
-  static proposeAction(proposal) {
+  static async proposeAction(proposal) {
     const id = generateUUID();
     const fullProposal = {
       ...proposal,
@@ -2402,19 +3122,66 @@ var ActionExecutorService = class {
       status: "pending_approval",
       created_at: (/* @__PURE__ */ new Date()).toISOString()
     };
+    if (isServerSupabaseConfigured && isValidUUID(proposal.business_id)) {
+      try {
+        const { data, error } = await serverSupabase.from("action_proposals").insert({
+          id,
+          business_id: proposal.business_id,
+          insight_id: proposal.insight_id && isValidUUID(proposal.insight_id) ? proposal.insight_id : null,
+          action_type: proposal.action_type,
+          title: proposal.title,
+          description: proposal.description || null,
+          payload: proposal.payload || {},
+          status: "pending_approval",
+          requested_by: proposal.requested_by || "ursella_ai",
+          requires_role: proposal.requires_role || ["owner", "admin"],
+          impact_preview: proposal.impact_preview || null
+        }).select("*").maybeSingle();
+        if (!error && data) {
+          return data;
+        }
+      } catch (err) {
+        console.warn("[ActionExecutor] Failed to persist action proposal to Supabase, using fallback:", err);
+      }
+    }
     inMemoryActionProposals.set(id, fullProposal);
     return fullProposal;
   }
   /**
    * Get all action proposals for a business.
    */
-  static getActionProposals(businessId) {
+  static async getActionProposals(businessId) {
+    if (isServerSupabaseConfigured && isValidUUID(businessId)) {
+      try {
+        const { data, error } = await serverSupabase.from("action_proposals").select("*").eq("business_id", businessId).order("created_at", { ascending: false });
+        if (!error && data) {
+          return data;
+        }
+      } catch (err) {
+        console.warn("[ActionExecutor] Failed to query action proposals from Supabase:", err);
+      }
+    }
     return Array.from(inMemoryActionProposals.values()).filter((p) => p.business_id === businessId).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
   /**
    * Reject an action proposal.
    */
-  static rejectAction(actionId, userId, businessId) {
+  static async rejectAction(actionId, userId, businessId) {
+    if (isServerSupabaseConfigured && isValidUUID(businessId)) {
+      try {
+        const { data, error } = await serverSupabase.from("action_proposals").update({
+          status: "rejected",
+          approved_by: isValidUUID(userId) ? userId : null,
+          approved_at: (/* @__PURE__ */ new Date()).toISOString(),
+          updated_at: (/* @__PURE__ */ new Date()).toISOString()
+        }).eq("id", actionId).eq("business_id", businessId).select("id").maybeSingle();
+        if (!error && data) {
+          return true;
+        }
+      } catch (err) {
+        console.warn("[ActionExecutor] Reject action database update failed:", err);
+      }
+    }
     const proposal = inMemoryActionProposals.get(actionId);
     if (!proposal || proposal.business_id !== businessId) return false;
     proposal.status = "rejected";
@@ -2423,22 +3190,52 @@ var ActionExecutorService = class {
     return true;
   }
   /**
-   * Execute an approved action with full security & isolation checks.
+   * Execute an approved action with full security, tenant isolation, and idempotency.
    */
   static async executeAction(req) {
     const { actionId, businessId, userId, userRole, actionType, payload, idempotencyKey, isAIGenerated = false } = req;
-    if (idempotencyKey && executedIdempotencyKeys.has(idempotencyKey)) {
+    if (!businessId) {
       return {
-        success: true,
-        actionId: actionId || `cached_${idempotencyKey}`,
-        status: "executed",
-        result: { message: "Action was already executed previously (idempotent result)." }
+        success: false,
+        actionId: actionId || "err",
+        status: "failed",
+        error: "Missing required businessId."
       };
+    }
+    if (idempotencyKey) {
+      if (isServerSupabaseConfigured && isValidUUID(businessId)) {
+        try {
+          const { data: existingKey } = await serverSupabase.from("idempotency_keys").select("status, response").eq("business_id", businessId).eq("key", idempotencyKey).maybeSingle();
+          if (existingKey && existingKey.status === "completed") {
+            return {
+              success: true,
+              actionId: actionId || `cached_${idempotencyKey}`,
+              status: "executed",
+              result: existingKey.response || { message: "Action already executed (idempotent result)." }
+            };
+          }
+          await serverSupabase.from("idempotency_keys").upsert({
+            business_id: businessId,
+            key: idempotencyKey,
+            action_type: actionType,
+            status: "processing"
+          });
+        } catch (idemErr) {
+          console.warn("[ActionExecutor] Idempotency table check error:", idemErr);
+        }
+      } else if (executedIdempotencyKeys.has(idempotencyKey)) {
+        return {
+          success: true,
+          actionId: actionId || `cached_${idempotencyKey}`,
+          status: "executed",
+          result: { message: "Action was already executed previously (idempotent result)." }
+        };
+      }
     }
     const allowedRoles = this.getAllowedRolesForAction(actionType);
     if (!allowedRoles.includes(userRole)) {
-      const errorMsg = `Unauthorized: Role '${userRole}' cannot execute '${actionType}'. Required: ${allowedRoles.join(", ")}`;
-      this.recordAuditLog({
+      const errorMsg = `Unauthorized: Role '${userRole}' is not permitted to execute '${actionType}'. Required: ${allowedRoles.join(", ")}`;
+      await this.recordAuditLog({
         business_id: businessId,
         action_id: actionId || idempotencyKey,
         action_type: actionType,
@@ -2461,14 +3258,21 @@ var ActionExecutorService = class {
     try {
       let executionResult = {};
       switch (actionType) {
+        case "create_product": {
+          executionResult = await this.executeCreateProduct(businessId, userId, payload);
+          break;
+        }
         case "create_reminder":
-        case "create_restock_task":
         case "create_customer_followup": {
           executionResult = await this.executeCreateReminder(businessId, userId, payload);
           break;
         }
         case "create_inventory_adjustment": {
           executionResult = await this.executeInventoryAdjustment(businessId, userId, payload);
+          break;
+        }
+        case "create_restock_task": {
+          executionResult = await this.executeRestockTask(businessId, userId, payload);
           break;
         }
         case "record_payment": {
@@ -2488,16 +3292,42 @@ var ActionExecutorService = class {
       }
       if (idempotencyKey) {
         executedIdempotencyKeys.add(idempotencyKey);
+        if (isServerSupabaseConfigured && isValidUUID(businessId)) {
+          try {
+            await serverSupabase.from("idempotency_keys").update({
+              status: "completed",
+              response: executionResult
+            }).eq("business_id", businessId).eq("key", idempotencyKey);
+          } catch (e) {
+            console.warn("[ActionExecutor] Failed to mark idempotency key complete:", e);
+          }
+        }
       }
-      if (actionId && inMemoryActionProposals.has(actionId)) {
-        const prop = inMemoryActionProposals.get(actionId);
-        prop.status = "executed";
-        prop.approved_by = userId;
-        prop.approved_at = (/* @__PURE__ */ new Date()).toISOString();
-        prop.executed_at = (/* @__PURE__ */ new Date()).toISOString();
-        prop.result = executionResult;
+      if (actionId) {
+        if (isServerSupabaseConfigured && isValidUUID(businessId) && isValidUUID(actionId)) {
+          try {
+            await serverSupabase.from("action_proposals").update({
+              status: "executed",
+              approved_by: isValidUUID(userId) ? userId : null,
+              approved_at: (/* @__PURE__ */ new Date()).toISOString(),
+              executed_at: (/* @__PURE__ */ new Date()).toISOString(),
+              result: executionResult,
+              updated_at: (/* @__PURE__ */ new Date()).toISOString()
+            }).eq("id", actionId).eq("business_id", businessId);
+          } catch (e) {
+            console.warn("[ActionExecutor] Failed to update proposal status in DB:", e);
+          }
+        }
+        if (inMemoryActionProposals.has(actionId)) {
+          const prop = inMemoryActionProposals.get(actionId);
+          prop.status = "executed";
+          prop.approved_by = userId;
+          prop.approved_at = (/* @__PURE__ */ new Date()).toISOString();
+          prop.executed_at = (/* @__PURE__ */ new Date()).toISOString();
+          prop.result = executionResult;
+        }
       }
-      const auditLog = this.recordAuditLog({
+      const auditLog = await this.recordAuditLog({
         business_id: businessId,
         action_id: actionId || idempotencyKey,
         action_type: actionType,
@@ -2519,7 +3349,13 @@ var ActionExecutorService = class {
     } catch (err) {
       console.error(`[ActionExecutor] Error executing ${actionType}:`, err);
       const errorMsg = err.message || "Execution failed";
-      this.recordAuditLog({
+      if (idempotencyKey && isServerSupabaseConfigured && isValidUUID(businessId)) {
+        try {
+          await serverSupabase.from("idempotency_keys").update({ status: "failed", response: { error: errorMsg } }).eq("business_id", businessId).eq("key", idempotencyKey);
+        } catch {
+        }
+      }
+      await this.recordAuditLog({
         business_id: businessId,
         action_id: actionId || idempotencyKey,
         action_type: actionType,
@@ -2545,17 +3381,42 @@ var ActionExecutorService = class {
    */
   static async executeCreateReminder(businessId, userId, payload) {
     const reminderId = generateUUID();
+    const title = payload.title || "Business Task";
+    const description = payload.description || null;
+    const dueDate = payload.dueDate || new Date(Date.now() + 864e5).toISOString();
+    const priority = payload.priority === "low" || payload.priority === "high" ? payload.priority : "medium";
+    const relatedEntityType = payload.related_entity_type || payload.entityType || null;
+    const relatedEntityId = payload.related_entity_id || payload.productId || payload.customerId || null;
+    const relatedEntityName = payload.productName || payload.customerName || null;
+    if (isServerSupabaseConfigured && isValidUUID(businessId)) {
+      const { data, error } = await serverSupabase.from("business_reminders").insert({
+        id: reminderId,
+        business_id: businessId,
+        title,
+        description,
+        due_date: dueDate,
+        priority,
+        status: "pending",
+        related_entity_type: relatedEntityType,
+        related_entity_id: relatedEntityId,
+        related_entity_name: relatedEntityName,
+        created_by: userId
+      }).select("*").maybeSingle();
+      if (!error && data) {
+        return { reminderId, reminder: data, message: `Task "${title}" successfully created.` };
+      }
+    }
     const reminder = {
       id: reminderId,
       business_id: businessId,
-      title: payload.title || "Business Task",
-      description: payload.description || null,
-      due_date: payload.dueDate || new Date(Date.now() + 864e5).toISOString(),
-      priority: payload.priority || "medium",
+      title,
+      description,
+      due_date: dueDate,
+      priority,
       status: "pending",
-      related_entity_type: payload.related_entity_type || payload.entityType || null,
-      related_entity_id: payload.related_entity_id || payload.productId || payload.customerId || null,
-      related_entity_name: payload.productName || payload.customerName || null,
+      related_entity_type: relatedEntityType,
+      related_entity_id: relatedEntityId,
+      related_entity_name: relatedEntityName,
       created_by: userId,
       created_at: (/* @__PURE__ */ new Date()).toISOString()
     };
@@ -2563,35 +3424,136 @@ var ActionExecutorService = class {
     return { reminderId, reminder, message: `Task "${reminder.title}" successfully created.` };
   }
   /**
-   * Action: Inventory Adjustment (Atomic)
+   * Action: Restock Task
+   * Executes authoritative inventory movement (type: 'restock') and logs reminder.
+   */
+  static async executeRestockTask(businessId, userId, payload) {
+    const productId = payload.productId || payload.product_id;
+    const restockQty = Number(payload.suggestedQuantity ?? payload.quantity ?? payload.adjustmentQuantity ?? 0);
+    const title = payload.title || `Restock replenishment`;
+    const unitCost = payload.unitCost !== void 0 ? Number(payload.unitCost) : null;
+    if (!productId) {
+      throw new Error("Missing productId for restock task.");
+    }
+    if (restockQty <= 0) {
+      throw new Error("Restock quantity must be a positive number greater than zero.");
+    }
+    let productUpdateResult = null;
+    if (isServerSupabaseConfigured && isValidUUID(businessId) && isValidUUID(productId)) {
+      const { data: product, error: prodErr } = await serverSupabase.from("products").select("id, name, stock_quantity, product_type, cost_price").eq("id", productId).eq("business_id", businessId).maybeSingle();
+      if (prodErr || !product) {
+        throw new Error(`Product not found in this business.`);
+      }
+      if (product.product_type === "service") {
+        throw new Error(`Cannot restock "${product.name}": Service items do not track physical stock.`);
+      }
+      const { data: txId, error: rpcErr } = await serverSupabase.rpc("record_inventory_movement", {
+        p_business_id: businessId,
+        p_product_id: productId,
+        p_type: "restock",
+        p_quantity: restockQty,
+        p_reference_type: "restock_task",
+        p_notes: payload.description || payload.reason || "Restocked via Ursella AI task",
+        p_unit_cost: unitCost ?? product.cost_price
+      });
+      if (rpcErr) {
+        throw new Error(`Inventory restock failed: ${rpcErr.message}`);
+      }
+      const { data: updatedProd } = await serverSupabase.from("products").select("stock_quantity").eq("id", productId).eq("business_id", businessId).single();
+      productUpdateResult = {
+        productId,
+        productName: product.name,
+        previousStock: product.stock_quantity,
+        newStock: updatedProd?.stock_quantity ?? Number(product.stock_quantity || 0) + restockQty,
+        restockQty,
+        txId
+      };
+    } else {
+      productUpdateResult = {
+        productId,
+        productName: payload.productName || "Product",
+        previousStock: 0,
+        newStock: restockQty,
+        restockQty
+      };
+    }
+    const reminderId = generateUUID();
+    const reminderData = {
+      id: reminderId,
+      business_id: businessId,
+      title,
+      description: payload.description || `Restocked +${restockQty} units`,
+      due_date: payload.dueDate || new Date(Date.now() + 864e5).toISOString(),
+      priority: payload.priority === "low" || payload.priority === "medium" ? payload.priority : "high",
+      status: "completed",
+      related_entity_type: "product",
+      related_entity_id: productId || null,
+      related_entity_name: payload.productName || productUpdateResult?.productName || null,
+      created_by: userId,
+      created_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    if (isServerSupabaseConfigured && isValidUUID(businessId)) {
+      try {
+        await serverSupabase.from("business_reminders").insert(reminderData);
+      } catch (e) {
+        console.warn("[ActionExecutor] Failed to write restock reminder to Supabase:", e);
+      }
+    } else {
+      inMemoryReminders.unshift(reminderData);
+    }
+    return {
+      reminderId,
+      reminder: reminderData,
+      inventoryUpdate: productUpdateResult,
+      message: `Successfully restocked ${restockQty} units of "${productUpdateResult.productName}" (Current stock: ${productUpdateResult.newStock}).`
+    };
+  }
+  /**
+   * Action: Inventory Adjustment (Authoritative & Concurrency-Safe)
    */
   static async executeInventoryAdjustment(businessId, userId, payload) {
     const { productId, adjustmentQuantity, reason = "Inventory adjustment" } = payload;
     if (!productId || typeof adjustmentQuantity !== "number") {
       throw new Error("Invalid inventory adjustment payload: productId and adjustmentQuantity required.");
     }
-    const { data: product, error: prodErr } = await serverSupabase.from("products").select("id, name, stock_quantity, business_id").eq("id", productId).eq("business_id", businessId).maybeSingle();
-    if (prodErr || !product) {
-      throw new Error(`Product not found or access denied in business.`);
+    if (isServerSupabaseConfigured && isValidUUID(businessId) && isValidUUID(productId)) {
+      const { data: product, error: prodErr } = await serverSupabase.from("products").select("id, name, stock_quantity, product_type, cost_price").eq("id", productId).eq("business_id", businessId).maybeSingle();
+      if (prodErr || !product) {
+        throw new Error(`Product not found in this business.`);
+      }
+      if (product.product_type === "service") {
+        throw new Error(`Cannot adjust stock for "${product.name}": Service items do not track physical inventory.`);
+      }
+      const { data: txId, error: rpcErr } = await serverSupabase.rpc("record_inventory_movement", {
+        p_business_id: businessId,
+        p_product_id: productId,
+        p_type: "adjustment",
+        p_quantity: adjustmentQuantity,
+        p_reference_type: "manual_adjustment",
+        p_notes: reason,
+        p_unit_cost: product.cost_price
+      });
+      if (rpcErr) {
+        throw new Error(`Inventory adjustment failed: ${rpcErr.message}`);
+      }
+      const { data: updatedProd } = await serverSupabase.from("products").select("stock_quantity").eq("id", productId).eq("business_id", businessId).single();
+      return {
+        productId,
+        productName: product.name,
+        previousStock: product.stock_quantity,
+        newStock: updatedProd?.stock_quantity ?? adjustmentQuantity,
+        adjustmentQuantity,
+        txId,
+        message: `Updated stock for "${product.name}" to ${adjustmentQuantity} units.`
+      };
     }
-    const newStock = Math.max(0, Number(product.stock_quantity || 0) + adjustmentQuantity);
-    await serverSupabase.from("products").update({ stock_quantity: newStock, updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", productId).eq("business_id", businessId);
-    await serverSupabase.from("inventory_transactions").insert({
-      business_id: businessId,
-      product_id: productId,
-      transaction_type: "adjustment",
-      quantity: adjustmentQuantity,
-      notes: reason,
-      created_by: userId,
-      created_at: (/* @__PURE__ */ new Date()).toISOString()
-    });
     return {
       productId,
-      productName: product.name,
-      previousStock: product.stock_quantity,
-      newStock,
+      productName: payload.productName || "Product",
+      previousStock: 0,
+      newStock: adjustmentQuantity,
       adjustmentQuantity,
-      message: `Updated stock for ${product.name} to ${newStock} units.`
+      message: `Updated stock to ${adjustmentQuantity} units.`
     };
   }
   /**
@@ -2599,59 +3561,79 @@ var ActionExecutorService = class {
    */
   static async executeRecordPayment(businessId, userId, payload) {
     const { customerId, amount, paymentMethod = "cash", notes = "Debt settlement", reference } = payload;
-    if (!customerId || !amount || Number(amount) <= 0) {
-      throw new Error("Invalid payment payload: customerId and valid positive amount required.");
+    const paymentAmount = Number(amount);
+    if (!customerId || !paymentAmount || paymentAmount <= 0) {
+      throw new Error("Invalid payment payload: customerId and positive payment amount required.");
     }
-    const { data: customer, error: custErr } = await serverSupabase.from("customers").select("id, name, business_id").eq("id", customerId).eq("business_id", businessId).maybeSingle();
-    if (custErr || !customer) {
-      throw new Error("Customer not found or access denied in business.");
-    }
-    const { data: sales } = await serverSupabase.from("sales").select("id, total, amount_paid, amount_due").eq("business_id", businessId).eq("customer_id", customerId).eq("sale_status", "completed").gt("amount_due", 0).order("sold_at", { ascending: true });
-    let remainingPayment = Number(amount);
-    let targetSaleId = null;
-    if (sales && sales.length > 0) {
-      targetSaleId = sales[0].id;
-      for (const s of sales) {
-        if (remainingPayment <= 0) break;
-        const due = Number(s.amount_due) || 0;
-        const paid = Number(s.amount_paid) || 0;
-        const total = Number(s.total) || 0;
-        const applyAmt = Math.min(due, remainingPayment);
-        const newPaid = paid + applyAmt;
-        const newDue = Math.max(0, total - newPaid);
-        const newStatus = newDue === 0 ? "paid" : "partial";
-        await serverSupabase.from("sales").update({
-          amount_paid: newPaid,
-          amount_due: newDue,
-          payment_status: newStatus,
-          updated_at: (/* @__PURE__ */ new Date()).toISOString()
-        }).eq("id", s.id);
-        remainingPayment -= applyAmt;
+    if (isServerSupabaseConfigured && isValidUUID(businessId) && isValidUUID(customerId)) {
+      const { data: customer, error: custErr } = await serverSupabase.from("customers").select("id, name, business_id").eq("id", customerId).eq("business_id", businessId).maybeSingle();
+      if (custErr || !customer) {
+        throw new Error(`Customer not found in this business.`);
       }
+      const { data: sales, error: salesErr } = await serverSupabase.from("sales").select("id, total, amount_paid, amount_due").eq("business_id", businessId).eq("customer_id", customerId).eq("sale_status", "completed").gt("amount_due", 0).order("sold_at", { ascending: true });
+      if (salesErr) {
+        throw new Error(`Failed to query customer sales: ${salesErr.message}`);
+      }
+      let remainingPayment = paymentAmount;
+      let primarySaleId = null;
+      if (sales && sales.length > 0) {
+        primarySaleId = sales[0].id;
+        for (const s of sales) {
+          if (remainingPayment <= 0) break;
+          const due = Number(s.amount_due) || 0;
+          const paid = Number(s.amount_paid) || 0;
+          const total = Number(s.total) || 0;
+          const applyAmt = Math.min(due, remainingPayment);
+          const newPaid = paid + applyAmt;
+          const newDue = Math.max(0, total - newPaid);
+          const newStatus = newDue === 0 ? "paid" : "partial";
+          const { error: updErr } = await serverSupabase.from("sales").update({
+            amount_paid: newPaid,
+            amount_due: newDue,
+            payment_status: newStatus,
+            updated_at: (/* @__PURE__ */ new Date()).toISOString()
+          }).eq("id", s.id).eq("business_id", businessId);
+          if (updErr) {
+            throw new Error(`Failed to apply payment to sale #${s.id}: ${updErr.message}`);
+          }
+          remainingPayment -= applyAmt;
+        }
+      }
+      const { data: payment, error: payErr } = await serverSupabase.from("payments").insert({
+        business_id: businessId,
+        customer_id: customerId,
+        sale_id: primarySaleId,
+        amount: paymentAmount,
+        payment_method: paymentMethod,
+        reference_number: reference || null,
+        notes: notes || "Customer debt payment",
+        created_by: isValidUUID(userId) ? userId : null,
+        payment_date: (/* @__PURE__ */ new Date()).toISOString()
+      }).select("id").single();
+      if (payErr) {
+        throw new Error(`Failed to record payment entry: ${payErr.message}`);
+      }
+      const { data: updatedSales } = await serverSupabase.from("sales").select("amount_due").eq("business_id", businessId).eq("customer_id", customerId).eq("sale_status", "completed").gt("amount_due", 0);
+      const remainingDebt = (updatedSales || []).reduce(
+        (acc, s) => acc + (Number(s.amount_due) || 0),
+        0
+      );
+      return {
+        paymentId: payment.id,
+        customerId,
+        customerName: customer.name,
+        amountPaid: paymentAmount,
+        remainingDebt,
+        message: `Recorded payment of ${paymentAmount.toLocaleString()} from ${customer.name}. Outstanding balance: ${remainingDebt.toLocaleString()}.`
+      };
     }
-    const { data: payment } = await serverSupabase.from("payments").insert({
-      business_id: businessId,
-      customer_id: customerId,
-      sale_id: targetSaleId,
-      amount: Number(amount),
-      payment_method: paymentMethod,
-      reference: reference || null,
-      notes: notes || "Customer debt payment",
-      received_by: userId,
-      paid_at: (/* @__PURE__ */ new Date()).toISOString()
-    }).select("id").maybeSingle();
-    const { data: updatedSales } = await serverSupabase.from("sales").select("amount_due").eq("business_id", businessId).eq("customer_id", customerId).eq("sale_status", "completed").gt("amount_due", 0);
-    const remainingDebt = (updatedSales || []).reduce(
-      (acc, s) => acc + (Number(s.amount_due) || 0),
-      0
-    );
     return {
-      paymentId: payment?.id || `pay_${Date.now()}`,
+      paymentId: `pay_${Date.now()}`,
       customerId,
-      customerName: customer.name,
-      amountPaid: Number(amount),
-      remainingDebt,
-      message: `Recorded payment of ${Number(amount).toLocaleString()} from ${customer.name}.`
+      customerName: payload.customerName || "Customer",
+      amountPaid: paymentAmount,
+      remainingDebt: 0,
+      message: `Recorded payment of ${paymentAmount.toLocaleString()} from ${payload.customerName || "customer"}.`
     };
   }
   /**
@@ -2659,27 +3641,39 @@ var ActionExecutorService = class {
    */
   static async executeCreateExpense(businessId, userId, payload) {
     const { category, amount, description = "", paymentMethod = "cash", expenseDate } = payload;
-    if (!category || !amount || Number(amount) <= 0) {
+    const expenseAmount = Number(amount);
+    if (!category || !expenseAmount || expenseAmount <= 0) {
       throw new Error("Invalid expense payload: category and positive amount required.");
     }
-    const { data: expense } = await serverSupabase.from("expenses").insert({
-      business_id: businessId,
-      category,
-      amount: Number(amount),
-      description,
-      payment_method: paymentMethod,
-      expense_date: expenseDate || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-      created_by: userId
-    }).select("id").maybeSingle();
+    if (isServerSupabaseConfigured && isValidUUID(businessId)) {
+      const { data: expense, error } = await serverSupabase.from("expenses").insert({
+        business_id: businessId,
+        category,
+        amount: expenseAmount,
+        description: description || null,
+        payment_method: paymentMethod,
+        expense_date: expenseDate || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+        created_by: isValidUUID(userId) ? userId : null
+      }).select("id").single();
+      if (error) {
+        throw new Error(`Failed to log expense: ${error.message}`);
+      }
+      return {
+        expenseId: expense.id,
+        category,
+        amount: expenseAmount,
+        message: `Logged expense of ${expenseAmount.toLocaleString()} under category "${category}".`
+      };
+    }
     return {
-      expenseId: expense?.id || `exp_${Date.now()}`,
+      expenseId: `exp_${Date.now()}`,
       category,
-      amount: Number(amount),
-      message: `Logged expense of ${Number(amount).toLocaleString()} under ${category}.`
+      amount: expenseAmount,
+      message: `Logged expense of ${expenseAmount.toLocaleString()} under "${category}".`
     };
   }
   /**
-   * Action: Send Customer Message (Prepares communication bridge & records contact)
+   * Action: Send Customer Message
    */
   static async executeSendCustomerMessage(businessId, userId, payload) {
     const { customerId, customerName, customerPhone, draftMessage, channel = "in_app" } = payload;
@@ -2701,12 +3695,99 @@ var ActionExecutorService = class {
     };
   }
   /**
+   * Action: Create New Product with Unit of Measure and Initial Stock
+   */
+  static async executeCreateProduct(businessId, userId, payload) {
+    const name = payload.name;
+    if (!name || typeof name !== "string" || !name.trim()) {
+      throw new Error("Product name is required.");
+    }
+    const sellingPrice = Number(payload.selling_price ?? payload.sellingPrice) || 0;
+    const costPrice = Number(payload.cost_price ?? payload.costPrice) || 0;
+    const stockQty = Number(payload.stock_quantity ?? payload.stockQuantity ?? payload.quantity) || 0;
+    const minStock = Number(payload.minimum_stock_level ?? payload.minimumStockLevel) ?? 5;
+    const unitOfMeasure = (payload.unit_of_measure || payload.unit || "piece").toString().trim();
+    const productType = payload.product_type || "physical";
+    const description = payload.description?.trim() || null;
+    const sku = payload.sku?.trim() || null;
+    if (sellingPrice < 0 || costPrice < 0) {
+      throw new Error("Product prices cannot be negative.");
+    }
+    const productId = generateUUID();
+    const productRecord = {
+      id: productId,
+      business_id: businessId,
+      name: name.trim(),
+      description,
+      sku,
+      product_type: productType,
+      unit_of_measure: unitOfMeasure,
+      selling_price: sellingPrice,
+      cost_price: costPrice,
+      stock_quantity: productType === "service" ? 0 : stockQty,
+      minimum_stock_level: productType === "service" ? 0 : minStock,
+      is_active: true,
+      created_at: (/* @__PURE__ */ new Date()).toISOString(),
+      updated_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    if (isServerSupabaseConfigured && isValidUUID(businessId)) {
+      const { data, error } = await serverSupabase.from("products").insert(productRecord).select("*").single();
+      if (error) {
+        throw new Error(`Failed to create product in database: ${error.message}`);
+      }
+      if (productType === "physical" && stockQty > 0) {
+        await serverSupabase.from("inventory_transactions").insert({
+          business_id: businessId,
+          product_id: data.id,
+          transaction_type: "initial_stock",
+          quantity: stockQty,
+          notes: `Initial inventory (${stockQty} ${unitOfMeasure}) registered via Ursella OS`,
+          created_by: isValidUUID(userId) ? userId : null,
+          unit_cost: costPrice
+        });
+      }
+      return {
+        message: `Product "${name.trim()}" (${stockQty} ${unitOfMeasure}) successfully added to catalog.`,
+        productId: data.id,
+        product: data
+      };
+    }
+    return {
+      message: `Product "${name.trim()}" (${stockQty} ${unitOfMeasure}) registered.`,
+      productId,
+      product: productRecord
+    };
+  }
+  /**
    * Reminders Management
    */
-  static getReminders(businessId) {
+  static async getReminders(businessId) {
+    if (isServerSupabaseConfigured && isValidUUID(businessId)) {
+      try {
+        const { data, error } = await serverSupabase.from("business_reminders").select("*").eq("business_id", businessId).order("due_date", { ascending: true });
+        if (!error && data) {
+          return data;
+        }
+      } catch (e) {
+        console.warn("[ActionExecutor] Failed to fetch reminders from Supabase:", e);
+      }
+    }
     return inMemoryReminders.filter((r) => r.business_id === businessId);
   }
-  static updateReminderStatus(reminderId, businessId, status) {
+  static async updateReminderStatus(reminderId, businessId, status) {
+    if (isServerSupabaseConfigured && isValidUUID(businessId) && isValidUUID(reminderId)) {
+      try {
+        const { data, error } = await serverSupabase.from("business_reminders").update({
+          status,
+          updated_at: (/* @__PURE__ */ new Date()).toISOString()
+        }).eq("id", reminderId).eq("business_id", businessId).select("id").maybeSingle();
+        if (!error && data) {
+          return true;
+        }
+      } catch (e) {
+        console.warn("[ActionExecutor] Failed to update reminder status in Supabase:", e);
+      }
+    }
     const rem = inMemoryReminders.find((r) => r.id === reminderId && r.business_id === businessId);
     if (!rem) return false;
     rem.status = status;
@@ -2715,7 +3796,15 @@ var ActionExecutorService = class {
     }
     return true;
   }
-  static deleteReminder(reminderId, businessId) {
+  static async deleteReminder(reminderId, businessId) {
+    if (isServerSupabaseConfigured && isValidUUID(businessId) && isValidUUID(reminderId)) {
+      try {
+        const { error } = await serverSupabase.from("business_reminders").delete().eq("id", reminderId).eq("business_id", businessId);
+        if (!error) return true;
+      } catch (e) {
+        console.warn("[ActionExecutor] Failed to delete reminder from Supabase:", e);
+      }
+    }
     const idx = inMemoryReminders.findIndex((r) => r.id === reminderId && r.business_id === businessId);
     if (idx >= 0) {
       inMemoryReminders.splice(idx, 1);
@@ -2724,21 +3813,68 @@ var ActionExecutorService = class {
     return false;
   }
   /**
-   * Audit Logging
+   * Audit Logging (Persistent & Immutable)
    */
-  static recordAuditLog(log) {
+  static async recordAuditLog(log) {
+    const id = generateUUID();
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString();
     const fullLog = {
       ...log,
-      id: generateUUID(),
-      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      id,
+      timestamp
     };
+    if (isServerSupabaseConfigured && isValidUUID(log.business_id)) {
+      try {
+        await serverSupabase.from("action_audit_logs").insert({
+          id,
+          business_id: log.business_id,
+          action_id: log.action_id,
+          action_type: log.action_type,
+          actor_id: log.actor_id,
+          actor_role: log.actor_role,
+          is_ai_proposed: log.is_ai_proposed,
+          target_entity_type: log.target_entity_type || null,
+          target_entity_id: log.target_entity_id || null,
+          changes: log.changes || {},
+          status: log.status,
+          error_message: log.error_message || null,
+          created_at: timestamp
+        });
+      } catch (e) {
+        console.warn("[ActionExecutor] Failed to write audit log to Supabase:", e);
+      }
+    }
     inMemoryAuditLogs.unshift(fullLog);
     if (inMemoryAuditLogs.length > 200) {
       inMemoryAuditLogs.pop();
     }
     return fullLog;
   }
-  static getAuditLogs(businessId) {
+  static async getAuditLogs(businessId) {
+    if (isServerSupabaseConfigured && isValidUUID(businessId)) {
+      try {
+        const { data, error } = await serverSupabase.from("action_audit_logs").select("*").eq("business_id", businessId).order("created_at", { ascending: false }).limit(100);
+        if (!error && data) {
+          return data.map((d) => ({
+            id: d.id,
+            business_id: d.business_id,
+            action_id: d.action_id,
+            action_type: d.action_type,
+            actor_id: d.actor_id,
+            actor_role: d.actor_role,
+            is_ai_proposed: d.is_ai_proposed,
+            target_entity_type: d.target_entity_type,
+            target_entity_id: d.target_entity_id,
+            changes: d.changes,
+            status: d.status,
+            error_message: d.error_message,
+            timestamp: d.created_at
+          }));
+        }
+      } catch (e) {
+        console.warn("[ActionExecutor] Failed to read audit logs from Supabase:", e);
+      }
+    }
     return inMemoryAuditLogs.filter((l) => l.business_id === businessId);
   }
   /**
@@ -2746,6 +3882,8 @@ var ActionExecutorService = class {
    */
   static getAllowedRolesForAction(actionType) {
     switch (actionType) {
+      case "create_product":
+        return ["owner", "admin", "staff"];
       case "create_reminder":
       case "create_restock_task":
       case "create_customer_followup":
@@ -2769,9 +3907,10 @@ var businessNotificationsCache = /* @__PURE__ */ new Map();
 var businessPreferencesCache = /* @__PURE__ */ new Map();
 var ProactiveAIService = class {
   /**
-   * Convert raw detected events into full BusinessInsight models with deduplication.
+   * Convert raw detected events into full BusinessInsight models with deduplication
+   * and optional Gemini AI synthesis.
    */
-  static async processDetectedEvents(businessId, rawEvents) {
+  static async processDetectedEvents(businessId, rawEvents, businessMetadata) {
     const existingCache = businessInsightsCache.get(businessId)?.insights || [];
     const existingMap = new Map(existingCache.map((i) => [i.dedup_key, i]));
     const updatedInsights = [];
@@ -2833,7 +3972,7 @@ var ProactiveAIService = class {
         });
       }
     }
-    for (const [key, oldInsight] of existingMap.entries()) {
+    for (const [, oldInsight] of existingMap.entries()) {
       if (oldInsight.category === "inventory" && oldInsight.status === "new") {
         oldInsight.status = "resolved";
         oldInsight.updated_at = (/* @__PURE__ */ new Date()).toISOString();
@@ -2854,6 +3993,38 @@ var ProactiveAIService = class {
       if (rankDiff !== 0) return rankDiff;
       return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
     });
+    const gemini = getGeminiClient();
+    if (gemini && updatedInsights.some((i) => i.severity === "critical" || i.severity === "high")) {
+      try {
+        const criticalItems = updatedInsights.filter((i) => i.status === "new" && (i.severity === "critical" || i.severity === "high")).slice(0, 3);
+        if (criticalItems.length > 0) {
+          const prompt = `You are Ursella AI Business Operating System. Review these detected critical business events for "${businessMetadata?.name || "the business"}" and provide a 1-sentence strategic action summary for each item:
+${JSON.stringify(criticalItems.map((c) => ({ id: c.id, title: c.title, summary: c.summary, data: c.data })))}
+Respond in valid JSON array of objects: [{"id": string, "strategicAdvice": string}]`;
+          const aiRes = await gemini.models.generateContent({
+            model: getActiveGeminiModel(),
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json",
+              temperature: 0.2
+            }
+          });
+          if (aiRes.text) {
+            const parsed = JSON.parse(aiRes.text);
+            if (Array.isArray(parsed)) {
+              for (const advice of parsed) {
+                const target = updatedInsights.find((i) => i.id === advice.id);
+                if (target && target.explanation && advice.strategicAdvice) {
+                  target.explanation.whatYouCanDo = advice.strategicAdvice;
+                }
+              }
+            }
+          }
+        }
+      } catch (aiErr) {
+        console.warn("[ProactiveAIService] Optional Gemini synthesis skipped:", aiErr?.message);
+      }
+    }
     businessInsightsCache.set(businessId, {
       timestamp: Date.now(),
       insights: updatedInsights
@@ -2881,7 +4052,10 @@ var ProactiveAIService = class {
   static updateInsightStatus(businessId, insightId, status) {
     const list = businessInsightsCache.get(businessId)?.insights;
     if (!list) return false;
-    const found = list.find((i) => i.id === insightId);
+    const cleanId = insightId.replace(/^(prio_|dp_)/, "");
+    const found = list.find(
+      (i) => i.id === insightId || i.id === cleanId || i.id.replace(/^(prio_|dp_)/, "") === cleanId
+    );
     if (!found) return false;
     found.status = status;
     found.updated_at = (/* @__PURE__ */ new Date()).toISOString();
@@ -2915,11 +4089,18 @@ var ProactiveAIService = class {
     return priorities;
   }
   /**
-   * In-App Notifications
+   * In-App Notifications with robust deduplication.
    */
   static addNotification(businessId, notif) {
     const list = businessNotificationsCache.get(businessId) || [];
-    if (!list.some((n) => n.title === notif.title && !n.is_read)) {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1e3;
+    const isDuplicate = list.some((n) => {
+      const isSameInsight = notif.insight_id && n.insight_id === notif.insight_id;
+      const isSameTitle = n.title === notif.title;
+      const isRecent = new Date(n.created_at).getTime() >= oneDayAgo;
+      return (isSameInsight || isSameTitle) && (isRecent || !n.is_read);
+    });
+    if (!isDuplicate) {
       list.unshift(notif);
       if (list.length > 50) list.pop();
       businessNotificationsCache.set(businessId, list);
@@ -3896,22 +5077,235 @@ var HealthService = class {
   }
 };
 
+// server/push-notification.service.ts
+import fs from "node:fs";
+import path from "node:path";
+import webpush from "web-push";
+var VAPID_FILE = path.join(process.cwd(), ".vapid.json");
+var SUBSCRIPTIONS_FILE = path.join(process.cwd(), ".push_subscriptions.json");
+var subscriptions = /* @__PURE__ */ new Map();
+function saveSubscriptionsToDisk() {
+  try {
+    const list = Array.from(subscriptions.values());
+    fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(list, null, 2), "utf-8");
+  } catch (err) {
+    console.error("[WebPush] Error saving subscriptions to disk:", err);
+  }
+}
+function loadSubscriptionsFromDisk() {
+  try {
+    if (fs.existsSync(SUBSCRIPTIONS_FILE)) {
+      const raw = fs.readFileSync(SUBSCRIPTIONS_FILE, "utf-8");
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) {
+        list.forEach((sub) => {
+          if (sub?.endpoint) {
+            subscriptions.set(sub.endpoint, sub);
+          }
+        });
+        console.log(`[WebPush] Restored ${subscriptions.size} push subscriptions from disk.`);
+      }
+    }
+  } catch (err) {
+    console.error("[WebPush] Error loading subscriptions from disk:", err);
+  }
+}
+var vapidPublicKey = process.env.VAPID_PUBLIC_KEY || "";
+var vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "";
+var vapidSubject = process.env.VAPID_SUBJECT || "mailto:support@ursella.app";
+if (!vapidPublicKey || !vapidPrivateKey) {
+  try {
+    if (fs.existsSync(VAPID_FILE)) {
+      const saved = JSON.parse(fs.readFileSync(VAPID_FILE, "utf-8"));
+      if (saved.publicKey && saved.privateKey) {
+        vapidPublicKey = saved.publicKey;
+        vapidPrivateKey = saved.privateKey;
+        console.log("[WebPush] Loaded persistent VAPID keypair from disk");
+      }
+    }
+  } catch (err) {
+    console.error("[WebPush] Failed reading .vapid.json:", err);
+  }
+}
+if (!vapidPublicKey || !vapidPrivateKey) {
+  try {
+    const generated = webpush.generateVAPIDKeys();
+    vapidPublicKey = generated.publicKey;
+    vapidPrivateKey = generated.privateKey;
+    fs.writeFileSync(
+      VAPID_FILE,
+      JSON.stringify({ publicKey: vapidPublicKey, privateKey: vapidPrivateKey }, null, 2),
+      "utf-8"
+    );
+    console.log("[WebPush] Generated and persisted new VAPID keypair to .vapid.json");
+  } catch (err) {
+    console.error("[WebPush] Error generating VAPID keys:", err);
+  }
+}
+if (vapidPublicKey && vapidPrivateKey) {
+  try {
+    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+    console.log("[WebPush] VAPID configured successfully");
+  } catch (err) {
+    console.error("[WebPush] Failed to set VAPID details:", err);
+  }
+}
+loadSubscriptionsFromDisk();
+var morningBriefsSentDate = /* @__PURE__ */ new Map();
+var PushNotificationService = class {
+  static getPublicKey() {
+    return vapidPublicKey;
+  }
+  static isConfigured() {
+    return Boolean(vapidPublicKey && vapidPrivateKey);
+  }
+  static registerSubscription(businessId, subscription, userId) {
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      return false;
+    }
+    subscriptions.set(subscription.endpoint, {
+      endpoint: subscription.endpoint,
+      keys: subscription.keys,
+      businessId,
+      userId,
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    saveSubscriptionsToDisk();
+    console.log(`[WebPush] Registered subscription for business ${businessId}. Total subscriptions: ${subscriptions.size}`);
+    return true;
+  }
+  static unregisterSubscription(endpoint) {
+    if (!endpoint) return false;
+    const removed = subscriptions.delete(endpoint);
+    if (removed) {
+      saveSubscriptionsToDisk();
+    }
+    return removed;
+  }
+  static getSubscriptionsForBusiness(businessId) {
+    const result = [];
+    for (const sub of subscriptions.values()) {
+      if (!businessId || sub.businessId === businessId || sub.businessId === "default") {
+        result.push(sub);
+      }
+    }
+    return result;
+  }
+  static getAllSubscriptions() {
+    return Array.from(subscriptions.values());
+  }
+  static async sendToSubscription(subscription, payload) {
+    if (!this.isConfigured()) {
+      return { success: false, error: "VAPID keys not configured on server" };
+    }
+    try {
+      const payloadString = JSON.stringify({
+        title: payload.title || "Ursella Business Alert",
+        body: payload.body || "You have an operational update.",
+        icon: payload.icon || "/pwa-192x192.png",
+        badge: payload.badge || "/pwa-192x192.png",
+        url: payload.url || "/#/",
+        tag: payload.tag || "general-alert",
+        timestamp: Date.now()
+      });
+      await webpush.sendNotification(subscription, payloadString, {
+        TTL: 60 * 60 * 24,
+        // 24 hours
+        urgency: "high"
+      });
+      return { success: true };
+    } catch (err) {
+      console.error("[WebPush] Error sending push notification:", err?.message || err);
+      if (err?.statusCode === 410 || err?.statusCode === 404) {
+        subscriptions.delete(subscription.endpoint);
+        saveSubscriptionsToDisk();
+      }
+      return { success: false, error: err?.message || "Failed to dispatch push notification" };
+    }
+  }
+  static async sendToBusiness(businessId, payload) {
+    const businessSubs = this.getSubscriptionsForBusiness(businessId);
+    let sentCount = 0;
+    const errors = [];
+    for (const sub of businessSubs) {
+      const result = await this.sendToSubscription(sub, payload);
+      if (result.success) {
+        sentCount++;
+      } else if (result.error) {
+        errors.push(result.error);
+      }
+    }
+    return { sentCount, errors };
+  }
+  /**
+   * Automated Morning Executive Briefing Dispatcher
+   * Automatically triggered by the server scheduler every morning
+   */
+  static async dispatchScheduledMorningBriefs(force = false) {
+    const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    const uniqueBusinessIds = /* @__PURE__ */ new Set();
+    for (const sub of subscriptions.values()) {
+      if (sub.businessId) {
+        uniqueBusinessIds.add(sub.businessId);
+      }
+    }
+    let dispatchedCount = 0;
+    const details = [];
+    for (const businessId of uniqueBusinessIds) {
+      const lastSent = morningBriefsSentDate.get(businessId);
+      if (!force && lastSent === todayStr) {
+        continue;
+      }
+      let bizName = "Your Business";
+      let lowStockCount = 0;
+      try {
+        const { data: biz } = await serverSupabase.from("businesses").select("name").eq("id", businessId).maybeSingle();
+        if (biz?.name) bizName = biz.name;
+        const { data: prods } = await serverSupabase.from("products").select("id, stock_quantity, minimum_stock_level").eq("business_id", businessId);
+        if (prods && Array.isArray(prods)) {
+          lowStockCount = prods.filter(
+            (p) => (p.stock_quantity ?? 0) <= (p.minimum_stock_level ?? 5)
+          ).length;
+        }
+      } catch {
+      }
+      const body = lowStockCount > 0 ? `Good morning! ${lowStockCount} item(s) require restock replenishment today. Tap to view your daily executive briefing.` : `Good morning! Your store is ready for trading. Tap to review cash collection targets and today's priorities.`;
+      const result = await this.sendToBusiness(businessId, {
+        title: `\u2600\uFE0F Morning Executive Brief: ${bizName}`,
+        body,
+        url: "/#/home",
+        tag: `morning-brief-${todayStr}`
+      });
+      if (result.sentCount > 0) {
+        dispatchedCount += result.sentCount;
+        morningBriefsSentDate.set(businessId, todayStr);
+        details.push(`Sent morning brief to ${bizName} (${result.sentCount} devices)`);
+      }
+    }
+    return {
+      checkedCount: uniqueBusinessIds.size,
+      dispatchedCount,
+      details
+    };
+  }
+};
+
 // server.ts
 var app = express();
 var PORT = 3e3;
 app.use(express.json({ limit: "10mb" }));
-function isValidUUID3(str) {
+function isValidUUID2(str) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
 }
 async function verifyTenantRequest(req, businessId) {
-  if (!isValidUUID3(businessId)) {
-    return { authorized: true };
+  if (!isValidUUID2(businessId)) {
+    return { authorized: true, userId: "dev-user", role: "owner" };
   }
-  const isServerSupabaseConfigured = Boolean(
+  const isServerSupabaseConfigured2 = Boolean(
     process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
   ) && !(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "").includes("placeholder.supabase.co");
-  if (!isServerSupabaseConfigured) {
-    return { authorized: true };
+  if (!isServerSupabaseConfigured2) {
+    return { authorized: true, userId: "local-user", role: "owner" };
   }
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -3932,15 +5326,15 @@ async function verifyTenantRequest(req, businessId) {
       };
     }
     const userId = userData.user.id;
-    const hasAccess = await BusinessToolsService.verifyTenantAccess(userId, businessId);
-    if (!hasAccess) {
+    const membership = await BusinessToolsService.getTenantMembership(userId, businessId);
+    if (!membership.authorized) {
       return {
         authorized: false,
         status: 403,
-        error: "Access denied: You are not authorized to view or analyze data for this business."
+        error: "Access denied: You are not authorized to view or perform actions for this business."
       };
     }
-    return { authorized: true, userId };
+    return { authorized: true, userId, role: membership.role || "owner" };
   } catch (err) {
     return {
       authorized: false,
@@ -3998,7 +5392,7 @@ app.post("/api/ai/chat", async (req, res) => {
     } catch (e) {
       console.warn(`[Req ${requestId}] Failed to fetch business metadata, using context:`, e);
     }
-    const intentResult = classifyBusinessQuery(message);
+    const intentResult = classifyBusinessQuery(message, history);
     const horizon = preferredTimeHorizonDays || intentResult.suggestedTimeHorizonDays || 30;
     const toolResults = {};
     const toolsExecuted = [];
@@ -4024,8 +5418,9 @@ app.post("/api/ai/chat", async (req, res) => {
           })
         );
       } else if (toolName === "get_product_performance") {
+        const productFilter = intentResult.entityHint || message;
         toolExecutionPromises.push(
-          BusinessToolsService.getProductPerformance(businessId, 50, message).then((res2) => {
+          BusinessToolsService.getProductPerformance(businessId, 50, productFilter).then((res2) => {
             toolResults[toolName] = res2;
           })
         );
@@ -4095,8 +5490,13 @@ app.post("/api/ai/chat", async (req, res) => {
         intent: intentResult.intent,
         domain: intentResult.domain,
         timePeriod: intentResult.timePeriod,
-        primaryGoal: intentResult.primaryGoal
-      }
+        primaryGoal: intentResult.primaryGoal,
+        isEntitySpecific: intentResult.isEntitySpecific,
+        entityHint: intentResult.entityHint,
+        isReportMode: intentResult.isReportMode,
+        resolvedContextTopic: intentResult.resolvedContextTopic
+      },
+      testSimulation: req.body.testSimulation || req.headers["x-simulate-ai-failure"]
     });
     structuredResponse.intent = intentResult.intent;
     structuredResponse.toolsUsed = toolsExecuted;
@@ -4244,10 +5644,14 @@ app.post("/api/ai/proactive-insights", async (req, res) => {
 });
 app.post("/api/insights/scan", async (req, res) => {
   try {
-    const { businessId } = req.body;
+    const { businessId, snapshot, config, businessMetadata } = req.body;
     if (!businessId) return res.status(400).json({ error: "businessId is required" });
-    const rawEvents = await EventDetectionService.scanBusiness(businessId);
-    const insights = await ProactiveAIService.processDetectedEvents(businessId, rawEvents);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+    const rawEvents = await EventDetectionService.scanBusiness(businessId, snapshot, config);
+    const insights = await ProactiveAIService.processDetectedEvents(businessId, rawEvents, businessMetadata);
     return res.json({
       success: true,
       scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
@@ -4260,24 +5664,32 @@ app.post("/api/insights/scan", async (req, res) => {
     return res.status(500).json({ error: "Failed to scan business events", details: error.message });
   }
 });
-app.get("/api/insights", (req, res) => {
+app.get("/api/insights", async (req, res) => {
   try {
     const businessId = req.query.businessId;
     const category = req.query.category || "all";
     const status = req.query.status || "all";
     if (!businessId) return res.status(400).json({ error: "businessId query param required" });
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     const insights = ProactiveAIService.getInsights(businessId, { category, status });
     return res.json(insights);
   } catch (error) {
     return res.status(500).json({ error: "Failed to retrieve insights" });
   }
 });
-app.post("/api/insights/:id/status", (req, res) => {
+app.post("/api/insights/:id/status", async (req, res) => {
   try {
     const insightId = req.params.id;
     const { businessId, status } = req.body;
     if (!businessId || !status) {
       return res.status(400).json({ error: "businessId and status are required" });
+    }
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
     }
     const success = ProactiveAIService.updateInsightStatus(businessId, insightId, status);
     return res.json({ success, insightId, status });
@@ -4285,23 +5697,31 @@ app.post("/api/insights/:id/status", (req, res) => {
     return res.status(500).json({ error: "Failed to update insight status" });
   }
 });
-app.get("/api/priorities/today", (req, res) => {
+app.get("/api/priorities/today", async (req, res) => {
   try {
     const businessId = req.query.businessId;
     if (!businessId) return res.status(400).json({ error: "businessId required" });
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     const priorities = ProactiveAIService.getTodayPriorities(businessId);
     return res.json(priorities);
   } catch (error) {
     return res.status(500).json({ error: "Failed to get daily priorities" });
   }
 });
-app.post("/api/actions/propose", (req, res) => {
+app.post("/api/actions/propose", async (req, res) => {
   try {
     const { businessId, insightId, actionType, title, description, payload, requestedBy, requiresRole, impactPreview } = req.body;
     if (!businessId || !actionType || !title) {
       return res.status(400).json({ error: "Missing required action proposal fields" });
     }
-    const proposal = ActionExecutorService.proposeAction({
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+    const proposal = await ActionExecutorService.proposeAction({
       business_id: businessId,
       insight_id: insightId || null,
       action_type: actionType,
@@ -4318,11 +5738,15 @@ app.post("/api/actions/propose", (req, res) => {
     return res.status(500).json({ error: "Failed to propose action" });
   }
 });
-app.get("/api/actions/proposals", (req, res) => {
+app.get("/api/actions/proposals", async (req, res) => {
   try {
     const businessId = req.query.businessId;
     if (!businessId) return res.status(400).json({ error: "businessId required" });
-    const proposals = ActionExecutorService.getActionProposals(businessId);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+    const proposals = await ActionExecutorService.getActionProposals(businessId);
     return res.json(proposals);
   } catch (error) {
     return res.status(500).json({ error: "Failed to list action proposals" });
@@ -4330,15 +5754,21 @@ app.get("/api/actions/proposals", (req, res) => {
 });
 app.post("/api/actions/execute", async (req, res) => {
   try {
-    const { actionId, businessId, userId, userRole = "owner", actionType, payload, idempotencyKey, isAIGenerated } = req.body;
-    if (!businessId || !userId || !actionType || !payload) {
-      return res.status(400).json({ error: "Missing required execution fields: businessId, userId, actionType, payload" });
+    const { actionId, businessId, actionType, payload, idempotencyKey, isAIGenerated } = req.body;
+    if (!businessId || !actionType || !payload) {
+      return res.status(400).json({ error: "Missing required execution fields: businessId, actionType, payload" });
     }
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+    const verifiedUserId = authCheck.userId || req.body.userId || "system";
+    const verifiedUserRole = authCheck.role || "staff";
     const execResult = await ActionExecutorService.executeAction({
       actionId,
       businessId,
-      userId,
-      userRole,
+      userId: verifiedUserId,
+      userRole: verifiedUserRole,
       actionType,
       payload,
       idempotencyKey: idempotencyKey || `exec_${Date.now()}`,
@@ -4353,31 +5783,43 @@ app.post("/api/actions/execute", async (req, res) => {
     return res.status(500).json({ error: "Action execution failed", details: error.message });
   }
 });
-app.post("/api/actions/reject", (req, res) => {
+app.post("/api/actions/reject", async (req, res) => {
   try {
-    const { actionId, userId, businessId } = req.body;
+    const { actionId, businessId } = req.body;
     if (!actionId || !businessId) return res.status(400).json({ error: "actionId and businessId required" });
-    const success = ActionExecutorService.rejectAction(actionId, userId || "user", businessId);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+    const success = await ActionExecutorService.rejectAction(actionId, authCheck.userId || "user", businessId);
     return res.json({ success, actionId, status: "rejected" });
   } catch (error) {
     return res.status(500).json({ error: "Failed to reject action" });
   }
 });
-app.get("/api/actions/audit-logs", (req, res) => {
+app.get("/api/actions/audit-logs", async (req, res) => {
   try {
     const businessId = req.query.businessId;
     if (!businessId) return res.status(400).json({ error: "businessId required" });
-    const logs = ActionExecutorService.getAuditLogs(businessId);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+    const logs = await ActionExecutorService.getAuditLogs(businessId);
     return res.json(logs);
   } catch (error) {
     return res.status(500).json({ error: "Failed to get audit logs" });
   }
 });
-app.get("/api/reminders", (req, res) => {
+app.get("/api/reminders", async (req, res) => {
   try {
     const businessId = req.query.businessId;
     if (!businessId) return res.status(400).json({ error: "businessId required" });
-    const reminders = ActionExecutorService.getReminders(businessId);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+    const reminders = await ActionExecutorService.getReminders(businessId);
     return res.json(reminders);
   } catch (error) {
     return res.status(500).json({ error: "Failed to get reminders" });
@@ -4385,12 +5827,16 @@ app.get("/api/reminders", (req, res) => {
 });
 app.post("/api/reminders", async (req, res) => {
   try {
-    const { businessId, userId, title, description, dueDate, priority, relatedEntityType, relatedEntityId, relatedEntityName } = req.body;
+    const { businessId, title, description, dueDate, priority, relatedEntityType, relatedEntityId, relatedEntityName } = req.body;
     if (!businessId || !title) return res.status(400).json({ error: "businessId and title required" });
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     const result = await ActionExecutorService.executeAction({
       businessId,
-      userId: userId || "user",
-      userRole: "owner",
+      userId: authCheck.userId || "user",
+      userRole: authCheck.role || "staff",
       actionType: "create_reminder",
       payload: {
         title,
@@ -4408,23 +5854,31 @@ app.post("/api/reminders", async (req, res) => {
     return res.status(500).json({ error: "Failed to create reminder" });
   }
 });
-app.patch("/api/reminders/:id", (req, res) => {
+app.patch("/api/reminders/:id", async (req, res) => {
   try {
     const reminderId = req.params.id;
     const { businessId, status } = req.body;
     if (!businessId || !status) return res.status(400).json({ error: "businessId and status required" });
-    const success = ActionExecutorService.updateReminderStatus(reminderId, businessId, status);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+    const success = await ActionExecutorService.updateReminderStatus(reminderId, businessId, status);
     return res.json({ success, reminderId, status });
   } catch (error) {
     return res.status(500).json({ error: "Failed to update reminder" });
   }
 });
-app.delete("/api/reminders/:id", (req, res) => {
+app.delete("/api/reminders/:id", async (req, res) => {
   try {
     const reminderId = req.params.id;
     const businessId = req.query.businessId;
     if (!businessId) return res.status(400).json({ error: "businessId query param required" });
-    const success = ActionExecutorService.deleteReminder(reminderId, businessId);
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+    const success = await ActionExecutorService.deleteReminder(reminderId, businessId);
     return res.json({ success, reminderId });
   } catch (error) {
     return res.status(500).json({ error: "Failed to delete reminder" });
@@ -4434,6 +5888,10 @@ app.get("/api/notifications", async (req, res) => {
   try {
     const businessId = req.query.businessId;
     if (!businessId) return res.status(400).json({ error: "businessId required" });
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     let notifications = ProactiveAIService.getNotifications(businessId);
     if (notifications.length === 0) {
       try {
@@ -4451,66 +5909,204 @@ app.get("/api/notifications", async (req, res) => {
     return res.status(500).json({ error: "Failed to get notifications" });
   }
 });
-app.post("/api/notifications/read-all", (req, res) => {
+app.post("/api/notifications/read-all", async (req, res) => {
   try {
     const { businessId } = req.body;
     if (!businessId) return res.status(400).json({ error: "businessId required" });
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     ProactiveAIService.markAllNotificationsRead(businessId);
     return res.json({ success: true });
   } catch (error) {
     return res.status(500).json({ error: "Failed to mark notifications read" });
   }
 });
-app.delete("/api/notifications/:id", (req, res) => {
+app.delete("/api/notifications/:id", async (req, res) => {
   try {
     const notificationId = req.params.id;
     const businessId = req.query.businessId || req.body?.businessId;
     if (!businessId) return res.status(400).json({ error: "businessId required" });
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     const success = ProactiveAIService.deleteNotification(businessId, notificationId);
     return res.json({ success, notificationId });
   } catch (error) {
     return res.status(500).json({ error: "Failed to delete notification" });
   }
 });
-app.post("/api/notifications/clear-all", (req, res) => {
+app.post("/api/notifications/clear-all", async (req, res) => {
   try {
     const { businessId } = req.body;
     if (!businessId) return res.status(400).json({ error: "businessId required" });
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     const success = ProactiveAIService.clearAllNotifications(businessId);
     return res.json({ success });
   } catch (error) {
     return res.status(500).json({ error: "Failed to clear all notifications" });
   }
 });
-app.post("/api/notifications/:id/toggle-read", (req, res) => {
+app.post("/api/notifications/:id/toggle-read", async (req, res) => {
   try {
     const notificationId = req.params.id;
     const { businessId } = req.body;
     if (!businessId) return res.status(400).json({ error: "businessId required" });
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     const success = ProactiveAIService.toggleNotificationRead(businessId, notificationId);
     return res.json({ success, notificationId });
   } catch (error) {
     return res.status(500).json({ error: "Failed to toggle notification read status" });
   }
 });
-app.get("/api/preferences/notifications", (req, res) => {
+app.get("/api/preferences/notifications", async (req, res) => {
   try {
     const businessId = req.query.businessId;
     if (!businessId) return res.status(400).json({ error: "businessId required" });
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     const prefs = ProactiveAIService.getPreferences(businessId);
     return res.json(prefs);
   } catch (error) {
     return res.status(500).json({ error: "Failed to get preferences" });
   }
 });
-app.post("/api/preferences/notifications", (req, res) => {
+app.post("/api/preferences/notifications", async (req, res) => {
   try {
     const { businessId, preferences } = req.body;
     if (!businessId || !preferences) return res.status(400).json({ error: "businessId and preferences required" });
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     const updated = ProactiveAIService.savePreferences(businessId, preferences);
     return res.json(updated);
   } catch (error) {
     return res.status(500).json({ error: "Failed to save preferences" });
+  }
+});
+app.get("/api/push/config", (req, res) => {
+  return res.json({
+    configured: PushNotificationService.isConfigured(),
+    publicKey: PushNotificationService.getPublicKey()
+  });
+});
+app.post("/api/push/subscribe", async (req, res) => {
+  try {
+    const { businessId, subscription, userId } = req.body;
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({ error: "Invalid PushSubscription payload" });
+    }
+    if (businessId && businessId !== "default") {
+      const authCheck = await verifyTenantRequest(req, businessId);
+      if (!authCheck.authorized) {
+        return res.status(authCheck.status || 403).json({ error: authCheck.error });
+      }
+    }
+    const saved = PushNotificationService.registerSubscription(businessId || "default", subscription, userId);
+    return res.json({ success: saved });
+  } catch (err) {
+    return res.status(500).json({ error: err?.message || "Failed to register push subscription" });
+  }
+});
+app.post("/api/push/unsubscribe", (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (!endpoint) {
+      return res.status(400).json({ error: "Endpoint required" });
+    }
+    const removed = PushNotificationService.unregisterSubscription(endpoint);
+    return res.json({ success: removed });
+  } catch (err) {
+    return res.status(500).json({ error: err?.message || "Failed to unregister push subscription" });
+  }
+});
+app.post("/api/push/send-test", async (req, res) => {
+  try {
+    const { businessId, subscription } = req.body;
+    if (businessId) {
+      const authCheck = await verifyTenantRequest(req, businessId);
+      if (!authCheck.authorized) {
+        return res.status(authCheck.status || 403).json({ error: authCheck.error });
+      }
+    }
+    if (subscription && subscription.endpoint) {
+      const result = await PushNotificationService.sendToSubscription(subscription, {
+        title: "\u{1F514} Ursella Out-of-App Push Alert",
+        body: "Out-of-app push notifications are active! You will receive daily morning briefs and urgent stock alerts.",
+        url: "/#/insights",
+        tag: "ursella-test-notification"
+      });
+      return res.json(result);
+    }
+    if (businessId) {
+      const result = await PushNotificationService.sendToBusiness(businessId, {
+        title: "\u{1F514} Ursella Out-of-App Push Alert",
+        body: "Out-of-app push notifications are active! You will receive daily morning briefs and urgent stock alerts.",
+        url: "/#/insights",
+        tag: "ursella-test-notification"
+      });
+      return res.json({ success: result.sentCount > 0, ...result });
+    }
+    return res.status(400).json({ error: "businessId or subscription is required" });
+  } catch (err) {
+    return res.status(500).json({ error: err?.message || "Failed to send test push" });
+  }
+});
+app.get("/api/push/status", async (req, res) => {
+  try {
+    const isConfigured = PushNotificationService.isConfigured();
+    const subs = PushNotificationService.getAllSubscriptions();
+    const publicKey = PushNotificationService.getPublicKey();
+    return res.json({
+      configured: isConfigured,
+      publicKey: publicKey || null,
+      activeSubscriptionsCount: subs.length,
+      schedulerActive: true
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err?.message || "Failed to get push status" });
+  }
+});
+app.post("/api/push/send-morning-brief", async (req, res) => {
+  try {
+    const { businessId, businessName = "My Business", force = true } = req.body || {};
+    if (!businessId) {
+      const dispatchResult = await PushNotificationService.dispatchScheduledMorningBriefs(force);
+      return res.json({
+        success: dispatchResult.dispatchedCount > 0,
+        ...dispatchResult,
+        message: `Morning briefing dispatched to ${dispatchResult.dispatchedCount} active device(s).`
+      });
+    }
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+    const result = await PushNotificationService.sendToBusiness(businessId, {
+      title: `\u2600\uFE0F Morning Executive Brief: ${businessName}`,
+      body: `Your daily business briefing is ready. Tap to review revenue insights and today's operational priorities.`,
+      url: "/#/home",
+      tag: "ursella-morning-brief"
+    });
+    return res.json({
+      success: result.sentCount > 0,
+      sentCount: result.sentCount,
+      errors: result.errors,
+      message: result.sentCount > 0 ? `Morning brief push sent to ${result.sentCount} device(s).` : "No active push subscriptions found for this business. Make sure you enable notifications on your device."
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err?.message || "Failed to send morning brief push" });
   }
 });
 app.get("/api/subscription/plans", async (req, res) => {
@@ -4525,6 +6121,10 @@ app.get("/api/subscription", async (req, res) => {
   try {
     const businessId = req.query.businessId;
     if (!businessId) return res.status(400).json({ error: "businessId query param required" });
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     const subscription = await SubscriptionService.getBusinessSubscription(businessId);
     return res.json(subscription);
   } catch (error) {
@@ -4536,6 +6136,10 @@ app.post("/api/subscription/checkout", async (req, res) => {
     const { businessId, planId, billingCycle = "monthly", provider = "momo", customerEmail, phoneNumber, network } = req.body;
     if (!businessId || !planId) {
       return res.status(400).json({ error: "businessId and planId are required" });
+    }
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
     }
     const response = await PaymentProviderService.initiatePayment({
       businessId,
@@ -4578,9 +6182,16 @@ app.post("/api/data/import/execute", async (req, res) => {
     if (!businessId || !entityType || !Array.isArray(rows)) {
       return res.status(400).json({ error: "businessId, entityType, and rows array are required" });
     }
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+    if (authCheck.role && authCheck.role === "staff") {
+      return res.status(403).json({ error: "Permission denied: Bulk data import requires owner or admin privileges." });
+    }
     const result = await DataIOService.executeImport({
       businessId,
-      userId,
+      userId: authCheck.userId || userId,
       entityType,
       rows
     });
@@ -4653,9 +6264,13 @@ app.post("/api/feedback/submit", async (req, res) => {
     if (!businessId || !feedbackType) {
       return res.status(400).json({ error: "businessId and feedbackType are required" });
     }
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
     const result = await FeedbackService.submitFeedback({
       businessId,
-      userId,
+      userId: authCheck.userId || userId,
       feedbackType,
       rating,
       comment,
@@ -4676,14 +6291,37 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = path2.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      res.sendFile(path2.join(distPath, "index.html"));
     });
   }
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Ursella Full-Stack Server running on http://0.0.0.0:${PORT}`);
+    const SCHEDULER_INTERVAL_MS = 15 * 60 * 1e3;
+    setInterval(async () => {
+      try {
+        const currentHour = (/* @__PURE__ */ new Date()).getHours();
+        if (currentHour >= 6 && currentHour <= 10) {
+          console.log("[Scheduler] Checking scheduled morning briefs...");
+          const result = await PushNotificationService.dispatchScheduledMorningBriefs();
+          if (result.dispatchedCount > 0) {
+            console.log(`[Scheduler] Dispatched morning briefs to ${result.dispatchedCount} device(s).`);
+          }
+        }
+      } catch (schedulerErr) {
+        console.error("[Scheduler] Error in morning brief scheduler:", schedulerErr);
+      }
+    }, SCHEDULER_INTERVAL_MS);
+    setTimeout(async () => {
+      try {
+        const subs = PushNotificationService.getAllSubscriptions();
+        console.log(`[PushNotification] Initialized with ${subs.length} active persistent subscription(s).`);
+      } catch (initErr) {
+        console.error("[PushNotification] Error checking subscriptions on boot:", initErr);
+      }
+    }, 5e3);
   });
 }
 if (process.env.VERCEL !== "1" && !process.env.VERCEL_ENV && !process.env.AWS_LAMBDA_FUNCTION_NAME) {

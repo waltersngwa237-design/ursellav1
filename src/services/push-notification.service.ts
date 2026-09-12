@@ -2,6 +2,7 @@
  * Web Push Notification Client Service (VAPID Integration)
  * Manages out-of-app push notifications, browser permissions, and subscription lifecycle.
  */
+import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -22,6 +23,21 @@ export interface PushStatus {
 }
 
 export class PushClientService {
+  private static async getAuthHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    try {
+      if (isSupabaseConfigured) {
+        const { data } = await supabase.auth.getSession();
+        if (data?.session?.access_token) {
+          headers['Authorization'] = `Bearer ${data.session.access_token}`;
+        }
+      }
+    } catch {
+      // Local fallback
+    }
+    return headers;
+  }
+
   public static isSupported(): boolean {
     return (
       typeof window !== 'undefined' &&
@@ -164,7 +180,7 @@ export class PushClientService {
       // 4. Send subscription to server
       const response = await fetch('/api/push/subscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({
           businessId,
           subscription: subscription.toJSON(),
@@ -218,7 +234,7 @@ export class PushClientService {
 
       const response = await fetch('/api/push/send-test', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({
           businessId,
           subscription: subscription ? subscription.toJSON() : undefined,
@@ -241,7 +257,7 @@ export class PushClientService {
     try {
       const response = await fetch('/api/push/send-morning-brief', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({
           businessId,
           businessName,

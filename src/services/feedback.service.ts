@@ -1,3 +1,5 @@
+import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
+
 export class ClientFeedbackService {
   static async submitFeedback(payload: {
     businessId: string;
@@ -8,9 +10,19 @@ export class ClientFeedbackService {
     context?: Record<string, any>;
   }): Promise<{ success: boolean; id?: string }> {
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (isSupabaseConfigured) {
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (data?.session?.access_token) {
+            headers['Authorization'] = `Bearer ${data.session.access_token}`;
+          }
+        } catch {}
+      }
+
       const res = await fetch('/api/feedback/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
       });
       return await res.json();
