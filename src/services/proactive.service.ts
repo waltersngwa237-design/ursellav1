@@ -154,17 +154,25 @@ export class ProactiveService {
    */
   public static async getDailyPriorities(businessId: string): Promise<DailyPriorityItem[]> {
     try {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        return this.getLocalDailyPriorities(businessId);
+      let priorities: DailyPriorityItem[] = [];
+
+      if (typeof navigator === 'undefined' || navigator.onLine) {
+        const response = await fetch(`/api/priorities/today?businessId=${encodeURIComponent(businessId)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data) && data.length > 0) {
+            priorities = data;
+          }
+        }
       }
 
-      const response = await fetch(`/api/priorities/today?businessId=${encodeURIComponent(businessId)}`);
-      if (!response.ok) return this.getLocalDailyPriorities(businessId);
-      const data = await response.json();
-      if (Array.isArray(data) && data.length > 0) return data;
-      return this.getLocalDailyPriorities(businessId);
+      if (priorities.length === 0) {
+        priorities = this.getLocalDailyPriorities(businessId);
+      }
+
+      return this.filterActivePriorities(businessId, priorities);
     } catch {
-      return this.getLocalDailyPriorities(businessId);
+      return this.filterActivePriorities(businessId, this.getLocalDailyPriorities(businessId));
     }
   }
 
@@ -219,10 +227,10 @@ export class ProactiveService {
       console.warn('[ProactiveService] Local action execution warning:', localErr);
     }
 
-    // 2. Mark insight and priority status as 'acted_on' locally
+    // 2. Mark insight and priority status as 'acted_on' locally and synchronise to server
     const insightId = params.payload?.insightId;
     if (insightId) {
-      this.setLocalInsightStatus(params.businessId, insightId, 'acted_on');
+      this.updateInsightStatus(params.businessId, insightId, 'acted_on').catch(() => {});
     }
 
     // 3. Online sync to server for centralized logging and backend updates
@@ -659,13 +667,13 @@ export class ProactiveService {
               alerts.push({
                 id: `alert_stock_out_${prod.id}`,
                 business_id: businessId,
-                title: `Out of Stock: ${prod.name}`,
-                message: `Current inventory is 0 units. Replenish immediately to prevent lost sales.`,
+                title: `Out of Stock: ${prod.name}${stock < 0 ? ` (${stock} deficit)` : ''}`,
+                message: `Current inventory is ${stock} units. Replenish immediately to prevent lost sales.`,
                 priority: 'critical',
                 category: 'inventory',
                 is_read: false,
                 action_type: 'create_restock_task',
-                action_payload: { productId: prod.id, productName: prod.name, suggestedQuantity: minStock * 2 },
+                action_payload: { productId: prod.id, productName: prod.name, currentStock: stock, suggestedQuantity: Math.max(minStock * 2, 10) },
                 created_at: new Date().toISOString(),
               });
             } else if (stock <= minStock) {
@@ -678,7 +686,7 @@ export class ProactiveService {
                 category: 'inventory',
                 is_read: false,
                 action_type: 'create_restock_task',
-                action_payload: { productId: prod.id, productName: prod.name, suggestedQuantity: minStock * 2 },
+                action_payload: { productId: prod.id, productName: prod.name, currentStock: stock, suggestedQuantity: minStock * 2 },
                 created_at: new Date().toISOString(),
               });
             }
@@ -692,7 +700,7 @@ export class ProactiveService {
         const customers = JSON.parse(custRaw);
         if (Array.isArray(customers)) {
           for (const cust of customers) {
-            const debt = Number(cust.total_debt ?? 0);
+            const debt = Number(cust.outstanding_balance || cust.total_debt || cust.outstanding_debt || cust.debt || 0);
             if (debt > 0) {
               alerts.push({
                 id: `alert_debt_${cust.id}`,
@@ -984,6 +992,24 @@ export class ProactiveService {
       });
     } catch {
       return insights;
+    }
+  }
+
+  private static filterActivePriorities(
+    businessId: string,
+    priorities: DailyPriorityItem[]
+  ): DailyPriorityItem[] {
+    try {
+      const raw = localStorage.getItem(`${INSIGHT_STATUS_KEY}${businessId}`);
+      if (!raw) return priorities;
+      const map: Record<string, BusinessInsight['status']> = JSON.parse(raw);
+      return priorities.filter((p) => {
+        const cleanId = p.id.replace(/^(prio_|dp_)/, '');
+        const status = map[p.id] || map[cleanId] || map[`prio_${cleanId}`] || map[`dp_${cleanId}`];
+        return status !== 'dismissed' && status !== 'acted_on';
+      });
+    } catch {
+      return priorities;
     }
   }
 

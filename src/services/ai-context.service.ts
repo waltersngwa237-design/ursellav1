@@ -27,9 +27,8 @@ export const AIContextService = {
     const res = await AIService.sendChatMessage({
       businessId,
       message: userQuery,
-      contextType: 'general',
     });
-    return res.response || res.message || '';
+    return res.response?.answer || '';
   },
 };
 
