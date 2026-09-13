@@ -11,6 +11,7 @@ export interface PushSubscriptionRecord {
   };
   businessId?: string;
   userId?: string;
+  timezone?: string;
   createdAt: string;
 }
 
@@ -114,7 +115,8 @@ export class PushNotificationService {
   public static registerSubscription(
     businessId: string,
     subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
-    userId?: string
+    userId?: string,
+    timezone?: string
   ): boolean {
     if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
       return false;
@@ -125,11 +127,12 @@ export class PushNotificationService {
       keys: subscription.keys,
       businessId,
       userId,
+      timezone: timezone || 'UTC',
       createdAt: new Date().toISOString(),
     });
 
     saveSubscriptionsToDisk();
-    console.log(`[WebPush] Registered subscription for business ${businessId}. Total subscriptions: ${subscriptions.size}`);
+    console.log(`[WebPush] Registered subscription for business ${businessId} (tz: ${timezone || 'UTC'}). Total subscriptions: ${subscriptions.size}`);
     return true;
   }
 
@@ -228,28 +231,57 @@ export class PushNotificationService {
 
   /**
    * Automated Morning Executive Briefing Dispatcher
-   * Automatically triggered by the server scheduler every morning
+   * Automatically triggered by the server scheduler every 5 minutes.
+   * Evaluates each subscriber's local timezone so every business receives their morning brief at their local morning window.
    */
   public static async dispatchScheduledMorningBriefs(force = false): Promise<{
     checkedCount: number;
     dispatchedCount: number;
     details: string[];
   }> {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const uniqueBusinessIds = new Set<string>();
-
-    for (const sub of subscriptions.values()) {
-      if (sub.businessId) {
-        uniqueBusinessIds.add(sub.businessId);
-      }
-    }
-
+    const now = new Date();
+    const allSubs = Array.from(subscriptions.values());
     let dispatchedCount = 0;
     const details: string[] = [];
 
-    for (const businessId of uniqueBusinessIds) {
-      const lastSent = morningBriefsSentDate.get(businessId);
-      if (!force && lastSent === todayStr) {
+    for (const sub of allSubs) {
+      // 1. Calculate local date and local hour for this specific subscriber
+      let localDateStr = now.toISOString().split('T')[0];
+      let localHour = now.getUTCHours();
+
+      const subscriberTz = sub.timezone || 'UTC';
+      try {
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+          timeZone: subscriberTz,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: 'numeric',
+          hour12: false,
+        });
+        const parts = formatter.formatToParts(now);
+        const y = parts.find((p) => p.type === 'year')?.value;
+        const m = parts.find((p) => p.type === 'month')?.value;
+        const d = parts.find((p) => p.type === 'day')?.value;
+        const h = parts.find((p) => p.type === 'hour')?.value;
+        if (y && m && d) localDateStr = `${y}-${m}-${d}`;
+        if (h !== undefined) localHour = parseInt(h, 10);
+      } catch {
+        // Fallback to UTC
+      }
+
+      const targetKey = sub.businessId && sub.businessId !== 'default' ? sub.businessId : sub.endpoint;
+      const lastSent = morningBriefsSentDate.get(targetKey) || morningBriefsSentDate.get(sub.endpoint);
+
+      // Skip if already sent for this local date (unless manually forced)
+      if (!force && lastSent === localDateStr) {
+        continue;
+      }
+
+      // Check morning delivery window:
+      // Deliver between 06:00 and 12:00 in subscriber's local timezone.
+      // If force is true, bypass the hour check.
+      if (!force && (localHour < 6 || localHour > 12)) {
         continue;
       }
 
@@ -257,48 +289,51 @@ export class PushNotificationService {
       let bizName = 'Your Business';
       let lowStockCount = 0;
 
-      try {
-        const { data: biz } = await serverSupabase
-          .from('businesses')
-          .select('name')
-          .eq('id', businessId)
-          .maybeSingle();
-        if (biz?.name) bizName = biz.name;
+      if (sub.businessId && sub.businessId !== 'default') {
+        try {
+          const { data: biz } = await serverSupabase
+            .from('businesses')
+            .select('name')
+            .eq('id', sub.businessId)
+            .maybeSingle();
+          if (biz?.name) bizName = biz.name;
 
-        const { data: prods } = await serverSupabase
-          .from('products')
-          .select('id, stock_quantity, minimum_stock_level')
-          .eq('business_id', businessId);
-        
-        if (prods && Array.isArray(prods)) {
-          lowStockCount = prods.filter(
-            (p) => (p.stock_quantity ?? 0) <= (p.minimum_stock_level ?? 5)
-          ).length;
+          const { data: prods } = await serverSupabase
+            .from('products')
+            .select('id, stock_quantity, minimum_stock_level')
+            .eq('business_id', sub.businessId);
+
+          if (prods && Array.isArray(prods)) {
+            lowStockCount = prods.filter(
+              (p) => (p.stock_quantity ?? 0) <= (p.minimum_stock_level ?? 5)
+            ).length;
+          }
+        } catch {
+          // Continue with defaults if Supabase is offline or in local demo mode
         }
-      } catch {
-        // Continue with defaults if Supabase is offline or in local demo mode
       }
 
       const body = lowStockCount > 0
         ? `Good morning! ${lowStockCount} item(s) require restock replenishment today. Tap to view your daily executive briefing.`
         : `Good morning! Your store is ready for trading. Tap to review cash collection targets and today's priorities.`;
 
-      const result = await this.sendToBusiness(businessId, {
+      const result = await this.sendToSubscription(sub, {
         title: `☀️ Morning Executive Brief: ${bizName}`,
         body,
         url: '/#/home',
-        tag: `morning-brief-${todayStr}`,
+        tag: `morning-brief-${localDateStr}`,
       });
 
-      if (result.sentCount > 0) {
-        dispatchedCount += result.sentCount;
-        morningBriefsSentDate.set(businessId, todayStr);
-        details.push(`Sent morning brief to ${bizName} (${result.sentCount} devices)`);
+      if (result.success) {
+        dispatchedCount++;
+        morningBriefsSentDate.set(targetKey, localDateStr);
+        morningBriefsSentDate.set(sub.endpoint, localDateStr);
+        details.push(`Sent morning brief to ${bizName} (${sub.endpoint.slice(-8)})`);
       }
     }
 
     return {
-      checkedCount: uniqueBusinessIds.size,
+      checkedCount: allSubs.length,
       dispatchedCount,
       details,
     };

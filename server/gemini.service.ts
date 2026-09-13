@@ -96,12 +96,14 @@ ${
 - Do not assume that one day of zero sales means the business has a cash-flow problem.
 - Do not recommend arbitrary discounts or spending amounts without supporting evidence.
 
-5. PRODUCT ACTIONS & CATALOG MANAGEMENT:
-- When the merchant asks to add, create, or restock a product (e.g. "Add 20 units of Milo" or "Add 50 bags of Cement at 4500 selling, 3800 cost"):
-  * Summarize the product name, unit of measure, quantity, and unit economics in a friendly, conversational response.
-  * In the JSON output, include the "proposedAction" object (category: "product_creation" or "inventory_restock", phaseStatus: "ready_for_execution").
-  * Inform the merchant they can confirm the addition with 1 click using the card below.
-  * DO NOT generate an unrelated full-business analysis report.
+5. ADVISOR IDENTITY — STRICTLY AN ADVISOR, NOT AN AUTONOMOUS AGENT:
+- You are a business advisor, financial analyst, and strategic mentor. You are NOT an autonomous execution agent.
+- DO NOT claim to perform autonomous actions, execute system tasks, or manipulate records on the user's behalf.
+- Never say "I will add this for you", "I have staged this for execution", or "Click below to confirm and execute".
+- When the merchant asks about adding a product, restocking, or adjusting prices (e.g. "Add 20 units of Milo" or "Add 50 bags of Cement"):
+  * Provide helpful advisory guidance on the unit economics, pricing strategy, and margin calculation.
+  * Clearly guide the merchant on how to record the product or adjustment in their **Inventory & Products** dashboard.
+  * Keep the tone supportive, professional, and consultative.
 
 6. OUTPUT FORMAT:
 Respond with a JSON object strictly adhering to this schema:
@@ -115,7 +117,7 @@ Respond with a JSON object strictly adhering to this schema:
       "id": "rec-1",
       "title": "Action Title",
       "reasoning": "Clear rationale",
-      "actionSuggestion": "Actionable step",
+      "actionSuggestion": "Actionable step for merchant to take in their store",
       "priority": "high" | "medium" | "low"
     }
   ],
@@ -123,15 +125,7 @@ Respond with a JSON object strictly adhering to this schema:
   "followUpSuggestions": [
     "User question or request 1",
     "User question or request 2"
-  ],
-  "proposedAction": {
-    "actionType": "create_product" | "create_inventory_adjustment",
-    "title": "Action Title",
-    "description": "Action Description",
-    "category": "product_creation" | "inventory_restock",
-    "phaseStatus": "ready_for_execution",
-    "payload": { ... }
-  }
+  ]
 }
 (Note: Include keyMetrics only if directly relevant to the question. Leave empty [] for greetings, navigation, or general concept explanations).
 
@@ -459,7 +453,6 @@ ${
         recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
         confidence: parsed.confidence || 'high_confidence',
         followUpSuggestions: GeminiService.sanitizeFollowUpSuggestions(parsed.followUpSuggestions),
-        proposedAction: parsed.proposedAction,
         responseSource: source,
         provider,
       };
@@ -773,25 +766,11 @@ ${
 
       if (isRestockOnly && existingProduct) {
         return {
-          answer: `I've prepared a stock adjustment for **${existingProduct.name}** to add **+${detectedQty} ${detectedUnit}**. This will increase your recorded stock from ${existingProduct.stock_quantity || 0} to **${(existingProduct.stock_quantity || 0) + detectedQty} ${detectedUnit}**.\n\nPlease confirm the adjustment below.`,
+          answer: `To restock **${existingProduct.name}** with **+${detectedQty} ${detectedUnit}**, open your **Inventory & Products** section and select **Restock / Adjust Quantity**. This will increase your recorded stock from ${existingProduct.stock_quantity || 0} to **${(existingProduct.stock_quantity || 0) + detectedQty} ${detectedUnit}**.`,
           keyMetrics: [
             { label: 'Adjustment Qty', value: detectedQty, formattedValue: `+${detectedQty} ${detectedUnit}`, trend: 'positive' },
             { label: 'Current Stock', value: existingProduct.stock_quantity || 0, formattedValue: `${existingProduct.stock_quantity || 0} ${detectedUnit}`, trend: 'neutral' },
           ],
-          proposedAction: {
-            actionType: 'create_inventory_adjustment',
-            title: `Restock: ${existingProduct.name}`,
-            description: `Add +${detectedQty} ${detectedUnit} to ${existingProduct.name}`,
-            category: 'inventory_restock',
-            phaseStatus: 'ready_for_execution',
-            payload: {
-              productId: existingProduct.id,
-              productName: existingProduct.name,
-              adjustmentQuantity: detectedQty,
-              unit_of_measure: detectedUnit,
-              reason: 'Restock via Ursella AI',
-            },
-          },
           confidence: 'high_confidence',
           responseSource: 'DETERMINISTIC_FALLBACK',
           provider: 'deterministic_fallback',
@@ -807,28 +786,12 @@ ${
       const marginPercent = sellingPrice > 0 && marginAmount > 0 ? Math.round((marginAmount / sellingPrice) * 100) : 0;
 
       return {
-        answer: `I've prepared the catalog registration for **${cleanProductName}** with an initial stock of **${detectedQty} ${detectedUnit}** at **${currency} ${sellingPrice.toLocaleString()}** selling price${costPrice > 0 ? ` (cost: ${currency} ${costPrice.toLocaleString()})` : ''}.${marginPercent > 0 ? ` This gives you a **${marginPercent}%** unit margin (${currency} ${marginAmount.toLocaleString()} profit per ${detectedUnit}).` : ''}\n\nYou can review the details and confirm the addition below.`,
+        answer: `To add **${cleanProductName}** to your catalog, go to **Inventory & Products** and tap **Add Product**. An initial stock of **${detectedQty} ${detectedUnit}** at **${currency} ${sellingPrice.toLocaleString()}** selling price${costPrice > 0 ? ` (cost: ${currency} ${costPrice.toLocaleString()})` : ''} yields a **${marginPercent}%** unit margin (${currency} ${marginAmount.toLocaleString()} profit per ${detectedUnit}).`,
         keyMetrics: [
           { label: 'Initial Stock', value: detectedQty, formattedValue: `${detectedQty} ${detectedUnit}`, trend: 'positive' },
           { label: 'Selling Price', value: sellingPrice, formattedValue: `${currency} ${sellingPrice.toLocaleString()}`, trend: 'neutral' },
           ...(marginPercent > 0 ? [{ label: 'Gross Margin', value: marginPercent, formattedValue: `${marginPercent}%`, trend: 'positive' as const }] : []),
         ],
-        proposedAction: {
-          actionType: 'create_product',
-          title: `Add Product: ${cleanProductName}`,
-          description: `Register ${cleanProductName} with initial stock of ${detectedQty} ${detectedUnit} at ${currency} ${sellingPrice.toLocaleString()}`,
-          category: 'product_creation',
-          phaseStatus: 'ready_for_execution',
-          payload: {
-            name: cleanProductName,
-            unit_of_measure: detectedUnit,
-            stock_quantity: detectedQty,
-            cost_price: costPrice,
-            selling_price: sellingPrice,
-            minimum_stock_level: 5,
-            description: 'Registered via Ursella AI',
-          },
-        },
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',

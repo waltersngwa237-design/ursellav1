@@ -13,54 +13,56 @@ const LOCAL_STORAGE_MESSAGES_KEY = 'ursella_ai_messages';
 
 export class AIService {
   /**
-   * Sends a user query to the Ursella AI engine via Supabase Edge Function (or local server proxy).
+   * Sends a user query to the Ursella AI engine via the full-stack server route.
    */
   public static async sendChatMessage(
     payload: AIChatRequestPayload
   ): Promise<AIChatResponsePayload> {
-    // 1. Try invoking the Supabase Edge Function 'ursella-ai' if configured (with 4s timeout)
-    if (isSupabaseConfigured && isValidUUID(payload.businessId)) {
-      try {
-        const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
-          setTimeout(() => resolve({ data: null, error: new Error('Edge function timeout') }), 4000)
-        );
-        const invokePromise = supabase.functions.invoke('ursella-ai', {
-          body: payload,
-        });
-        const { data: edgeData, error: edgeError } = await Promise.race([invokePromise, timeoutPromise]);
-
-        if (!edgeError && edgeData && edgeData.response) {
-          return edgeData as AIChatResponsePayload;
-        }
-        if (edgeError) {
-          console.warn('Supabase Edge Function invocation skipped or timed out, falling back to server route:', edgeError);
-        }
-      } catch (err) {
-        console.warn('Edge function invoke error, falling back to server route:', err);
+    try {
+      const session = isSupabaseConfigured ? (await supabase.auth.getSession()).data?.session : null;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      } else {
+        headers['x-ursella-demo'] = 'true';
       }
+
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `AI server responded with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data as AIChatResponsePayload;
+    } catch (err: any) {
+      console.error('[AIService] sendChatMessage error:', err);
+      // If network or server error, provide graceful in-app fallback
+      return {
+        conversationId: payload.conversationId || 'offline_fallback',
+        messageId: `msg_${Date.now()}`,
+        intent: 'general_business_question',
+        toolsUsed: [],
+        latencyMs: 50,
+        responseSource: 'DETERMINISTIC_FALLBACK',
+        response: {
+          answer: `I'm currently unable to reach the business intelligence service. Please check your internet connection or try again in a moment.`,
+          confidence: 'insufficient_data',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          keyMetrics: [],
+          recommendations: [],
+          followUpSuggestions: ['How are my sales today?', 'Which products are low on stock?'],
+        },
+      };
     }
-
-    // 2. Full-stack server proxy fallback
-    const session = isSupabaseConfigured ? (await supabase.auth.getSession()).data?.session : null;
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (session?.access_token) {
-      headers['Authorization'] = `Bearer ${session.access_token}`;
-    }
-
-    const response = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Server responded with status ${response.status}`);
-    }
-
-    return await response.json();
   }
 
   /**

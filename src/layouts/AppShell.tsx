@@ -371,6 +371,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                 onOpenMobileMenu: () => setIsMobileMenuOpen(true),
                 onOpenNotifications: () => setIsNotificationDrawerOpen(true),
                 onOpenFeedback: () => setIsFeedbackModalOpen(true),
+                unreadNotifCount,
               });
             }
             return child;

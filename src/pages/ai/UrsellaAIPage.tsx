@@ -32,6 +32,7 @@ import {
   MoreVertical,
   AlertTriangle,
   ChevronDown,
+  Bell,
 } from 'lucide-react';
 
 interface UrsellaAIPageProps {
@@ -40,6 +41,7 @@ interface UrsellaAIPageProps {
   onOpenMobileMenu?: () => void;
   onOpenNotifications?: () => void;
   onOpenFeedback?: () => void;
+  unreadNotifCount?: number;
 }
 
 // Module-level cache to guarantee prompt strings are never re-run multiple times across component unmounts/remounts
@@ -49,6 +51,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   initialPrompt,
   onPromptConsumed,
   onOpenMobileMenu,
+  onOpenNotifications,
+  onOpenFeedback,
+  unreadNotifCount = 0,
 }) => {
   const { user } = useAuth();
   const { activeBusiness, currency } = useBusiness();
@@ -471,7 +476,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           ).toLocaleTimeString()}):\n${m.content}\n`
       )
       .join('\n');
-    navigator.clipboard.writeText(transcript);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(transcript).catch(() => {});
+    }
     setCopiedTranscript(true);
     setTimeout(() => setCopiedTranscript(false), 2000);
     setShowOptionsMenu(false);
@@ -726,15 +733,15 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       <div className={`flex-1 flex flex-col min-w-0 h-full overflow-hidden relative ${
         isDark ? 'bg-zinc-950' : 'bg-slate-50'
       }`}>
-        {/* Full-Length Top Header (Reaches absolute top of viewport with high-contrast visibility) */}
+        {/* Top Header - Firmly pinned and integrated with notifications and feedback */}
         <header 
-          className={`px-3 sm:px-6 border-b flex items-center justify-between backdrop-blur-md shrink-0 z-30 transition-all ${
+          className={`sticky top-0 z-30 shrink-0 select-none px-3 sm:px-6 border-b flex items-center justify-between backdrop-blur-md transition-all ${
             isDark ? 'bg-zinc-950/95 border-zinc-800' : 'bg-white/95 border-slate-200 shadow-xs'
           }`}
           style={{
             paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))',
             paddingBottom: '0.5rem',
-            minHeight: 'calc(3.5rem + env(safe-area-inset-top, 0px))',
+            minHeight: '3.5rem',
           }}
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -831,6 +838,43 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">New Chat</span>
             </button>
+
+            {/* Beta Feedback Trigger */}
+            {onOpenFeedback && (
+              <button
+                onClick={onOpenFeedback}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                  isDark 
+                    ? 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-300 hover:text-zinc-100' 
+                    : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 shadow-2xs'
+                }`}
+                title="Send Beta Feedback"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="hidden lg:inline">Feedback</span>
+              </button>
+            )}
+
+            {/* Notification Center Trigger */}
+            {onOpenNotifications && (
+              <button
+                onClick={onOpenNotifications}
+                className={`relative p-2 rounded-lg border transition-colors ${
+                  isDark 
+                    ? 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-300 hover:text-zinc-100' 
+                    : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 shadow-2xs'
+                }`}
+                title="Notifications"
+                aria-label="Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadNotifCount > 0 && (
+                  <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[10px] font-bold">
+                    {unreadNotifCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* Chat Options Dropdown */}
             <div className="relative" ref={optionsMenuRef}>

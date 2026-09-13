@@ -178,12 +178,14 @@ export class PushClientService {
       }
 
       // 4. Send subscription to server
+      const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       const response = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: await this.getAuthHeaders(),
         body: JSON.stringify({
           businessId,
           subscription: subscription.toJSON(),
+          timezone: clientTimezone,
         }),
       });
 
