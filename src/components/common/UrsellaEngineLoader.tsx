@@ -44,7 +44,7 @@ export const UrsellaEngineLoader: React.FC<UrsellaEngineLoaderProps> = ({
       >
         <div className="relative flex items-center justify-center w-28 h-28 sm:w-32 sm:h-32 mb-8">
           <div
-            className="absolute inset-0 rounded-full bg-emerald-500/15 blur-2xl pointer-events-none transition-opacity duration-1000 animate-pulse"
+            className="absolute inset-0 rounded-full bg-blue-600/20 blur-2xl pointer-events-none transition-opacity duration-1000 animate-pulse"
             style={{ animationDuration: '3s' }}
           />
 
@@ -58,7 +58,7 @@ export const UrsellaEngineLoader: React.FC<UrsellaEngineLoaderProps> = ({
               cx="36"
               cy="36"
               r="33"
-              stroke={isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(5, 150, 105, 0.3)'}
+              stroke={isDark ? 'rgba(37, 99, 235, 0.25)' : 'rgba(29, 78, 216, 0.3)'}
               strokeWidth="1.5"
               strokeDasharray="18 42"
               strokeLinecap="round"
@@ -67,7 +67,7 @@ export const UrsellaEngineLoader: React.FC<UrsellaEngineLoaderProps> = ({
               cx="36"
               cy="36"
               r="33"
-              stroke={isDark ? 'rgba(52, 211, 153, 0.6)' : 'rgba(16, 185, 129, 0.7)'}
+              stroke={isDark ? 'rgba(56, 189, 248, 0.7)' : 'rgba(37, 99, 235, 0.8)'}
               strokeWidth="2"
               strokeDasharray="6 96"
               strokeLinecap="round"
@@ -92,8 +92,8 @@ export const UrsellaEngineLoader: React.FC<UrsellaEngineLoaderProps> = ({
           <div
             className={`absolute inset-y-0 w-1/3 rounded-full ursella-loading-beam ${
               isDark
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                : 'bg-gradient-to-r from-emerald-600 to-teal-500'
+                ? 'bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-400'
+                : 'bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500'
             }`}
           />
         </div>

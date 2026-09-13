@@ -1,14 +1,14 @@
 import React, { useId } from 'react';
 
 export type LogoVariant = 'full' | 'symbol' | 'wordmark' | 'compact' | 'badge' | 'ai-symbol' | 'ai-badge';
-export type LogoTheme = 'default' | 'purple' | 'ai' | 'light' | 'mono-white' | 'mono-black';
+export type LogoTheme = 'default' | 'blue' | 'purple' | 'ai' | 'light' | 'mono-white' | 'mono-black';
 export type LogoSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 
-interface UrsellaLogoProps {
+export interface UrsellaLogoProps {
   variant?: LogoVariant;
   theme?: LogoTheme;
   size?: LogoSize;
-  showText?: boolean; // legacy compatibility
+  showText?: boolean;
   showBetaBadge?: boolean;
   tagline?: string;
   className?: string;
@@ -19,10 +19,153 @@ interface UrsellaLogoProps {
   'aria-label'?: string;
 }
 
+export interface UrsellaGlyphProps {
+  sizeClass?: string;
+  theme?: 'default' | 'light' | 'mono-white' | 'mono-black' | 'glow';
+  className?: string;
+  isAnimated?: boolean;
+  width?: number | string;
+  height?: number | string;
+  'aria-label'?: string;
+}
+
+/**
+ * UrsellaAIGlyph
+ * 
+ * Distinctive four-point geometric intelligence diamond/spark.
+ * Represents the AI Advisor intelligence layer inside the Ursella platform.
+ * Clean, modern, futuristic, and recognizable at 16–24px.
+ */
+export const UrsellaAIGlyph: React.FC<UrsellaGlyphProps> = ({
+  sizeClass = 'w-5 h-5',
+  theme = 'default',
+  className = '',
+  isAnimated = false,
+  width,
+  height,
+  'aria-label': ariaLabel = 'Ursella AI Advisor',
+}) => {
+  const rawId = useId();
+  const uid = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const aiGradPriId = `ur_ai_pri_${uid}`;
+  const aiGradSecId = `ur_ai_sec_${uid}`;
+  const aiGlowId = `ur_ai_glow_${uid}`;
+
+  const isMonoWhite = theme === 'mono-white';
+  const isMonoBlack = theme === 'mono-black';
+  const isLight = theme === 'light';
+
+  const dimensionStyle: React.CSSProperties = {};
+  if (width) dimensionStyle.width = width;
+  if (height) dimensionStyle.height = height;
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={`${sizeClass} shrink-0 block transition-transform duration-200 ${isAnimated ? 'ursella-ai-pulse' : ''} ${className}`}
+      style={dimensionStyle}
+      role="img"
+      aria-label={ariaLabel}
+    >
+      <defs>
+        {isMonoWhite ? (
+          <>
+            <linearGradient id={aiGradPriId} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="100%" stopColor="#E2E8F0" />
+            </linearGradient>
+            <linearGradient id={aiGradSecId} x1="22" y1="2" x2="2" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#E2E8F0" />
+              <stop offset="100%" stopColor="#CBD5E1" />
+            </linearGradient>
+          </>
+        ) : isMonoBlack ? (
+          <>
+            <linearGradient id={aiGradPriId} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#334155" />
+              <stop offset="100%" stopColor="#0F172A" />
+            </linearGradient>
+            <linearGradient id={aiGradSecId} x1="22" y1="2" x2="2" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#1E293B" />
+              <stop offset="100%" stopColor="#020617" />
+            </linearGradient>
+          </>
+        ) : isLight ? (
+          <>
+            <linearGradient id={aiGradPriId} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#0284C7" />
+              <stop offset="50%" stopColor="#2563EB" />
+              <stop offset="100%" stopColor="#1D4ED8" />
+            </linearGradient>
+            <linearGradient id={aiGradSecId} x1="22" y1="2" x2="2" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#38BDF8" />
+              <stop offset="60%" stopColor="#1D4ED8" />
+              <stop offset="100%" stopColor="#0F172A" />
+            </linearGradient>
+          </>
+        ) : (
+          <>
+            <linearGradient id={aiGradPriId} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#38BDF8" />
+              <stop offset="45%" stopColor="#2563EB" />
+              <stop offset="100%" stopColor="#1D4ED8" />
+            </linearGradient>
+            <linearGradient id={aiGradSecId} x1="22" y1="2" x2="2" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#60A5FA" />
+              <stop offset="55%" stopColor="#1E40AF" />
+              <stop offset="100%" stopColor="#0F172A" />
+            </linearGradient>
+          </>
+        )}
+        <filter id={aiGlowId} x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow
+            dx="0"
+            dy="1"
+            stdDeviation="1.5"
+            floodColor={isMonoBlack || isMonoWhite ? '#000000' : '#38BDF8'}
+            floodOpacity={isMonoBlack || isMonoWhite ? 0 : 0.45}
+          />
+        </filter>
+      </defs>
+
+      <g filter={`url(#${aiGlowId})`}>
+        {/* Primary Left/Upper Intelligence Facet */}
+        <path
+          d="M12 2 C12 7.2 7.8 11.5 2.5 12 C7.8 12.5 12 16.8 12 22 L12 12 Z"
+          fill={`url(#${aiGradPriId})`}
+        />
+
+        {/* Primary Right/Lower Facet with Dimensional Contrast */}
+        <path
+          d="M12 2 L12 22 C12 16.8 16.2 12.5 21.5 12 C16.2 11.5 12 7.2 12 2 Z"
+          fill={`url(#${aiGradSecId})`}
+        />
+
+        {/* Center Luminous Intelligence Aperture */}
+        <path
+          d="M12 8.5 L14.8 12 L12 15.5 L9.2 12 Z"
+          fill={isMonoWhite ? '#FFFFFF' : isMonoBlack ? '#0F172A' : '#E0F2FE'}
+          opacity={0.92}
+        />
+
+        {/* Orbiting Satellite Insight Spark */}
+        <path
+          d="M19 3 C19 4.3 17.7 5.5 16.5 5.5 C17.7 5.5 19 6.7 19 8 C19 6.7 20.3 5.5 21.5 5.5 C20.3 5.5 19 4.3 19 3 Z"
+          fill={isMonoWhite ? '#FFFFFF' : isMonoBlack ? '#334155' : '#38BDF8'}
+          opacity={0.88}
+        />
+      </g>
+    </svg>
+  );
+};
+
 /**
  * UrsellaSymbolMark
  * 
- * Central symbol mark representing the Ursella intelligence core.
+ * Canonical Ursella brand symbol: An abstract interwoven ribbon-style U-shaped emblem.
+ * Clean, geometric, mature, technical, and engineered for a serious business operating system.
  */
 export const UrsellaSymbolMark: React.FC<{
   sizeClass?: string;
@@ -41,35 +184,43 @@ export const UrsellaSymbolMark: React.FC<{
   height,
   'aria-label': ariaLabel = 'Ursella Mark',
 }) => {
+  // If the caller requested an AI theme, route directly to the dedicated AI Advisor glyph
+  if (theme === 'ai' || theme === 'purple') {
+    return (
+      <UrsellaAIGlyph
+        sizeClass={sizeClass}
+        theme="default"
+        className={className}
+        isAnimated={isAnimated}
+        width={width}
+        height={height}
+        aria-label={ariaLabel}
+      />
+    );
+  }
+
   const isMonoWhite = theme === 'mono-white';
   const isMonoBlack = theme === 'mono-black';
-  const isAiTheme = theme === 'ai' || theme === 'purple';
   const isLight = theme === 'light';
 
   const rawId = useId();
   const uid = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const gradPrimaryId = `ur_grad_pri_${uid}`;
-  const gradCoreId = `ur_grad_core_${uid}`;
+  const ribbonLeftGradId = `ur_ribbon_l_${uid}`;
+  const ribbonRightGradId = `ur_ribbon_r_${uid}`;
+  const ribbonFoldGradId = `ur_ribbon_f_${uid}`;
+  const ribbonShadowId = `ur_ribbon_s_${uid}`;
   const glowFilterId = `ur_glow_${uid}`;
 
   const dimensionStyle: React.CSSProperties = {};
   if (width) dimensionStyle.width = width;
   if (height) dimensionStyle.height = height;
 
-  const nodeFillColor = isMonoWhite
-    ? '#FFFFFF'
-    : isMonoBlack
-    ? '#09090B'
-    : isAiTheme
-    ? '#C7D2FE'
-    : '#A7F3D0';
-
   return (
     <svg
       viewBox="0 0 32 32"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`${sizeClass} shrink-0 block transition-transform duration-200 ${className}`}
+      className={`${sizeClass} shrink-0 block transition-transform duration-200 ${isAnimated ? 'ursella-symbol-pulse' : ''} ${className}`}
       style={dimensionStyle}
       role="img"
       aria-label={ariaLabel}
@@ -77,60 +228,68 @@ export const UrsellaSymbolMark: React.FC<{
       <defs>
         {isMonoWhite ? (
           <>
-            <linearGradient id={gradPrimaryId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id={ribbonLeftGradId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="100%" stopColor="#E4E4E7" />
+              <stop offset="100%" stopColor="#CBD5E1" />
             </linearGradient>
-            <linearGradient id={gradCoreId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="100%" stopColor="#D4D4D8" />
+            <linearGradient id={ribbonRightGradId} x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#E2E8F0" />
+              <stop offset="100%" stopColor="#94A3B8" />
+            </linearGradient>
+            <linearGradient id={ribbonFoldGradId} x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#F8FAFC" />
+              <stop offset="100%" stopColor="#CBD5E1" />
             </linearGradient>
           </>
         ) : isMonoBlack ? (
           <>
-            <linearGradient id={gradPrimaryId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#27272A" />
-              <stop offset="100%" stopColor="#09090B" />
+            <linearGradient id={ribbonLeftGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#334155" />
+              <stop offset="100%" stopColor="#0F172A" />
             </linearGradient>
-            <linearGradient id={gradCoreId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#3F3F46" />
-              <stop offset="100%" stopColor="#18181B" />
+            <linearGradient id={ribbonRightGradId} x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#1E293B" />
+              <stop offset="100%" stopColor="#020617" />
             </linearGradient>
-          </>
-        ) : isAiTheme ? (
-          <>
-            <linearGradient id={gradPrimaryId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#818CF8" />
-              <stop offset="45%" stopColor="#6366F1" />
-              <stop offset="100%" stopColor="#4F46E5" />
-            </linearGradient>
-            <linearGradient id={gradCoreId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#E0E7FF" />
-              <stop offset="100%" stopColor="#818CF8" />
+            <linearGradient id={ribbonFoldGradId} x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#475569" />
+              <stop offset="100%" stopColor="#1E293B" />
             </linearGradient>
           </>
         ) : isLight ? (
           <>
-            <linearGradient id={gradPrimaryId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#10B981" />
-              <stop offset="60%" stopColor="#059669" />
-              <stop offset="100%" stopColor="#047857" />
+            <linearGradient id={ribbonLeftGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#0284C7" />
+              <stop offset="40%" stopColor="#2563EB" />
+              <stop offset="100%" stopColor="#1D4ED8" />
             </linearGradient>
-            <linearGradient id={gradCoreId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#34D399" />
-              <stop offset="100%" stopColor="#10B981" />
+            <linearGradient id={ribbonRightGradId} x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#38BDF8" />
+              <stop offset="45%" stopColor="#1E40AF" />
+              <stop offset="100%" stopColor="#0F172A" />
+            </linearGradient>
+            <linearGradient id={ribbonFoldGradId} x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#06B6D4" />
+              <stop offset="50%" stopColor="#2563EB" />
+              <stop offset="100%" stopColor="#38BDF8" />
             </linearGradient>
           </>
         ) : (
           <>
-            <linearGradient id={gradPrimaryId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#34D399" />
-              <stop offset="45%" stopColor="#10B981" />
-              <stop offset="100%" stopColor="#059669" />
+            <linearGradient id={ribbonLeftGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#38BDF8" />
+              <stop offset="35%" stopColor="#2563EB" />
+              <stop offset="100%" stopColor="#1D4ED8" />
             </linearGradient>
-            <linearGradient id={gradCoreId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#A7F3D0" />
-              <stop offset="100%" stopColor="#34D399" />
+            <linearGradient id={ribbonRightGradId} x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#60A5FA" />
+              <stop offset="45%" stopColor="#1E40AF" />
+              <stop offset="100%" stopColor="#0F172A" />
+            </linearGradient>
+            <linearGradient id={ribbonFoldGradId} x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#06B6D4" />
+              <stop offset="50%" stopColor="#2563EB" />
+              <stop offset="100%" stopColor="#38BDF8" />
             </linearGradient>
           </>
         )}
@@ -139,53 +298,46 @@ export const UrsellaSymbolMark: React.FC<{
             dx="0"
             dy="1.5"
             stdDeviation="1.5"
-            floodColor={isAiTheme ? '#6366F1' : '#10B981'}
-            floodOpacity={isMonoBlack || isMonoWhite ? 0 : 0.35}
+            floodColor="#2563EB"
+            floodOpacity={isMonoBlack || isMonoWhite ? 0 : 0.38}
           />
         </filter>
       </defs>
+
       <g filter={`url(#${glowFilterId})`}>
-        <g className={isAnimated ? 'ursella-part-mantle' : ''}>
-          <path
-            d="M10.8 11.8 C10.8 6.6 13.1 4.5 16 4.5 C18.9 4.5 21.2 6.6 21.2 11.8 C21.2 14.2 19.8 16 16 16 C12.2 16 10.8 14.2 10.8 11.8 Z"
-            fill={`url(#${gradPrimaryId})`}
-          />
-          <path
-            d="M16 7.5 L18.4 9.9 L16 12.3 L13.6 9.9 Z"
-            fill={`url(#${gradCoreId})`}
-          />
-          <circle cx="16" cy="9.9" r="0.75" fill="#FFFFFF" opacity="0.95" />
-        </g>
+        {/* 1. Right Ribbon Strand: Underweave Loop curving across base */}
         <path
-          d="M11 9 C7.5 9.5 4.5 12 4.5 15.5 C4.5 19 6.8 21.5 8 21.5 C9.2 21.5 9.5 20.2 9 19 C8.2 17.2 7 15.8 7 14.2 C7 12.5 9.2 11 11.8 10.5 Z"
-          fill={`url(#${gradPrimaryId})`}
-          className={isAnimated ? 'ursella-part-tentacle ursella-t1' : ''}
+          d="M22 4 C22 3.45 22.45 3 23 3 H26 C26.55 3 27 3.45 27 4 V18 C27 23.5 22.5 28 16 28 C12.8 28 9.8 26.5 7.8 24.2 L11.2 20.8 C12.4 22.2 14.1 23 16 23 C19.3 23 22 20.3 22 17 V4 Z"
+          fill={`url(#${ribbonRightGradId})`}
         />
+
+        {/* 2. Optical Under-Weave Depth Shadow */}
         <path
-          d="M21 9 C24.5 9.5 27.5 12 27.5 15.5 C27.5 19 25.2 21.5 24 21.5 C22.8 21.5 22.5 20.2 23 19 C23.8 17.2 25 15.8 25 14.2 C25 12.5 22.8 11 20.2 10.5 Z"
-          fill={`url(#${gradPrimaryId})`}
-          className={isAnimated ? 'ursella-part-tentacle ursella-t5' : ''}
+          d="M12.8 22.2 C13.7 23 14.8 23.4 16 23.4 L17.2 20.2 C16.2 20.2 15.2 19.8 14.4 19.2 Z"
+          fill="#0B132B"
+          opacity={isMonoBlack || isMonoWhite ? 0.3 : 0.8}
         />
+
+        {/* 3. Left Ribbon Strand: Main Foreground Loop */}
         <path
-          d="M12.5 13.5 C10.2 14.8 7.8 17.5 7.8 21 C7.8 24.2 10 26.5 11.5 26.5 C12.8 26.5 13.2 25 12.5 23.8 C11.5 22 10.2 20.5 10.2 19 C10.2 17.2 11.8 15.8 13.8 14.8 Z"
-          fill={`url(#${gradPrimaryId})`}
-          className={isAnimated ? 'ursella-part-tentacle ursella-t2' : ''}
+          d="M5 4 C5 3.45 5.45 3 6 3 H9 C9.55 3 10 3.45 10 4 V17 C10 20.3 12.7 23 16 23 C17.8 23 19.4 22.2 20.5 20.9 L23.8 24.2 C21.8 26.5 19.1 28 16 28 C9.5 28 5 23.5 5 18 V4 Z"
+          fill={`url(#${ribbonLeftGradId})`}
         />
+
+        {/* 4. Upper Interlocking Crest Ribbon Fold */}
         <path
-          d="M19.5 13.5 C21.8 14.8 24.2 17.5 24.2 21 C24.2 24.2 22 26.5 20.5 26.5 C19.2 26.5 18.8 25 19.5 23.8 C20.5 22 21.8 20.5 21.8 19 C21.8 17.2 20.2 15.8 18.2 14.8 Z"
-          fill={`url(#${gradPrimaryId})`}
-          className={isAnimated ? 'ursella-part-tentacle ursella-t4' : ''}
+          d="M10 13.5 C10 11.2 12.4 9.2 16 9.2 C19.6 9.2 22 11.2 22 13.5 L19.8 14.6 C19.8 13.2 18.2 11.8 16 11.8 C13.8 11.8 12.2 13.2 12.2 14.6 Z"
+          fill={`url(#${ribbonFoldGradId})`}
         />
-        <path
-          d="M14.2 15.2 C13 16.8 12.5 19.5 12.5 22.5 C12.5 25.8 14.2 27.5 16 27.5 C17.8 27.5 19.5 25.8 19.5 22.5 C19.5 19.5 19 16.8 17.8 15.2 C16.9 15.8 15.1 15.8 14.2 15.2 Z"
-          fill={`url(#${gradPrimaryId})`}
-          className={isAnimated ? 'ursella-part-tentacle ursella-t3' : ''}
+
+        {/* 5. Central Luminous Core Focal Node */}
+        <circle
+          cx="16"
+          cy="15.5"
+          r="1"
+          fill={isMonoWhite ? '#FFFFFF' : isMonoBlack ? '#0F172A' : '#E0F2FE'}
+          opacity={0.95}
         />
-        <circle cx="8" cy="21.5" r="0.75" fill={nodeFillColor} className={isAnimated ? 'ursella-node ursella-n1' : ''} />
-        <circle cx="11.5" cy="26.5" r="0.75" fill={nodeFillColor} className={isAnimated ? 'ursella-node ursella-n2' : ''} />
-        <circle cx="16" cy="27.5" r="0.75" fill={nodeFillColor} className={isAnimated ? 'ursella-node ursella-n3' : ''} />
-        <circle cx="20.5" cy="26.5" r="0.75" fill={nodeFillColor} className={isAnimated ? 'ursella-node ursella-n4' : ''} />
-        <circle cx="24" cy="21.5" r="0.75" fill={nodeFillColor} className={isAnimated ? 'ursella-node ursella-n5' : ''} />
       </g>
     </svg>
   );
@@ -272,8 +424,26 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
       ? 'text-zinc-500'
       : 'text-zinc-400';
 
-  if (activeVariant === 'symbol' || activeVariant === 'ai-symbol') {
-    const symbolTheme = activeVariant === 'ai-symbol' ? 'ai' : theme;
+  if (activeVariant === 'ai-symbol') {
+    return (
+      <div
+        className={`inline-flex items-center justify-center select-none ${className}`}
+        onClick={onClick}
+        role="img"
+        aria-label={ariaLabel || 'Ursella AI Advisor'}
+      >
+        <UrsellaAIGlyph
+          sizeClass={currentSize.symbol}
+          theme={theme === 'mono-white' ? 'mono-white' : theme === 'mono-black' ? 'mono-black' : 'default'}
+          isAnimated={isAnimated}
+          width={width}
+          height={height}
+        />
+      </div>
+    );
+  }
+
+  if (activeVariant === 'symbol') {
     return (
       <div
         className={`inline-flex items-center justify-center select-none ${className}`}
@@ -283,7 +453,7 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
       >
         <UrsellaSymbolMark
           sizeClass={currentSize.symbol}
-          theme={symbolTheme}
+          theme={theme}
           isAnimated={isAnimated}
           width={width}
           height={height}
@@ -292,16 +462,37 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
     );
   }
 
-  if (activeVariant === 'badge' || activeVariant === 'ai-badge') {
-    const isAi = activeVariant === 'ai-badge' || theme === 'ai' || theme === 'purple';
+  if (activeVariant === 'ai-badge') {
     const badgeStyle =
       theme === 'mono-black'
         ? 'bg-zinc-100 border border-zinc-300'
         : theme === 'light'
-        ? 'bg-white border border-zinc-200 shadow-sm'
-        : isAi
-        ? 'bg-zinc-900/90 border border-indigo-500/30 shadow-md shadow-indigo-950/50'
-        : 'bg-zinc-900/90 border border-emerald-500/20 shadow-md shadow-emerald-950/40';
+        ? 'bg-white border border-sky-200 shadow-sm'
+        : 'bg-zinc-900/90 border border-sky-500/30 shadow-md shadow-sky-950/50';
+
+    return (
+      <div
+        className={`inline-flex items-center justify-center select-none ${badgeStyle} ${currentSize.badge} ${className}`}
+        onClick={onClick}
+        role="img"
+        aria-label={ariaLabel || 'Ursella AI Advisor Badge'}
+      >
+        <UrsellaAIGlyph
+          sizeClass="w-full h-full"
+          theme={theme === 'mono-white' ? 'mono-white' : theme === 'mono-black' ? 'mono-black' : 'default'}
+          isAnimated={isAnimated}
+        />
+      </div>
+    );
+  }
+
+  if (activeVariant === 'badge') {
+    const badgeStyle =
+      theme === 'mono-black'
+        ? 'bg-zinc-100 border border-zinc-300'
+        : theme === 'light'
+        ? 'bg-white border border-blue-200 shadow-sm'
+        : 'bg-zinc-900/90 border border-blue-500/30 shadow-md shadow-blue-950/40';
 
     return (
       <div
@@ -312,7 +503,7 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
       >
         <UrsellaSymbolMark
           sizeClass="w-full h-full"
-          theme={isAi ? 'ai' : theme}
+          theme={theme}
           isAnimated={isAnimated}
         />
       </div>
@@ -329,7 +520,7 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
       >
         <span className={`font-sans tracking-tight ${currentSize.text}`}>Ursella</span>
         {showBetaBadge && (
-          <span className="ml-2 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+          <span className="ml-2 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-300 border border-blue-500/20">
             beta
           </span>
         )}
@@ -345,7 +536,7 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
         role="img"
         aria-label={ariaLabel || 'Ursella'}
       >
-        <div className="p-2.5 rounded-2xl bg-zinc-900/90 border border-emerald-500/20 shadow-lg shadow-emerald-950/30 mb-2">
+        <div className="p-2.5 rounded-2xl bg-zinc-900/90 border border-blue-500/25 shadow-lg shadow-blue-950/40 mb-2">
           <UrsellaSymbolMark
             sizeClass={currentSize.symbol}
             theme={theme}
@@ -357,7 +548,7 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
         <div className="flex items-center gap-1.5">
           <span className={`font-sans ${textColor} ${currentSize.text}`}>Ursella</span>
           {showBetaBadge && (
-            <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+            <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-300 border border-blue-500/20">
               beta
             </span>
           )}
@@ -394,7 +585,7 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
             Ursella
           </span>
           {showBetaBadge && (
-            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 leading-none">
+            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-300 border border-blue-500/20 leading-none">
               beta
             </span>
           )}

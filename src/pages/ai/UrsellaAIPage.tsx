@@ -11,7 +11,7 @@ import {
 import { AIMessageCard } from '../../components/ai/AIMessageCard.tsx';
 import { SuggestedPromptChips } from '../../components/ai/SuggestedPromptChips.tsx';
 import { DailyBriefModal } from '../../components/ai/DailyBriefModal.tsx';
-import { UrsellaSymbolMark } from '../../components/common/UrsellaLogo.tsx';
+import { UrsellaSymbolMark, UrsellaAIGlyph } from '../../components/common/UrsellaLogo.tsx';
 import {
   Sparkles,
   Send,
@@ -781,9 +781,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
             {/* Active Chat Title: Ursella AI */}
             <div className="flex items-center gap-2.5 min-w-0">
               <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 shadow-xs ${
-                isDark ? 'bg-zinc-900 border-indigo-500/25' : 'bg-indigo-50 border-indigo-200'
+                isDark ? 'bg-zinc-900 border-sky-500/30 shadow-sky-950/30' : 'bg-sky-50 border-sky-200'
               }`}>
-                <UrsellaSymbolMark sizeClass="w-4 h-4 sm:w-4.5 sm:h-4.5" theme="ai" />
+                <UrsellaAIGlyph sizeClass="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
@@ -910,10 +910,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
               <div className="text-center space-y-2">
                 <div className={`inline-flex p-3 sm:p-3.5 rounded-2xl border shadow-lg mb-2 ${
                   isDark 
-                    ? 'bg-zinc-900 border-indigo-500/25 shadow-indigo-950/40' 
-                    : 'bg-white border-indigo-200 shadow-indigo-100/50'
+                    ? 'bg-zinc-900 border-sky-500/30 shadow-sky-950/40' 
+                    : 'bg-white border-sky-200 shadow-sky-100/50'
                 }`}>
-                  <UrsellaSymbolMark sizeClass="w-8 h-8 sm:w-10 sm:h-10" theme="ai" />
+                  <UrsellaAIGlyph sizeClass="w-8 h-8 sm:w-10 sm:h-10" />
                 </div>
                 <h2 className={`text-xl sm:text-2xl font-bold tracking-tight ${
                   isDark ? 'text-white' : 'text-slate-900'
@@ -965,16 +965,16 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
             {loading && (
               <div className="flex items-start gap-2.5 sm:gap-3.5 my-3 sm:my-5">
                 <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border flex items-center justify-center shrink-0 shadow-xs mt-0.5 ${
-                  isDark ? 'bg-zinc-900 border-indigo-500/25' : 'bg-white border-indigo-200'
+                  isDark ? 'bg-zinc-900 border-sky-500/30 shadow-sky-950/30' : 'bg-white border-sky-200'
                 }`}>
-                  <UrsellaSymbolMark sizeClass="w-4 h-4 sm:w-4.5 sm:h-4.5" theme="ai" isAnimated={true} />
+                  <UrsellaAIGlyph sizeClass="w-4 h-4 sm:w-4.5 sm:h-4.5" isAnimated={true} />
                 </div>
                 <div className={`rounded-2xl rounded-tl-xs px-4 py-3 text-xs flex items-center gap-2 shadow-xs border ${
                   isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-300' : 'bg-white border-slate-200 text-slate-700 shadow-sm'
                 }`}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-bounce" style={{ animationDelay: '300ms' }} />
                   <span className={`text-xs ml-1 font-medium ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
                     Ursella is thinking...
                   </span>

@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext.tsx';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
 import type { AppNavRoute } from '../../types/index.ts';
-import { UrsellaLogo } from '../common/UrsellaLogo.tsx';
+import { UrsellaLogo, UrsellaAIGlyph } from '../common/UrsellaLogo.tsx';
 import { BusinessSwitcher } from '../business/BusinessSwitcher.tsx';
 import { ThemeToggle } from '../common/ThemeToggle.tsx';
 import {
@@ -88,7 +88,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
     {
       title: 'AI & Intelligence',
       items: [
-        { route: 'ai' as AppNavRoute, label: 'Ursella AI Advisor', icon: <Sparkles className="w-5 h-5 text-amber-400" />, desc: 'Voice & text business strategist', badge: 'AI' },
+        { route: 'ai' as AppNavRoute, label: 'Ursella AI Advisor', icon: <UrsellaAIGlyph sizeClass="w-5 h-5" />, desc: 'Voice & text business strategist', badge: 'AI' },
         { route: 'insights' as AppNavRoute, label: 'Proactive Intelligence', icon: <Activity className="w-5 h-5 text-indigo-400" />, desc: 'Live alerts, dead-stock & margin audit', badge: 'Live' },
         { route: 'analytics' as AppNavRoute, label: 'Sales & Analytics', icon: <BarChart3 className="w-5 h-5 text-emerald-400" />, desc: 'Revenue velocity & margin trends' },
         { route: 'reports' as AppNavRoute, label: 'Financial & Tax Reports', icon: <FileText className="w-5 h-5 text-teal-400" />, desc: 'P&L, Cash Flow, and Tax estimates' },
@@ -173,12 +173,12 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
                       onClick={() => handleItemClick(item.route)}
                       className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all ${
                         isActive
-                          ? 'bg-emerald-600/15 text-emerald-300 border border-emerald-500/30'
+                          ? 'bg-blue-600/15 text-blue-200 border border-blue-500/30'
                           : 'text-zinc-300 hover:bg-zinc-800/70 hover:text-white'
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className={`p-2 rounded-lg ${isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-zinc-800 text-zinc-400'}`}>
+                        <div className={`p-2 rounded-lg ${isActive ? 'bg-blue-500/20 text-blue-300' : 'bg-zinc-800 text-zinc-400'}`}>
                           {item.icon}
                         </div>
                         <div className="min-w-0">
@@ -195,7 +195,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
                           </p>
                         </div>
                       </div>
-                      <ChevronRight className={`w-4 h-4 shrink-0 ${isActive ? 'text-emerald-400' : 'text-zinc-600'}`} />
+                      <ChevronRight className={`w-4 h-4 shrink-0 ${isActive ? 'text-blue-400' : 'text-zinc-600'}`} />
                     </button>
                   );
                 })}

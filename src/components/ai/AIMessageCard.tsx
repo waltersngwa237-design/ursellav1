@@ -7,7 +7,7 @@ import { ProactiveService } from '../../services/proactive.service.ts';
 import {
   type AIChatMessage,
 } from '../../types/ai.ts';
-import { UrsellaSymbolMark } from '../common/UrsellaLogo.tsx';
+import { UrsellaSymbolMark, UrsellaAIGlyph } from '../common/UrsellaLogo.tsx';
 import { sanitizeFollowUpSuggestions } from '../../utils/ai-prompt.utils.ts';
 import {
   Check,
@@ -135,9 +135,9 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
     <div id={`msg-${message.id}`} className="group flex items-start gap-2.5 sm:gap-3.5 my-3 sm:my-5 w-full min-w-0 scroll-mt-6">
       {/* Bot Avatar */}
       <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border flex items-center justify-center shrink-0 shadow-xs mt-0.5 ${
-        isDark ? 'bg-zinc-900 border-indigo-500/25' : 'bg-white border-indigo-200'
+        isDark ? 'bg-zinc-900 border-sky-500/30 shadow-xs shadow-sky-950/30' : 'bg-white border-sky-200'
       }`}>
-        <UrsellaSymbolMark sizeClass="w-4 h-4 sm:w-4.5 sm:h-4.5" theme="ai" />
+        <UrsellaAIGlyph sizeClass="w-4 h-4 sm:w-4.5 sm:h-4.5" />
       </div>
 
       <div className="flex-1 min-w-0 space-y-2.5">

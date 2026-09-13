@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext.tsx';
 import { useBusiness } from '../contexts/BusinessContext.tsx';
 import { useTheme } from '../contexts/ThemeContext.tsx';
 import { type AppNavRoute } from '../types/index.ts';
-import { UrsellaLogo, UrsellaSymbolMark } from '../components/common/UrsellaLogo.tsx';
+import { UrsellaLogo, UrsellaSymbolMark, UrsellaAIGlyph } from '../components/common/UrsellaLogo.tsx';
 import { BusinessSwitcher } from '../components/business/BusinessSwitcher.tsx';
 import { Modal } from '../components/common/Modal.tsx';
 import { OnboardingPage } from '../pages/onboarding/OnboardingPage.tsx';
@@ -158,7 +158,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     { route: 'home', label: 'Home', icon: <Home className="w-5 h-5" /> },
     { route: 'sell', label: 'Sell / POS', icon: <ShoppingCart className="w-5 h-5" /> },
     { route: 'insights', label: 'Proactive AI', icon: <Activity className="w-5 h-5 text-indigo-400" /> },
-    { route: 'ai', label: 'AI Advisor', icon: <UrsellaSymbolMark sizeClass="w-5 h-5" theme="ai" /> },
+    { route: 'ai', label: 'AI Advisor', icon: <UrsellaAIGlyph sizeClass="w-5 h-5" /> },
     { route: 'analytics', label: 'Analytics', icon: <BarChart3 className="w-5 h-5 text-emerald-400" /> },
     { route: 'reports', label: 'Reports', icon: <FileText className="w-5 h-5 text-teal-400" /> },
     { route: 'business', label: 'Business & Stock', icon: <Store className="w-5 h-5" /> },
@@ -232,14 +232,14 @@ export const AppShell: React.FC<AppShellProps> = ({
                 onClick={() => onNavigate(item.route)}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group relative active:scale-[0.99] ${
                   isActive
-                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 shadow-xs'
+                    ? 'bg-blue-600/15 text-blue-200 border border-blue-500/25 shadow-xs'
                     : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 border border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`transition-colors ${
-                      isActive ? 'text-emerald-400' : 'text-zinc-400 group-hover:text-zinc-200'
+                      isActive ? 'text-blue-400' : 'text-zinc-400 group-hover:text-zinc-200'
                     }`}
                   >
                     {item.icon}
@@ -247,7 +247,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                   <span>{item.label}</span>
                 </div>
                 {isActive && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/80" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-sm shadow-blue-400/80" />
                 )}
               </button>
             );
@@ -429,11 +429,11 @@ export const AppShell: React.FC<AppShellProps> = ({
           onClick={() => handleNavWithHaptic('home')}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             currentRoute === 'home'
-              ? 'text-emerald-400 font-bold'
+              ? 'text-blue-400 font-bold'
               : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          <div className={`p-1 rounded-lg ${currentRoute === 'home' ? 'bg-emerald-500/10' : ''}`}>
+          <div className={`p-1 rounded-lg ${currentRoute === 'home' ? 'bg-blue-500/10' : ''}`}>
             <Home className="w-5 h-5" />
           </div>
           <span className="text-[10px] mt-0.5 leading-none">Home</span>
@@ -465,10 +465,10 @@ export const AppShell: React.FC<AppShellProps> = ({
           className="flex-1 flex flex-col items-center justify-center -mt-3 relative group"
           aria-label="Quick Business Actions"
         >
-          <div className="w-11 h-11 rounded-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 flex items-center justify-center shadow-lg shadow-emerald-500/30 border-2 border-zinc-950 dark:border-zinc-900 ring-2 ring-emerald-500/20 group-active:scale-95 transition-all">
+          <div className="w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-600/30 border-2 border-zinc-950 dark:border-zinc-900 ring-2 ring-blue-500/20 group-active:scale-95 transition-all">
             <Plus className="w-5 h-5 stroke-[2.5]" />
           </div>
-          <span className="text-[10px] mt-0.5 leading-none font-semibold text-emerald-400">Actions</span>
+          <span className="text-[10px] mt-0.5 leading-none font-semibold text-blue-400">Actions</span>
         </button>
 
         {/* 4. AI Advisor Tab */}
@@ -476,14 +476,14 @@ export const AppShell: React.FC<AppShellProps> = ({
           onClick={() => handleNavWithHaptic('ai')}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             currentRoute === 'ai'
-              ? 'text-emerald-500 font-bold'
+              ? 'text-sky-400 font-bold'
               : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
           }`}
         >
-          <div className={`p-1 rounded-lg ${currentRoute === 'ai' ? 'bg-emerald-500/10 shadow-sm shadow-emerald-500/20' : ''}`}>
-            <UrsellaSymbolMark
+          <div className={`p-1 rounded-lg ${currentRoute === 'ai' ? 'bg-sky-500/10 shadow-sm shadow-sky-500/20' : ''}`}>
+            <UrsellaAIGlyph
               sizeClass="w-5 h-5"
-              theme={currentRoute === 'ai' ? 'ai' : isDark ? 'mono-white' : 'mono-black'}
+              theme={currentRoute === 'ai' ? 'default' : isDark ? 'mono-white' : 'mono-black'}
               className={currentRoute === 'ai' ? '' : isDark ? 'opacity-60' : 'opacity-80'}
             />
           </div>
@@ -500,14 +500,14 @@ export const AppShell: React.FC<AppShellProps> = ({
           }}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             isMenuSectionActive
-              ? 'text-emerald-400 font-bold'
+              ? 'text-blue-400 font-bold'
               : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          <div className={`p-1 rounded-lg relative ${isMenuSectionActive ? 'bg-emerald-500/10' : ''}`}>
+          <div className={`p-1 rounded-lg relative ${isMenuSectionActive ? 'bg-blue-500/10' : ''}`}>
             <Menu className="w-5 h-5" />
             {isMenuSectionActive && (
-              <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-blue-400" />
             )}
           </div>
           <span className="text-[10px] mt-0.5 leading-none">Menu</span>

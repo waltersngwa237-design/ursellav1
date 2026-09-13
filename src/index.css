@@ -7,11 +7,15 @@
     --ursella-surface: #111214;
     --ursella-surface-elevated: #17191C;
     --ursella-border: #272A2F;
-    --ursella-primary: #10B981;
-    --ursella-primary-dark: #059669;
-    --ursella-ai-blue: #2563FF;
-    --ursella-ai-violet: #6D3DF5;
-    --ursella-data-cyan: #22D3EE;
+    --ursella-primary: #2563EB;
+    --ursella-primary-dark: #1D4ED8;
+    --ursella-primary-light: #3B82F6;
+    --ursella-brand-navy: #0F172A;
+    --ursella-brand-cyan: #06B6D4;
+    --ursella-ai-blue: #2563EB;
+    --ursella-ai-cyan: #38BDF8;
+    --ursella-semantic-success: #10B981;
+    --ursella-semantic-danger: #EF4444;
     --ursella-warning: #F59E0B;
     --ursella-text-primary: #F8FAFC;
     --ursella-text-secondary: #A1A1AA;
@@ -24,6 +28,8 @@
     --ursella-surface: #FFFFFF;
     --ursella-surface-elevated: #F1F5F9;
     --ursella-border: #E2E8F0;
+    --ursella-primary: #2563EB;
+    --ursella-primary-dark: #1D4ED8;
     --ursella-text-primary: #0F172A;
     --ursella-text-secondary: #475569;
     --ursella-text-muted: #64748B;
@@ -302,7 +308,7 @@ html.light textarea {
 html.light input:focus,
 html.light select:focus,
 html.light textarea:focus {
-  border-color: #10b981 !important;
+  border-color: #2563eb !important;
   background-color: #ffffff !important;
 }
 
@@ -448,35 +454,40 @@ html.light .shadow-lg {
   }
 }
 
-@keyframes ursella-pulse-mantle {
+@keyframes ursella-symbol-breathe {
   0%, 100% {
     transform: scale(1);
-    opacity: 0.94;
+    opacity: 0.95;
   }
   50% {
-    transform: scale(1.025);
+    transform: scale(1.03);
     opacity: 1;
   }
 }
 
-@keyframes ursella-pulse-tentacle {
+@keyframes ursella-ai-diamond-pulse {
   0%, 100% {
-    opacity: 0.75;
+    transform: scale(1);
+    opacity: 0.92;
   }
   50% {
+    transform: scale(1.08);
     opacity: 1;
   }
 }
 
-@keyframes ursella-node-pulse {
-  0%, 100% {
-    opacity: 0.35;
-    transform: scale(0.9);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.25);
-  }
+.ursella-symbol-pulse {
+  animation: ursella-symbol-breathe 2.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.ursella-ai-pulse {
+  animation: ursella-ai-diamond-pulse 2.2s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform, opacity;
 }
 
 .ursella-orbit-ring {
@@ -495,64 +506,14 @@ html.light .shadow-lg {
   animation: ursella-text-shimmer 2.8s ease-in-out infinite;
 }
 
-.ursella-part-mantle {
-  animation: ursella-pulse-mantle 2.6s ease-in-out infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-  will-change: transform, opacity;
-}
-
-.ursella-part-tentacle {
-  animation: ursella-pulse-tentacle 2.6s ease-in-out infinite;
-}
-
-.ursella-t1 {
-  animation-delay: 0.15s;
-}
-.ursella-t2 {
-  animation-delay: 0.3s;
-}
-.ursella-t3 {
-  animation-delay: 0.45s;
-}
-.ursella-t4 {
-  animation-delay: 0.6s;
-}
-.ursella-t5 {
-  animation-delay: 0.75s;
-}
-
-.ursella-node {
-  animation: ursella-node-pulse 2.6s ease-in-out infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-  will-change: transform, opacity;
-}
-
-.ursella-n1 { animation-delay: 0.2s; }
-.ursella-n2 { animation-delay: 0.4s; }
-.ursella-n3 { animation-delay: 0.6s; }
-.ursella-n4 { animation-delay: 0.8s; }
-.ursella-n5 { animation-delay: 1.0s; }
-.ursella-n6 { animation-delay: 1.2s; }
-
 /* Accessibility: prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   .ursella-orbit-ring,
   .ursella-loading-beam,
   .ursella-status-text,
-  .ursella-part-mantle,
-  .ursella-part-tentacle,
-  .ursella-node {
+  .ursella-symbol-pulse,
+  .ursella-ai-pulse {
     animation: none !important;
-  }
-  .ursella-node {
-    opacity: 0.75 !important;
-    transform: none !important;
-  }
-  .ursella-part-mantle {
-    opacity: 1 !important;
-    transform: none !important;
   }
 }
 
