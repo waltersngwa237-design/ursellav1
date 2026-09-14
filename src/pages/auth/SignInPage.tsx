@@ -20,6 +20,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   const { signIn, startInstantDemo, loading, error, clearError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [stayLoggedIn, setStayLoggedIn] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,7 +38,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
     }
 
     try {
-      await signIn(email, password);
+      await signIn(email, password, stayLoggedIn);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Sign in failed.';
       setFormError(msg);
@@ -126,10 +127,20 @@ export const SignInPage: React.FC<SignInPageProps> = ({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 leftIcon={<Lock className="w-4 h-4" />}
+                showPasswordToggle={true}
                 autoComplete="current-password"
                 required
               />
-              <div className="flex justify-end mt-1.5">
+              <div className="flex items-center justify-between mt-2">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-zinc-400 hover:text-zinc-300">
+                  <input
+                    type="checkbox"
+                    checked={stayLoggedIn}
+                    onChange={(e) => setStayLoggedIn(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-emerald-500 focus:ring-emerald-500/20 focus:ring-offset-0 transition-colors"
+                  />
+                  <span>Stay signed in</span>
+                </label>
                 <button
                   type="button"
                   onClick={onNavigateForgotPassword}

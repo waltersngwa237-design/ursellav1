@@ -7,8 +7,25 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   error: string | null;
-  signIn: (email: string, pass: string) => Promise<void>;
-  signUp: (email: string, pass: string, fullName: string, phone?: string) => Promise<void>;
+  signIn: (email: string, pass: string, stayLoggedIn?: boolean) => Promise<void>;
+  signUp: (email: string, pass: string, fullName: string, phone?: string, stayLoggedIn?: boolean) => Promise<void>;
+  requestVerificationCode: (email: string, fullName?: string, phone?: string) => Promise<{
+    success: boolean;
+    simulated: boolean;
+    devCode?: string;
+    message: string;
+    expiresInSeconds: number;
+    cooldownSeconds?: number;
+  }>;
+  verifyCode: (email: string, code: string) => Promise<{ verified: boolean; message?: string }>;
+  signUpWithCode: (
+    email: string,
+    code: string,
+    pass: string,
+    fullName: string,
+    phone?: string,
+    stayLoggedIn?: boolean
+  ) => Promise<void>;
   startInstantDemo: () => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -68,11 +85,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [loadUserProfile]);
 
-  const signIn = async (email: string, pass: string) => {
+  const signIn = async (email: string, pass: string, stayLoggedIn = true) => {
     try {
       setError(null);
       setLoading(true);
-      const authUser = await AuthService.signIn(email, pass);
+      const authUser = await AuthService.signIn(email, pass, stayLoggedIn);
       setUser(authUser);
       await loadUserProfile(authUser.id);
     } catch (err: unknown) {
@@ -84,17 +101,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, pass: string, fullName: string, phone?: string) => {
+  const signUp = async (email: string, pass: string, fullName: string, phone?: string, stayLoggedIn = true) => {
     try {
       setError(null);
       setLoading(true);
-      const authUser = await AuthService.signUp(email, pass, fullName, phone);
+      const authUser = await AuthService.signUp(email, pass, fullName, phone, stayLoggedIn);
       if (authUser) {
         setUser(authUser);
         await loadUserProfile(authUser.id);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Sign up failed. Please try again.';
+      setError(msg);
+      throw new Error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const requestVerificationCode = async (email: string, fullName?: string, phone?: string) => {
+    try {
+      setError(null);
+      return await AuthService.requestVerificationCode(email, fullName, phone);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send verification code.';
+      setError(msg);
+      throw new Error(msg);
+    }
+  };
+
+  const verifyCode = async (email: string, code: string) => {
+    try {
+      setError(null);
+      return await AuthService.verifyCode(email, code);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Verification code check failed.';
+      setError(msg);
+      throw new Error(msg);
+    }
+  };
+
+  const signUpWithCode = async (
+    email: string,
+    code: string,
+    pass: string,
+    fullName: string,
+    phone?: string,
+    stayLoggedIn = true
+  ) => {
+    try {
+      setError(null);
+      setLoading(true);
+      const authUser = await AuthService.completeSignUpWithCode(
+        email,
+        code,
+        pass,
+        fullName,
+        phone,
+        stayLoggedIn
+      );
+      if (authUser) {
+        setUser(authUser);
+        await loadUserProfile(authUser.id);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Account creation failed.';
       setError(msg);
       throw new Error(msg);
     } finally {
@@ -184,6 +255,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         signIn,
         signUp,
+        requestVerificationCode,
+        verifyCode,
+        signUpWithCode,
         startInstantDemo,
         signOut,
         resetPassword,

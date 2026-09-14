@@ -15,8 +15,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Trash2,
-  Database,
-  Cpu,
 } from 'lucide-react';
 
 interface AIMessageCardProps {
@@ -67,7 +65,6 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
   const isUser = message.role === 'user';
   const structured = message.metadata?.structured;
   const isError = Boolean(message.metadata?.error);
-  const responseSource = structured?.responseSource || message.metadata?.responseSource;
 
   const handleCopy = async () => {
     await copyToClipboardWithFallback(message.content);
@@ -210,6 +207,23 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
                     {children}
                   </code>
                 ),
+                pre: ({ children }) => (
+                  <div className={`overflow-x-auto my-3 rounded-xl p-3 border font-mono text-xs ${
+                    isDark ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-slate-100 border-slate-200 text-slate-800'
+                  }`}>
+                    <pre className="whitespace-pre overflow-x-auto">{children}</pre>
+                  </div>
+                ),
+                a: ({ href, children }) => (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-500 dark:text-emerald-400 hover:underline font-medium break-all"
+                  >
+                    {children}
+                  </a>
+                ),
                 table: ({ children }) => (
                   <div className={`overflow-x-auto my-3 -mx-1 sm:mx-0 rounded-xl border ${
                     isDark ? 'border-zinc-800 bg-zinc-950/60' : 'border-slate-200 bg-slate-50'
@@ -289,17 +303,36 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
 
           {/* Actionable Recommendations */}
           {structured?.recommendations && structured.recommendations.length > 0 && (
-            <div className={`p-3 rounded-xl border-l-2 border-y border-r text-xs space-y-1 ${
-              isDark 
-                ? 'bg-amber-500/5 border-l-amber-500 border-zinc-800/80' 
-                : 'bg-amber-50/70 border-l-amber-500 border-amber-200'
-            }`}>
-              <div className="font-semibold text-amber-600 dark:text-amber-300 text-xs">
-                {structured.recommendations[0].title}
-              </div>
-              <p className={`text-[12px] leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>
-                {structured.recommendations[0].reasoning || structured.recommendations[0].actionSuggestion}
-              </p>
+            <div className="space-y-2 pt-1">
+              {structured.recommendations.map((rec, idx) => (
+                <div
+                  key={idx}
+                  className={`p-3 rounded-xl border-l-2 border-y border-r text-xs space-y-1.5 transition-all ${
+                    isDark 
+                      ? 'bg-amber-500/5 border-l-amber-500 border-zinc-800/80' 
+                      : 'bg-amber-50/70 border-l-amber-500 border-amber-200'
+                  }`}
+                >
+                  <div className="font-semibold text-amber-600 dark:text-amber-300 text-xs">
+                    {rec.title}
+                  </div>
+                  <p className={`text-[12px] leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>
+                    {rec.reasoning || rec.actionSuggestion}
+                  </p>
+                  {rec.actionSuggestion && (onSelectPrompt || onInsertPrompt) && (
+                    <button
+                      onClick={() => {
+                        if (onInsertPrompt) onInsertPrompt(rec.actionSuggestion!);
+                        else if (onSelectPrompt) onSelectPrompt(rec.actionSuggestion!);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-500 hover:text-amber-400 hover:underline pt-0.5 cursor-pointer"
+                    >
+                      <span>Ask follow-up</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
@@ -332,20 +365,11 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
                 {formattedTime}
               </span>
 
-              {/* Provenance Tag - Merchants see Ursella AI or Ledger Telemetry */}
-              {responseSource === 'GEMINI_RESPONSE' || responseSource === 'GROQ_RESPONSE' ? (
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                  <Cpu className="w-2.5 h-2.5" />
-                  <span>Ursella AI</span>
-                </span>
-              ) : responseSource === 'DETERMINISTIC_FALLBACK' ? (
-                <span className={`hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border ${
-                  isDark ? 'bg-zinc-800 text-zinc-400 border-zinc-700' : 'bg-slate-100 text-slate-600 border-slate-200'
-                }`}>
-                  <Database className="w-2.5 h-2.5" />
-                  <span>Ledger Telemetry</span>
-                </span>
-              ) : null}
+              {/* Verified AI Advisor Indicator */}
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                <UrsellaAIGlyph sizeClass="w-2.5 h-2.5" />
+                <span>Ursella AI</span>
+              </span>
             </div>
 
             <div className="flex items-center gap-2">

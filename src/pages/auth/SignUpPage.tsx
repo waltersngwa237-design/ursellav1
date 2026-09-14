@@ -1,9 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { Button } from '../../components/common/Button.tsx';
 import { Input } from '../../components/common/Input.tsx';
 import { UrsellaLogo } from '../../components/common/UrsellaLogo.tsx';
-import { Mail, Lock, User, Phone, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+import {
+  Mail,
+  Lock,
+  User,
+  Phone,
+  AlertCircle,
+  ArrowRight,
+  ArrowLeft,
+  KeyRound,
+  RefreshCw,
+  CheckCircle2,
+  ShieldCheck,
+} from 'lucide-react';
 
 interface SignUpPageProps {
   onNavigateSignIn: () => void;
@@ -11,17 +23,39 @@ interface SignUpPageProps {
 }
 
 export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavigateLanding }) => {
-  const { signUp, loading, error, clearError } = useAuth();
+  const { requestVerificationCode, signUpWithCode, loading, error, clearError } = useAuth();
+  
+  // Step 1 = Enter details, Step 2 = Enter 6-digit code
+  const [step, setStep] = useState<'details' | 'verify'>('details');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [stayLoggedIn, setStayLoggedIn] = useState(true);
+  
+  // Verification code state
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isSendingCode, setIsSendingCode] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [devCodeHint, setDevCodeHint] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendCooldown]);
+
+  const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+    setInfoMessage(null);
+    setDevCodeHint(null);
     clearError();
 
     if (!fullName.trim()) {
@@ -42,9 +76,64 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
     }
 
     try {
-      await signUp(email, password, fullName.trim(), phone.trim() || undefined);
+      setIsSendingCode(true);
+      const res = await requestVerificationCode(email.trim().toLowerCase(), fullName.trim(), phone.trim() || undefined);
+      setStep('verify');
+      setResendCooldown(res.cooldownSeconds || 60);
+      setInfoMessage(res.message || `A 6-digit code has been sent to ${email}.`);
+      if (res.devCode) {
+        setDevCodeHint(res.devCode);
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Registration failed.';
+      const msg = err instanceof Error ? err.message : 'Could not send verification code.';
+      setFormError(msg);
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (resendCooldown > 0 || isSendingCode) return;
+    setFormError(null);
+    setInfoMessage(null);
+    try {
+      setIsSendingCode(true);
+      const res = await requestVerificationCode(email.trim().toLowerCase(), fullName.trim(), phone.trim() || undefined);
+      setResendCooldown(res.cooldownSeconds || 60);
+      setInfoMessage('A fresh verification code was sent to your email.');
+      if (res.devCode) {
+        setDevCodeHint(res.devCode);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to resend code.';
+      setFormError(msg);
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  const handleCompleteSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    clearError();
+
+    const cleanCode = verificationCode.trim().replace(/\s+/g, '');
+    if (!cleanCode || cleanCode.length !== 6) {
+      setFormError('Please enter the complete 6-digit verification code.');
+      return;
+    }
+
+    try {
+      await signUpWithCode(
+        email.trim().toLowerCase(),
+        cleanCode,
+        password,
+        fullName.trim(),
+        phone.trim() || undefined,
+        stayLoggedIn
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Registration failed. Please check the code and try again.';
       setFormError(msg);
     }
   };
@@ -74,9 +163,13 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
             <UrsellaLogo size="lg" />
           )}
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white">Create your account</h1>
+            <h1 className="text-xl font-bold tracking-tight text-white">
+              {step === 'details' ? 'Create your account' : 'Verify your email'}
+            </h1>
             <p className="text-xs text-zinc-400 mt-1">
-              Start managing your sales, inventory, and finances
+              {step === 'details'
+                ? 'Sign up with a verified email code — no confirmation links needed'
+                : `We sent a 6-digit verification code to ${email}`}
             </p>
           </div>
         </div>
@@ -90,72 +183,179 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
-            <Input
-              label="Full Name"
-              type="text"
-              placeholder="Amara Kamga"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              leftIcon={<User className="w-4 h-4" />}
-              autoComplete="name"
-              required
-            />
+          {infoMessage && (
+            <div className="mb-4 p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/40 flex items-start gap-2.5 text-xs text-emerald-200">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <span>{infoMessage}</span>
+            </div>
+          )}
 
-            <Input
-              label="Email address"
-              type="email"
-              placeholder="owner@business.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              leftIcon={<Mail className="w-4 h-4" />}
-              autoComplete="email"
-              required
-            />
+          {devCodeHint && (
+            <div className="mb-4 p-2.5 rounded-lg bg-indigo-950/50 border border-indigo-700/40 flex items-center justify-between text-xs text-indigo-200">
+              <span className="font-mono">Quick Dev Code: <strong>{devCodeHint}</strong></span>
+              <button
+                type="button"
+                onClick={() => setVerificationCode(devCodeHint)}
+                className="text-[11px] bg-indigo-600/30 hover:bg-indigo-600/50 px-2 py-0.5 rounded text-indigo-100 font-medium transition-colors"
+              >
+                Auto-fill
+              </button>
+            </div>
+          )}
 
-            <Input
-              label="Phone number (optional)"
-              type="tel"
-              placeholder="+237 6XX XXX XXX"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              leftIcon={<Phone className="w-4 h-4" />}
-              autoComplete="tel"
-            />
+          {step === 'details' ? (
+            <form onSubmit={handleRequestCode} className="space-y-3.5">
+              <Input
+                label="Full Name"
+                type="text"
+                placeholder="Amara Kamga"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                leftIcon={<User className="w-4 h-4" />}
+                autoComplete="name"
+                required
+              />
 
-            <Input
-              label="Password"
-              type="password"
-              placeholder="At least 6 characters"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              leftIcon={<Lock className="w-4 h-4" />}
-              autoComplete="new-password"
-              required
-            />
+              <Input
+                label="Email address"
+                type="email"
+                placeholder="owner@business.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                leftIcon={<Mail className="w-4 h-4" />}
+                autoComplete="email"
+                required
+              />
 
-            <Input
-              label="Confirm Password"
-              type="password"
-              placeholder="Repeat your password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              leftIcon={<Lock className="w-4 h-4" />}
-              autoComplete="new-password"
-              required
-            />
+              <Input
+                label="Phone number (optional)"
+                type="tel"
+                placeholder="+237 6XX XXX XXX"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                leftIcon={<Phone className="w-4 h-4" />}
+                autoComplete="tel"
+              />
 
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              className="w-full mt-3"
-              isLoading={loading}
-              rightIcon={<ArrowRight className="w-4 h-4" />}
-            >
-              Continue to Business Setup
-            </Button>
-          </form>
+              <Input
+                label="Password"
+                type="password"
+                placeholder="At least 6 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                leftIcon={<Lock className="w-4 h-4" />}
+                showPasswordToggle={true}
+                autoComplete="new-password"
+                required
+              />
+
+              <Input
+                label="Confirm Password"
+                type="password"
+                placeholder="Repeat your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                leftIcon={<Lock className="w-4 h-4" />}
+                showPasswordToggle={true}
+                autoComplete="new-password"
+                required
+              />
+
+              <div className="pt-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-zinc-400 hover:text-zinc-300">
+                  <input
+                    type="checkbox"
+                    checked={stayLoggedIn}
+                    onChange={(e) => setStayLoggedIn(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-emerald-500 focus:ring-emerald-500/20 focus:ring-offset-0 transition-colors"
+                  />
+                  <span>Stay logged in on this device (Windows & Mobile)</span>
+                </label>
+              </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                className="w-full mt-3"
+                isLoading={isSendingCode}
+                rightIcon={<ArrowRight className="w-4 h-4" />}
+              >
+                Send Verification Code
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleCompleteSignUp} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-zinc-300">
+                  6-Digit Verification Code
+                </label>
+                <div className="relative">
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    leftIcon={<KeyRound className="w-4 h-4 text-emerald-400" />}
+                    className="text-center font-mono text-lg tracking-widest font-semibold text-emerald-400"
+                    autoFocus
+                    required
+                  />
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  Enter the numeric code sent via Brevo email. Valid for 15 minutes.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between text-xs pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('details');
+                    setFormError(null);
+                  }}
+                  className="text-zinc-400 hover:text-zinc-200 transition-colors inline-flex items-center gap-1"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Edit details</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResendCode}
+                  disabled={resendCooldown > 0 || isSendingCode}
+                  className={`inline-flex items-center gap-1.5 font-medium transition-colors ${
+                    resendCooldown > 0 || isSendingCode
+                      ? 'text-zinc-500 cursor-not-allowed'
+                      : 'text-emerald-400 hover:text-emerald-300'
+                  }`}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSendingCode ? 'animate-spin' : ''}`} />
+                  <span>
+                    {resendCooldown > 0
+                      ? `Resend in ${resendCooldown}s`
+                      : 'Resend code'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  className="w-full"
+                  isLoading={loading}
+                  rightIcon={<ShieldCheck className="w-4 h-4" />}
+                >
+                  Verify & Create Account
+                </Button>
+              </div>
+            </form>
+          )}
         </div>
 
         {/* Footer Navigation */}
@@ -185,3 +385,4 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
     </div>
   );
 };
+

@@ -35,6 +35,7 @@ import {
   CreditCard,
   Menu,
   MessageSquare,
+  History,
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -289,26 +290,71 @@ export const AppShell: React.FC<AppShellProps> = ({
           ? 'h-[100dvh] md:h-screen overflow-hidden' 
           : 'pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8'
       }`}>
-        {/* Mobile Top Bar - Only shown for non-AI routes; AI route has its own integrated top-to-bottom header */}
-        {currentRoute !== 'ai' && (
-          <header 
-            className="md:hidden sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between shrink-0"
-            style={{
-              paddingTop: 'calc(0.625rem + env(safe-area-inset-top, 0px))',
-            }}
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <button
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 active:scale-95 transition-all"
-                title="Open Navigation Menu"
-                aria-label="Open Navigation Menu"
-              >
-                <Menu className="w-5 h-5 text-zinc-300" />
-              </button>
+        {/* Mobile Top Bar - Solid, sticky, safe for iPhone dynamic island and notch; never disappears */}
+        <header 
+          className="md:hidden sticky top-0 z-30 bg-zinc-950/95 backdrop-blur-md border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between shrink-0"
+          style={{
+            paddingTop: 'max(0.625rem, calc(0.375rem + env(safe-area-inset-top, 0px)))',
+          }}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 active:scale-95 transition-all shrink-0"
+              title="Open Navigation Menu"
+              aria-label="Open Navigation Menu"
+            >
+              <Menu className="w-5 h-5 text-zinc-300" />
+            </button>
+
+            {currentRoute === 'ai' ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-sky-500/30 flex items-center justify-center shrink-0 shadow-xs shadow-sky-950/30">
+                  <UrsellaAIGlyph sizeClass="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm font-bold text-white tracking-tight truncate">
+                      AI Advisor
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      Advisor
+                    </span>
+                  </div>
+                  {activeBusiness?.name && (
+                    <p className="text-[10px] text-zinc-400 truncate max-w-[140px] sm:max-w-[200px]">
+                      {activeBusiness.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
               <UrsellaLogo size="sm" showBetaBadge={true} />
+            )}
+          </div>
+          
+          {/* Action buttons on right: On AI Advisor, strictly omit notification bell, feedback, and unrelated functions */}
+          {currentRoute === 'ai' ? (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('ursella_ai_toggle_history'))}
+                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 active:scale-95 transition-all"
+                title="Chat History"
+                aria-label="Chat History"
+              >
+                <History className="w-4 h-4 text-zinc-300" />
+              </button>
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('ursella_ai_new_chat'))}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-all active:scale-95 shadow-xs shadow-emerald-500/20"
+                title="New Chat"
+                aria-label="New Chat"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">New</span>
+              </button>
             </div>
-            
+          ) : (
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={() => setIsFeedbackModalOpen(true)}
@@ -328,8 +374,8 @@ export const AppShell: React.FC<AppShellProps> = ({
                 )}
               </button>
             </div>
-          </header>
-        )}
+          )}
+        </header>
 
         {/* Desktop Top Header Bar for Notifications & Feedback - Hidden on AI route for full vertical canvas */}
         {currentRoute !== 'ai' && (

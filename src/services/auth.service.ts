@@ -3,7 +3,11 @@ import { generateUUID, isValidUUID } from '../lib/uuid.ts';
 import type { UserProfile } from '../types/index.ts';
 import { BusinessService } from './business.service.ts';
 
-// Local storage key for fallback preview mode & instant demo
+// Local storage keys for durable cross-platform & Windows session persistence
+const DURABLE_AUTH_KEY = 'ursella_auth_user';
+const DURABLE_SESSION_KEY = 'ursella_auth_session';
+const STAY_LOGGED_IN_KEY = 'ursella_stay_logged_in';
+const USER_SIGNED_OUT_KEY = 'ursella_user_signed_out';
 const LOCAL_STORAGE_AUTH_KEY = 'ursella_preview_auth_user';
 const LOCAL_STORAGE_PROFILE_KEY = 'ursella_preview_profile';
 
@@ -14,6 +18,7 @@ export interface AuthUser {
   id: string;
   email: string;
   is_demo?: boolean;
+  stay_logged_in?: boolean;
   user_metadata?: {
     full_name?: string;
     phone?: string;
@@ -22,6 +27,61 @@ export interface AuthUser {
 
 export const AuthService = {
   /**
+   * Durably save user session to local and session storage to guarantee persistent login on Windows
+   */
+  persistUserSession(user: AuthUser, stayLoggedIn = true, profile?: UserProfile) {
+    try {
+      const userPayload = JSON.stringify({
+        ...user,
+        stay_logged_in: stayLoggedIn,
+        authenticated_at: Date.now(),
+      });
+
+      // Primary persistent storage
+      localStorage.setItem(DURABLE_AUTH_KEY, userPayload);
+      localStorage.setItem(LOCAL_STORAGE_AUTH_KEY, userPayload);
+      localStorage.setItem(STAY_LOGGED_IN_KEY, stayLoggedIn ? 'true' : 'false');
+      localStorage.removeItem(USER_SIGNED_OUT_KEY);
+
+      // Windows multi-process / tab fallback backup in sessionStorage
+      try {
+        sessionStorage.setItem(DURABLE_AUTH_KEY, userPayload);
+      } catch {}
+
+      if (profile) {
+        localStorage.setItem(`${LOCAL_STORAGE_PROFILE_KEY}_${user.id}`, JSON.stringify(profile));
+        localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(profile));
+      }
+    } catch (err) {
+      console.warn('[AuthService] Failed to write persistent session:', err);
+    }
+
+    // Broadcast instant auth change to all active components and browser tabs
+    window.dispatchEvent(new CustomEvent('ursella_auth_change', { detail: user }));
+    window.dispatchEvent(new Event('storage'));
+  },
+
+  /**
+   * Clear all user session tokens and flags upon explicit sign out
+   */
+  clearUserSession() {
+    try {
+      localStorage.setItem(USER_SIGNED_OUT_KEY, 'true');
+      localStorage.removeItem(DURABLE_AUTH_KEY);
+      localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY);
+      localStorage.removeItem(DURABLE_SESSION_KEY);
+      localStorage.removeItem(STAY_LOGGED_IN_KEY);
+      localStorage.removeItem('ursella_is_demo_mode');
+      try {
+        sessionStorage.removeItem(DURABLE_AUTH_KEY);
+      } catch {}
+    } catch {}
+
+    window.dispatchEvent(new CustomEvent('ursella_auth_change', { detail: null }));
+    window.dispatchEvent(new Event('storage'));
+  },
+
+  /**
    * Launch an instant demo session without requiring credentials or sign in
    */
   async startInstantDemo(): Promise<AuthUser> {
@@ -29,13 +89,13 @@ export const AuthService = {
       id: DEMO_USER_ID,
       email: DEMO_USER_EMAIL,
       is_demo: true,
+      stay_logged_in: true,
       user_metadata: {
         full_name: 'Demo Business Owner',
         phone: '+237 670 000 000',
       },
     };
 
-    localStorage.setItem(LOCAL_STORAGE_AUTH_KEY, JSON.stringify(demoUser));
     localStorage.setItem('ursella_is_demo_mode', 'true');
 
     const profile: UserProfile = {
@@ -46,7 +106,8 @@ export const AuthService = {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(profile));
+
+    this.persistUserSession(demoUser, true, profile);
 
     // Ensure demo business with realistic inventory, sales, customers, and alerts is seeded immediately
     try {
@@ -55,15 +116,111 @@ export const AuthService = {
       console.warn('Error ensuring demo business exists:', err);
     }
 
-    // Broadcast instant auth change
-    window.dispatchEvent(new CustomEvent('ursella_auth_change', { detail: demoUser }));
-    window.dispatchEvent(new Event('storage'));
-
     return demoUser;
   },
 
   /**
-   * Listen to authentication state changes
+   * Request a 6-digit email verification code via Brevo API
+   */
+  async requestVerificationCode(email: string, fullName?: string, phone?: string): Promise<{
+    success: boolean;
+    simulated: boolean;
+    devCode?: string;
+    message: string;
+    expiresInSeconds: number;
+    cooldownSeconds?: number;
+  }> {
+    const response = await fetch('/api/auth/send-verification-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, fullName, phone }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Failed to send verification code.');
+    }
+    return data;
+  },
+
+  /**
+   * Verify an entered 6-digit code
+   */
+  async verifyCode(email: string, code: string): Promise<{ verified: boolean; message?: string }> {
+    const response = await fetch('/api/auth/verify-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Verification failed.');
+    }
+    return data;
+  },
+
+  /**
+   * Complete registration after verifying 6-digit email code
+   */
+  async completeSignUpWithCode(
+    email: string,
+    code: string,
+    password?: string,
+    fullName?: string,
+    phone?: string,
+    stayLoggedIn = true
+  ): Promise<AuthUser> {
+    const response = await fetch('/api/auth/complete-signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code, password, fullName, phone }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to complete registration.');
+    }
+
+    const registeredUser: AuthUser = {
+      id: data.user.id,
+      email: data.user.email,
+      stay_logged_in: stayLoggedIn,
+      user_metadata: data.user.user_metadata,
+    };
+
+    // If Supabase is configured and a password was supplied, sign in client to get active Supabase session
+    if (isSupabaseConfigured && password) {
+      try {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (!signInError && signInData.user) {
+          registeredUser.id = signInData.user.id;
+        }
+      } catch (err) {
+        console.warn('Client Supabase session sync after code registration:', err);
+      }
+    }
+
+    // Create initial profile
+    const profile: UserProfile = {
+      id: registeredUser.id,
+      full_name: fullName || registeredUser.user_metadata?.full_name || email.split('@')[0],
+      phone: phone || registeredUser.user_metadata?.phone || null,
+      avatar_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Persist user session durably across Windows restarts
+    this.persistUserSession(registeredUser, stayLoggedIn, profile);
+    return registeredUser;
+  },
+
+  /**
+   * Listen to authentication state changes with Windows session preservation
    */
   onAuthStateChange(callback: (user: AuthUser | null) => void) {
     const handleCustomChange = (e: Event) => {
@@ -72,7 +229,16 @@ export const AuthService = {
     };
 
     const checkLocal = () => {
-      const stored = localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
+      if (localStorage.getItem(USER_SIGNED_OUT_KEY) === 'true') {
+        callback(null);
+        return;
+      }
+
+      const stored =
+        localStorage.getItem(DURABLE_AUTH_KEY) ||
+        localStorage.getItem(LOCAL_STORAGE_AUTH_KEY) ||
+        sessionStorage.getItem(DURABLE_AUTH_KEY);
+
       if (stored) {
         try {
           callback(JSON.parse(stored));
@@ -88,25 +254,39 @@ export const AuthService = {
     window.addEventListener('storage', checkLocal);
 
     if (isSupabaseConfigured) {
-      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-        // If an instant demo session is active, keep demo user
-        const stored = localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        // If user explicitly signed out, propagate null
+        if (localStorage.getItem(USER_SIGNED_OUT_KEY) === 'true') {
+          callback(null);
+          return;
+        }
+
+        // If an instant demo or durable session is active, don't wipe it on transient Supabase events
+        const stored =
+          localStorage.getItem(DURABLE_AUTH_KEY) ||
+          localStorage.getItem(LOCAL_STORAGE_AUTH_KEY) ||
+          sessionStorage.getItem(DURABLE_AUTH_KEY);
+
+        let parsedStored: AuthUser | null = null;
         if (stored) {
           try {
-            const parsed = JSON.parse(stored);
-            if (parsed?.is_demo || parsed?.id === DEMO_USER_ID) {
-              callback(parsed);
-              return;
-            }
+            parsedStored = JSON.parse(stored);
           } catch {}
         }
 
         if (session?.user) {
-          callback({
+          const authUser: AuthUser = {
             id: session.user.id,
             email: session.user.email || '',
             user_metadata: session.user.user_metadata,
-          });
+          };
+          callback(authUser);
+          // Keep local storage synchronized
+          this.persistUserSession(authUser, true);
+        } else if (parsedStored && (parsedStored.is_demo || parsedStored.stay_logged_in !== false)) {
+          // On Windows, if Supabase has a transient null session during cold startup or token refresh,
+          // maintain the authenticated user from storage so they stay logged in
+          callback(parsedStored);
         } else {
           callback(null);
         }
@@ -127,57 +307,62 @@ export const AuthService = {
   },
 
   /**
-   * Get initial session/user
+   * Get initial session/user - robustly handles Windows cold boot and reloads
    */
   async getInitialUser(): Promise<AuthUser | null> {
-    // 1. Check if an instant demo or preview user session exists in local storage
-    const stored = localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
+    if (localStorage.getItem(USER_SIGNED_OUT_KEY) === 'true') {
+      return null;
+    }
+
+    // 1. Check if an instant demo or persistent user session exists in local or session storage
+    let storedUser: AuthUser | null = null;
+    const stored =
+      localStorage.getItem(DURABLE_AUTH_KEY) ||
+      localStorage.getItem(LOCAL_STORAGE_AUTH_KEY) ||
+      sessionStorage.getItem(DURABLE_AUTH_KEY);
+
     if (stored) {
       try {
-        const parsed = JSON.parse(stored);
-        if (parsed?.is_demo || parsed?.id === DEMO_USER_ID || !isSupabaseConfigured) {
-          return parsed;
+        storedUser = JSON.parse(stored);
+        if (storedUser?.is_demo || storedUser?.id === DEMO_USER_ID) {
+          return storedUser;
         }
       } catch {}
     }
 
-    // 2. If Supabase is configured, check real session
+    // 2. If Supabase is configured, verify session
     if (isSupabaseConfigured) {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
-        if (error || !session?.user) {
-          if (stored) {
-            try { return JSON.parse(stored); } catch {}
-          }
-          return null;
+        if (!error && session?.user) {
+          const authUser: AuthUser = {
+            id: session.user.id,
+            email: session.user.email || '',
+            user_metadata: session.user.user_metadata,
+          };
+          this.persistUserSession(authUser, true);
+          return authUser;
         }
-        return {
-          id: session.user.id,
-          email: session.user.email || '',
-          user_metadata: session.user.user_metadata,
-        };
-      } catch {
-        if (stored) {
-          try { return JSON.parse(stored); } catch {}
-        }
-        return null;
+      } catch (err) {
+        console.warn('[AuthService] Supabase getSession warning:', err);
       }
-    } else {
-      if (stored) {
-        try {
-          return JSON.parse(stored);
-        } catch {
-          return null;
-        }
+
+      // Windows persistence guard: If Supabase getSession returned null (e.g., cold restart,
+      // browser cookie partition, or offline), but we have a valid verified user stored,
+      // KEEP the user logged in!
+      if (storedUser && storedUser.id && storedUser.email) {
+        return storedUser;
       }
       return null;
+    } else {
+      return storedUser;
     }
   },
 
   /**
-   * Sign up with email & password
+   * Sign up with email & password (legacy fallback, preserves backward compatibility)
    */
-  async signUp(email: string, password: string, fullName: string, phone?: string) {
+  async signUp(email: string, password: string, fullName: string, phone?: string, stayLoggedIn = true) {
     if (!email || !email.includes('@')) {
       throw new Error('Please enter a valid email address.');
     }
@@ -205,6 +390,24 @@ export const AuthService = {
       }
 
       if (data.user) {
+        const user: AuthUser = {
+          id: data.user.id,
+          email: data.user.email || email,
+          stay_logged_in: stayLoggedIn,
+          user_metadata: { full_name: fullName, phone },
+        };
+
+        const profile: UserProfile = {
+          id: user.id,
+          full_name: fullName,
+          phone: phone || null,
+          avatar_url: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        this.persistUserSession(user, stayLoggedIn, profile);
+
         // Ensure profile is recorded in public.profiles table
         try {
           await (supabase as any).from('profiles').upsert({
@@ -215,21 +418,20 @@ export const AuthService = {
         } catch (e) {
           console.warn('Profile upsert notice:', e);
         }
+
+        return user;
       }
 
-      return data.user ? {
-        id: data.user.id,
-        email: data.user.email || '',
-        user_metadata: { full_name: fullName, phone },
-      } : null;
+      return null;
     } else {
       // Local preview mode
       const user: AuthUser = {
         id: generateUUID(),
         email,
+        stay_logged_in: stayLoggedIn,
         user_metadata: { full_name: fullName, phone },
       };
-      localStorage.setItem(LOCAL_STORAGE_AUTH_KEY, JSON.stringify(user));
+
       const profile: UserProfile = {
         id: user.id,
         full_name: fullName,
@@ -238,17 +440,16 @@ export const AuthService = {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(profile));
-      // Dispatch storage event for listener
-      window.dispatchEvent(new Event('storage'));
+
+      this.persistUserSession(user, stayLoggedIn, profile);
       return user;
     }
   },
 
   /**
-   * Sign in with email & password
+   * Sign in with email & password - ensures stay_logged_in is persisted
    */
-  async signIn(email: string, password: string): Promise<AuthUser> {
+  async signIn(email: string, password: string, stayLoggedIn = true): Promise<AuthUser> {
     if (!email || !email.includes('@')) {
       throw new Error('Please enter a valid email address.');
     }
@@ -273,43 +474,44 @@ export const AuthService = {
         throw new Error('Authentication succeeded but user profile was not returned.');
       }
 
-      return {
+      const authUser: AuthUser = {
         id: data.user.id,
         email: data.user.email || '',
+        stay_logged_in: stayLoggedIn,
         user_metadata: data.user.user_metadata,
       };
+
+      this.persistUserSession(authUser, stayLoggedIn);
+      return authUser;
     } else {
       // In preview mode: if already saved with this email, keep same ID; else create session
       let existing: AuthUser | null = null;
       try {
-        const stored = localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
+        const stored = localStorage.getItem(DURABLE_AUTH_KEY) || localStorage.getItem(LOCAL_STORAGE_AUTH_KEY);
         if (stored) existing = JSON.parse(stored);
       } catch {
         // ignore
       }
 
       const user: AuthUser = {
-        id: (existing?.id && isValidUUID(existing.id)) ? existing.id : generateUUID(),
+        id: existing?.id && isValidUUID(existing.id) ? existing.id : generateUUID(),
         email,
+        stay_logged_in: stayLoggedIn,
         user_metadata: {
           full_name: existing?.user_metadata?.full_name || email.split('@')[0],
         },
       };
-      localStorage.setItem(LOCAL_STORAGE_AUTH_KEY, JSON.stringify(user));
-      window.dispatchEvent(new Event('storage'));
+
+      this.persistUserSession(user, stayLoggedIn);
       return user;
     }
   },
 
   /**
-   * Sign out
+   * Explicit sign out - clears all tokens and sets user signed out marker
    */
   async signOut() {
-    localStorage.removeItem(LOCAL_STORAGE_AUTH_KEY);
-    localStorage.removeItem('ursella_is_demo_mode');
-    localStorage.removeItem(LOCAL_STORAGE_PROFILE_KEY);
-    window.dispatchEvent(new CustomEvent('ursella_auth_change', { detail: null }));
-    window.dispatchEvent(new Event('storage'));
+    this.clearUserSession();
 
     if (isSupabaseConfigured) {
       try {

@@ -17,6 +17,8 @@ import { HealthService } from './server/health.service.ts';
 import { getActiveGeminiModel } from './server/ai-config.ts';
 import { PushNotificationService } from './server/push-notification.service.ts';
 import { type AIChatRequestPayload, type AIChatResponsePayload } from './src/types/ai.ts';
+import { serverAuthService } from './server/auth.service.ts';
+import { EmailService } from './server/email.service.ts';
 
 const app = express();
 const PORT = 3000;
@@ -79,6 +81,74 @@ async function verifyTenantRequest(
     return { authorized: true, userId: 'fallback-operator', role: 'owner' };
   }
 }
+
+// ==========================================
+// AUTHENTICATION & CODE-BASED VERIFICATION
+// ==========================================
+
+app.get('/api/auth/email-config', (req, res) => {
+  return res.json({
+    isBrevoConfigured: EmailService.isBrevoConfigured(),
+    sender: EmailService.getSenderInfo(),
+  });
+});
+
+app.post('/api/auth/send-verification-code', async (req, res) => {
+  try {
+    const { email, fullName, phone } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email address is required.' });
+    }
+
+    const result = await serverAuthService.requestVerificationCode(email, fullName, phone);
+    if (!result.success) {
+      return res.status(429).json(result);
+    }
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[API Auth] Error sending verification code:', err);
+    return res.status(400).json({ error: err.message || 'Failed to send verification code.' });
+  }
+});
+
+app.post('/api/auth/verify-code', (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and verification code are required.' });
+    }
+
+    const result = serverAuthService.verifyCode(email, code);
+    if (!result.verified) {
+      return res.status(400).json({ error: result.message, verified: false });
+    }
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'Verification failed.' });
+  }
+});
+
+app.post('/api/auth/complete-signup', async (req, res) => {
+  try {
+    const { email, code, password, fullName, phone } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and verification code are required.' });
+    }
+
+    const result = await serverAuthService.completeRegistration({
+      email,
+      code,
+      password,
+      fullName: fullName || '',
+      phone,
+    });
+
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[API Auth] Error completing signup:', err);
+    return res.status(400).json({ error: err.message || 'Registration failed.' });
+  }
+});
 
 // Health Check APIs
 app.get('/api/health', async (req, res) => {

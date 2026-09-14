@@ -84,18 +84,6 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     typeof window !== 'undefined' ? window.innerWidth < 768 : true
   );
 
-  // Guard against iOS Safari window scrolling
-  useEffect(() => {
-    const lockWindow = () => {
-      if (window.scrollY !== 0) {
-        window.scrollTo(0, 0);
-      }
-    };
-    window.addEventListener('scroll', lockWindow, { passive: true });
-    window.scrollTo(0, 0);
-    return () => window.removeEventListener('scroll', lockWindow);
-  }, []);
-
   useEffect(() => {
     const handleScreenResize = () => {
       setIsMobileScreen(window.innerWidth < 768);
@@ -429,6 +417,24 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       textareaRef.current.focus();
     }
   };
+
+  // Listen for global AI actions dispatched from mobile top nav bar
+  useEffect(() => {
+    const handleNewChatEvent = () => {
+      handleNewConversation();
+    };
+    const handleToggleHistoryEvent = () => {
+      setIsSidebarOpen((prev) => !prev);
+    };
+
+    window.addEventListener('ursella_ai_new_chat', handleNewChatEvent);
+    window.addEventListener('ursella_ai_toggle_history', handleToggleHistoryEvent);
+
+    return () => {
+      window.removeEventListener('ursella_ai_new_chat', handleNewChatEvent);
+      window.removeEventListener('ursella_ai_toggle_history', handleToggleHistoryEvent);
+    };
+  }, []);
 
   // Delete single conversation with clean state update
   const executeDeleteConversation = async (convId: string) => {
@@ -782,17 +788,11 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       <div className={`flex-1 flex flex-col min-w-0 h-full overflow-hidden relative ${
         isDark ? 'bg-zinc-950' : 'bg-slate-50'
       }`}>
-        {/* Top Header - Solid, pinned, and safe for iPhone dynamic island / notch */}
+        {/* Top Header - Desktop Workspace Navigation (On mobile, AppShell provides the fixed top nav bar) */}
         <header 
-          className={`shrink-0 w-full select-none px-3 sm:px-6 border-b flex items-center justify-between z-30 transition-colors ${
+          className={`hidden md:flex shrink-0 w-full select-none px-6 py-3 border-b items-center justify-between z-20 transition-colors ${
             isDark ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}
-          style={{
-            paddingTop: 'max(0.625rem, calc(0.25rem + env(safe-area-inset-top, 0px)))',
-            paddingBottom: '0.625rem',
-            paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
-            paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
-          }}
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Mobile App Menu Trigger */}
