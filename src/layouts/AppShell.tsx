@@ -36,6 +36,7 @@ import {
   Menu,
   MessageSquare,
   History,
+  MoreVertical,
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -60,7 +61,92 @@ export const AppShell: React.FC<AppShellProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(() => {
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      return window.visualViewport.height;
+    }
+    return null;
+  });
 
+  // Track dynamic visual viewport height on iOS / touch devices (accounts for keyboard & address bar shifts)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateViewport = () => {
+      if (window.visualViewport) {
+        setViewportHeight(window.visualViewport.height);
+      }
+      if (currentRoute === 'ai' && (window.scrollY !== 0 || window.scrollX !== 0)) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener('resize', updateViewport);
+      vv.addEventListener('scroll', updateViewport);
+    }
+    window.addEventListener('resize', updateViewport);
+    window.addEventListener('scroll', updateViewport);
+
+    updateViewport();
+
+    return () => {
+      if (vv) {
+        vv.removeEventListener('resize', updateViewport);
+        vv.removeEventListener('scroll', updateViewport);
+      }
+      window.removeEventListener('resize', updateViewport);
+      window.removeEventListener('scroll', updateViewport);
+    };
+  }, [currentRoute]);
+
+  // Lock iOS Safari window scrolling completely when on the AI Advisor route so the top nav bar NEVER scrolls away
+  useEffect(() => {
+    if (currentRoute !== 'ai') return;
+
+    const originalBodyPosition = document.body.style.position;
+    const originalBodyTop = document.body.style.top;
+    const originalBodyLeft = document.body.style.left;
+    const originalBodyRight = document.body.style.right;
+    const originalBodyWidth = document.body.style.width;
+    const originalBodyHeight = document.body.style.height;
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.position = 'fixed';
+    document.body.style.top = '0px';
+    document.body.style.left = '0px';
+    document.body.style.right = '0px';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    window.scrollTo(0, 0);
+
+    const lockScroll = () => {
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    window.addEventListener('scroll', lockScroll, { passive: true });
+
+    return () => {
+      document.body.style.position = originalBodyPosition;
+      document.body.style.top = originalBodyTop;
+      document.body.style.left = originalBodyLeft;
+      document.body.style.right = originalBodyRight;
+      document.body.style.width = originalBodyWidth;
+      document.body.style.height = originalBodyHeight;
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      window.removeEventListener('scroll', lockScroll);
+    };
+  }, [currentRoute]);
+
+  // Keyboard visibility detection for bottom navigation bar
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -70,10 +156,9 @@ export const AppShell: React.FC<AppShellProps> = ({
       const vv = window.visualViewport;
       if (vv) {
         const screenH = window.screen?.height || window.innerHeight;
-        // On iOS: window.innerHeight - vv.height > 100
-        // On Android with interactive-widget=resizes-content: vv.height shrinks significantly relative to screen
-        const isShrunk = (window.innerHeight - vv.height > 100) || (vv.height < screenH * 0.75);
-        setIsKeyboardVisible(isInputActive && isShrunk);
+        // On iOS / mobile: if visual viewport shrinks significantly or input is active on AI page
+        const isShrunk = (window.innerHeight - vv.height > 80) || (vv.height < screenH * 0.85);
+        setIsKeyboardVisible(isInputActive && (isShrunk || currentRoute === 'ai'));
       } else {
         setIsKeyboardVisible(isInputActive);
       }
@@ -104,7 +189,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         vv.removeEventListener('resize', checkKeyboard);
       }
     };
-  }, []);
+  }, [currentRoute]);
 
   useEffect(() => {
     if (!activeBusiness?.id) return;
@@ -193,8 +278,8 @@ export const AppShell: React.FC<AppShellProps> = ({
 
   return (
     <div
-      className={`min-h-screen bg-zinc-950 text-zinc-100 flex flex-col md:flex-row ${
-        currentRoute === 'ai' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : ''
+      className={`bg-zinc-950 text-zinc-100 flex flex-col md:flex-row ${
+        currentRoute === 'ai' ? 'h-screen md:h-screen overflow-hidden' : 'min-h-screen'
       }`}
       style={{
         paddingTop: currentRoute === 'ai' ? '0px' : 'var(--offline-banner-height, 0px)',
@@ -285,14 +370,19 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* ========================================================================= */}
       {/* MAIN CONTENT AREA & TOPBAR                                                */}
       {/* ========================================================================= */}
-      <div className={`flex-1 flex flex-col min-w-0 min-h-0 ${
-        currentRoute === 'ai' 
-          ? 'h-[100dvh] md:h-screen overflow-hidden' 
-          : 'pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8'
-      }`}>
-        {/* Mobile Top Bar - Solid, sticky, safe for iPhone dynamic island and notch; never disappears */}
+      <div 
+        className={`flex-1 flex flex-col min-w-0 min-h-0 ${
+          currentRoute === 'ai' 
+            ? 'fixed inset-0 z-20 md:relative md:inset-auto md:z-auto md:h-screen overflow-hidden' 
+            : 'pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8'
+        }`}
+        style={{
+          height: currentRoute === 'ai' && viewportHeight ? `${viewportHeight}px` : undefined,
+        }}
+      >
+        {/* Mobile Top Bar - Solid, pinned at top, safe for iPhone dynamic island and notch; never disappears */}
         <header 
-          className="md:hidden sticky top-0 z-30 bg-zinc-950/95 backdrop-blur-md border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between shrink-0"
+          className="md:hidden shrink-0 w-full z-30 bg-zinc-950 border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between select-none"
           style={{
             paddingTop: 'max(0.625rem, calc(0.375rem + env(safe-area-inset-top, 0px)))',
           }}
@@ -335,7 +425,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           
           {/* Action buttons on right: On AI Advisor, strictly omit notification bell, feedback, and unrelated functions */}
           {currentRoute === 'ai' ? (
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('ursella_ai_toggle_history'))}
                 className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 active:scale-95 transition-all"
@@ -352,6 +442,14 @@ export const AppShell: React.FC<AppShellProps> = ({
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span className="text-xs font-medium">New</span>
+              </button>
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('ursella_ai_toggle_options'))}
+                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 active:scale-95 transition-all"
+                title="Chat Options"
+                aria-label="Chat Options"
+              >
+                <MoreVertical className="w-4 h-4 text-zinc-300" />
               </button>
             </div>
           ) : (
@@ -408,7 +506,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         {/* Page Body */}
         <main className={`flex-1 w-full min-h-0 ${
           currentRoute === 'ai' 
-            ? 'p-0 max-w-none flex flex-col overflow-hidden h-full' 
+            ? 'p-0 max-w-none flex flex-col overflow-hidden' 
             : 'p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto'
         }`}>
           {React.Children.map(children, (child) => {

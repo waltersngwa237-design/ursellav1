@@ -426,13 +426,18 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     const handleToggleHistoryEvent = () => {
       setIsSidebarOpen((prev) => !prev);
     };
+    const handleToggleOptionsEvent = () => {
+      setShowOptionsMenu((prev) => !prev);
+    };
 
     window.addEventListener('ursella_ai_new_chat', handleNewChatEvent);
     window.addEventListener('ursella_ai_toggle_history', handleToggleHistoryEvent);
+    window.addEventListener('ursella_ai_toggle_options', handleToggleOptionsEvent);
 
     return () => {
       window.removeEventListener('ursella_ai_new_chat', handleNewChatEvent);
       window.removeEventListener('ursella_ai_toggle_history', handleToggleHistoryEvent);
+      window.removeEventListener('ursella_ai_toggle_options', handleToggleOptionsEvent);
     };
   }, []);
 
@@ -568,7 +573,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   }
 
   return (
-    <div className={`flex flex-1 h-full min-h-0 w-full overflow-hidden relative ${
+    <div className={`flex flex-1 min-h-0 w-full overflow-hidden relative ${
       isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* ========================================================================= */}
@@ -785,7 +790,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       {/* ========================================================================= */}
       {/* 2. MAIN CHAT WORKSPACE (Edge-to-Edge Full Height)                         */}
       {/* ========================================================================= */}
-      <div className={`flex-1 flex flex-col min-w-0 h-full overflow-hidden relative ${
+      <div className={`flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden relative ${
         isDark ? 'bg-zinc-950' : 'bg-slate-50'
       }`}>
         {/* Top Header - Desktop Workspace Navigation (On mobile, AppShell provides the fixed top nav bar) */}
@@ -937,6 +942,60 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
             </div>
           </div>
         </header>
+
+        {/* Mobile Options Dropdown Anchored Below Top Bar */}
+        {showOptionsMenu && isMobileScreen && (
+          <div 
+            ref={optionsMenuRef}
+            className={`md:hidden fixed right-3 z-50 w-52 rounded-xl border py-1.5 shadow-2xl animate-in fade-in-50 zoom-in-95 ${
+              isDark ? 'bg-zinc-900 border-zinc-700/80 ring-1 ring-black/50' : 'bg-white border-slate-200 shadow-xl'
+            }`}
+            style={{
+              top: 'calc(max(0.625rem, calc(0.375rem + env(safe-area-inset-top, 0px))) + 3.25rem)',
+            }}
+          >
+            {messages.length > 0 && (
+              <button
+                onClick={handleCopyTranscript}
+                className={`w-full px-3.5 py-2.5 text-left text-xs flex items-center gap-2.5 transition-colors ${
+                  isDark ? 'text-zinc-200 hover:text-white hover:bg-zinc-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                {copiedTranscript ? (
+                  <CheckCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                ) : (
+                  <Copy className={`w-4 h-4 shrink-0 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`} />
+                )}
+                <span>{copiedTranscript ? 'Copied to Clipboard' : 'Copy Transcript'}</span>
+              </button>
+            )}
+
+            {messages.length > 0 && (
+              <button
+                onClick={handleClearActiveConversation}
+                className={`w-full px-3.5 py-2.5 text-left text-xs flex items-center gap-2.5 transition-colors ${
+                  isDark ? 'text-zinc-200 hover:text-white hover:bg-zinc-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Trash2 className={`w-4 h-4 shrink-0 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`} />
+                <span>Clear Messages</span>
+              </button>
+            )}
+
+            {activeConv && (
+              <button
+                onClick={() => {
+                  setShowOptionsMenu(false);
+                  setDeleteConfirmConv(activeConv);
+                }}
+                className="w-full px-3.5 py-2.5 text-left text-xs text-rose-500 hover:bg-rose-500/10 flex items-center gap-2.5 transition-colors"
+              >
+                <Trash2 className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>Delete Chat</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Message Container Area - Smooth vertical scrolling */}
         <div 

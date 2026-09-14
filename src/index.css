@@ -52,8 +52,11 @@
     scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
   }
 
-  /* Cross-browser momentum touch scrolling */
-  * {
+  /* Cross-browser momentum touch scrolling for scrollable containers */
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .overflow-auto,
+  [data-scrollable] {
     -webkit-overflow-scrolling: touch;
   }
 
