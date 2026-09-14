@@ -1,13 +1,10 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
-import { useAuth } from '../../contexts/AuthContext.tsx';
-import { useBusiness } from '../../contexts/BusinessContext.tsx';
-import { ProactiveService } from '../../services/proactive.service.ts';
 import {
   type AIChatMessage,
 } from '../../types/ai.ts';
-import { UrsellaSymbolMark, UrsellaAIGlyph } from '../common/UrsellaLogo.tsx';
+import { UrsellaAIGlyph } from '../common/UrsellaLogo.tsx';
 import { sanitizeFollowUpSuggestions } from '../../utils/ai-prompt.utils.ts';
 import {
   Check,
@@ -21,7 +18,6 @@ import {
   Database,
   Cpu,
 } from 'lucide-react';
-import { AIResponseFeedback } from '../feedback/AIResponseFeedback.tsx';
 
 interface AIMessageCardProps {
   message: AIChatMessage;
@@ -30,6 +26,32 @@ interface AIMessageCardProps {
   onInsertPrompt?: (prompt: string) => void;
   onRetry?: () => void;
   onDeleteMessage?: (messageId: string) => void;
+}
+
+function copyToClipboardWithFallback(text: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text).then(() => true).catch(() => fallbackCopy(text));
+  }
+  return Promise.resolve(fallbackCopy(text));
+}
+
+function fallbackCopy(text: string): boolean {
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.opacity = '0';
+    textArea.setAttribute('readonly', '');
+    document.body.appendChild(textArea);
+    textArea.select();
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return successful;
+  } catch {
+    return false;
+  }
 }
 
 export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
@@ -47,18 +69,22 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
   const isError = Boolean(message.metadata?.error);
   const responseSource = structured?.responseSource || message.metadata?.responseSource;
 
-  const handleCopy = () => {
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(message.content).catch(() => {});
-    }
+  const handleCopy = async () => {
+    await copyToClipboardWithFallback(message.content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const formattedTime = new Date(message.created_at).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const formattedTime = (() => {
+    try {
+      const d = message.created_at ? new Date(message.created_at) : new Date();
+      return isNaN(d.getTime())
+        ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  })();
 
   // User Message Bubble (Right-aligned, minimalist chat bubble)
   if (isUser) {
@@ -140,6 +166,20 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
                   </ol>
                 ),
                 li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                h1: ({ children }) => (
+                  <h2 className={`font-bold text-base mt-3 mb-2 pb-1 border-b first:mt-0 ${
+                    isDark ? 'text-zinc-100 border-zinc-800/60' : 'text-slate-900 border-slate-200'
+                  }`}>
+                    {children}
+                  </h2>
+                ),
+                h2: ({ children }) => (
+                  <h3 className={`font-bold text-sm mt-3 mb-1.5 pb-1 border-b first:mt-0 ${
+                    isDark ? 'text-zinc-100 border-zinc-800/60' : 'text-slate-900 border-slate-200'
+                  }`}>
+                    {children}
+                  </h3>
+                ),
                 h3: ({ children }) => (
                   <h3 className={`font-bold text-sm mt-3 mb-1.5 pb-1 border-b first:mt-0 ${
                     isDark ? 'text-zinc-100 border-zinc-800/60' : 'text-slate-900 border-slate-200'
@@ -203,7 +243,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
                   </th>
                 ),
                 td: ({ children }) => (
-                  <td className={`px-3 py-2 text-xs whitespace-nowrap ${
+                  <td className={`px-3 py-2 text-xs break-words ${
                     isDark ? 'text-zinc-200' : 'text-slate-800'
                   }`}>
                     {children}
@@ -292,7 +332,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
                 {formattedTime}
               </span>
 
-              {/* Provenance Tag - Merchants only see Ursella AI */}
+              {/* Provenance Tag - Merchants see Ursella AI or Ledger Telemetry */}
               {responseSource === 'GEMINI_RESPONSE' || responseSource === 'GROQ_RESPONSE' ? (
                 <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                   <Cpu className="w-2.5 h-2.5" />
@@ -342,14 +382,6 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               )}
-
-              {!isError && (
-                <AIResponseFeedback
-                  businessId={message.business_id}
-                  messageId={message.id}
-                  intent={message.metadata?.intent}
-                />
-              )}
             </div>
           </div>
         </div>
@@ -388,3 +420,4 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
 });
 
 AIMessageCard.displayName = 'AIMessageCard';
+

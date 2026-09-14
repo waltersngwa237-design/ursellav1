@@ -10,14 +10,12 @@ import {
 } from '../../types/ai.ts';
 import { AIMessageCard } from '../../components/ai/AIMessageCard.tsx';
 import { SuggestedPromptChips } from '../../components/ai/SuggestedPromptChips.tsx';
-import { DailyBriefModal } from '../../components/ai/DailyBriefModal.tsx';
 import { UrsellaSymbolMark, UrsellaAIGlyph } from '../../components/common/UrsellaLogo.tsx';
 import {
   Sparkles,
   Send,
   Plus,
   Trash2,
-  Newspaper,
   History,
   MessageSquare,
   X,
@@ -32,16 +30,12 @@ import {
   MoreVertical,
   AlertTriangle,
   ChevronDown,
-  Bell,
 } from 'lucide-react';
 
 interface UrsellaAIPageProps {
   initialPrompt?: string;
   onPromptConsumed?: () => void;
   onOpenMobileMenu?: () => void;
-  onOpenNotifications?: () => void;
-  onOpenFeedback?: () => void;
-  unreadNotifCount?: number;
 }
 
 // Module-level cache to guarantee prompt strings are never re-run multiple times across component unmounts/remounts
@@ -51,9 +45,6 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   initialPrompt,
   onPromptConsumed,
   onOpenMobileMenu,
-  onOpenNotifications,
-  onOpenFeedback,
-  unreadNotifCount = 0,
 }) => {
   const { user } = useAuth();
   const { activeBusiness, currency } = useBusiness();
@@ -67,7 +58,6 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState<boolean>(false);
-  const [isDailyBriefOpen, setIsDailyBriefOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // Chat Management States
@@ -87,6 +77,65 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   const [hasNewUnseenMessage, setHasNewUnseenMessage] = useState<boolean>(false);
   const isInitialLoadRef = useRef<boolean>(true);
   const prevActiveConvIdRef = useRef<string | null>(null);
+
+  // Screen & Virtual Keyboard tracking for mobile bottom nav / keyboard avoidance
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [isMobileScreen, setIsMobileScreen] = useState(() => 
+    typeof window !== 'undefined' ? window.innerWidth < 768 : true
+  );
+
+  // Guard against iOS Safari window scrolling
+  useEffect(() => {
+    const lockWindow = () => {
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+    window.addEventListener('scroll', lockWindow, { passive: true });
+    window.scrollTo(0, 0);
+    return () => window.removeEventListener('scroll', lockWindow);
+  }, []);
+
+  useEffect(() => {
+    const handleScreenResize = () => {
+      setIsMobileScreen(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleScreenResize);
+    return () => window.removeEventListener('resize', handleScreenResize);
+  }, []);
+
+  useEffect(() => {
+    const handleFocus = () => setIsKeyboardOpen(true);
+    const handleBlur = () => {
+      setTimeout(() => {
+        const activeTag = document.activeElement?.tagName;
+        if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+          setIsKeyboardOpen(false);
+        }
+      }, 100);
+    };
+
+    window.addEventListener('focusin', handleFocus);
+    window.addEventListener('focusout', handleBlur);
+
+    const vv = window.visualViewport;
+    const handleResize = () => {
+      if (vv) {
+        const isShrunk = vv.height < (window.screen?.height || window.innerHeight) * 0.75;
+        const activeTag = document.activeElement?.tagName;
+        setIsKeyboardOpen((activeTag === 'INPUT' || activeTag === 'TEXTAREA') && isShrunk);
+      }
+    };
+    if (vv) {
+      vv.addEventListener('resize', handleResize);
+    }
+
+    return () => {
+      window.removeEventListener('focusin', handleFocus);
+      window.removeEventListener('focusout', handleBlur);
+      if (vv) vv.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
 
@@ -733,15 +782,16 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       <div className={`flex-1 flex flex-col min-w-0 h-full overflow-hidden relative ${
         isDark ? 'bg-zinc-950' : 'bg-slate-50'
       }`}>
-        {/* Top Header - Firmly pinned and integrated with notifications and feedback */}
+        {/* Top Header - Solid, pinned, and safe for iPhone dynamic island / notch */}
         <header 
-          className={`sticky top-0 z-30 shrink-0 select-none px-3 sm:px-6 border-b flex items-center justify-between backdrop-blur-md transition-all ${
-            isDark ? 'bg-zinc-950/95 border-zinc-800' : 'bg-white/95 border-slate-200 shadow-xs'
+          className={`shrink-0 w-full select-none px-3 sm:px-6 border-b flex items-center justify-between z-30 transition-colors ${
+            isDark ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}
           style={{
-            paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))',
-            paddingBottom: '0.5rem',
-            minHeight: '3.5rem',
+            paddingTop: 'max(0.625rem, calc(0.25rem + env(safe-area-inset-top, 0px)))',
+            paddingBottom: '0.625rem',
+            paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+            paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
           }}
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -819,62 +869,12 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           {/* Header Action Buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
-              onClick={() => setIsDailyBriefOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                isDark 
-                  ? 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-300 hover:text-emerald-300' 
-                  : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 hover:text-emerald-700 shadow-2xs'
-              }`}
-              title="Daily Business Brief"
-            >
-              <Newspaper className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-              <span className="hidden sm:inline">Daily Brief</span>
-            </button>
-
-            <button
               onClick={handleNewConversation}
               className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors shadow-xs shadow-emerald-500/20 active:scale-95"
             >
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">New Chat</span>
             </button>
-
-            {/* Beta Feedback Trigger */}
-            {onOpenFeedback && (
-              <button
-                onClick={onOpenFeedback}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                  isDark 
-                    ? 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-300 hover:text-zinc-100' 
-                    : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 shadow-2xs'
-                }`}
-                title="Send Beta Feedback"
-              >
-                <MessageSquare className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="hidden lg:inline">Feedback</span>
-              </button>
-            )}
-
-            {/* Notification Center Trigger */}
-            {onOpenNotifications && (
-              <button
-                onClick={onOpenNotifications}
-                className={`relative p-2 rounded-lg border transition-colors ${
-                  isDark 
-                    ? 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-300 hover:text-zinc-100' 
-                    : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 shadow-2xs'
-                }`}
-                title="Notifications"
-                aria-label="Notifications"
-              >
-                <Bell className="w-4 h-4" />
-                {unreadNotifCount > 0 && (
-                  <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[10px] font-bold">
-                    {unreadNotifCount}
-                  </span>
-                )}
-              </button>
-            )}
 
             {/* Chat Options Dropdown */}
             <div className="relative" ref={optionsMenuRef}>
@@ -979,7 +979,6 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                     setInputText(prompt);
                     textareaRef.current?.focus();
                   }}
-                  onOpenDailyBriefModal={() => setIsDailyBriefOpen(true)}
                 />
               </div>
             </div>
@@ -1051,11 +1050,13 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         {/* 3. INPUT BAR - Fixed at bottom of chat workspace                          */}
         {/* ========================================================================= */}
         <div 
-          className={`p-3 sm:p-4 border-t shrink-0 ${
+          className={`p-3 sm:p-4 border-t shrink-0 z-20 transition-all ${
             isDark ? 'border-zinc-800/80 bg-zinc-950' : 'border-slate-200 bg-white shadow-xs'
           }`}
           style={{
-            paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+            paddingBottom: isMobileScreen && !isKeyboardOpen
+              ? 'calc(4rem + max(0.5rem, env(safe-area-inset-bottom, 0px)))'
+              : 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
           }}
         >
           <div className="max-w-3xl lg:max-w-4xl mx-auto">
@@ -1176,16 +1177,6 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           </div>
         </div>
       )}
-
-      {/* Daily Brief Modal */}
-      <DailyBriefModal
-        isOpen={isDailyBriefOpen}
-        onClose={() => setIsDailyBriefOpen(false)}
-        businessId={activeBusiness.id}
-        businessName={activeBusiness.name}
-        currency={currency}
-        onAskFollowUp={(prompt) => handleSendMessage(prompt)}
-      />
     </div>
   );
 };

@@ -196,7 +196,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         currentRoute === 'ai' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : ''
       }`}
       style={{
-        paddingTop: 'var(--offline-banner-height, 0px)',
+        paddingTop: currentRoute === 'ai' ? '0px' : 'var(--offline-banner-height, 0px)',
         transition: 'padding-top 0.2s ease-out',
       }}
     >
@@ -284,9 +284,9 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* ========================================================================= */}
       {/* MAIN CONTENT AREA & TOPBAR                                                */}
       {/* ========================================================================= */}
-      <div className={`flex-1 flex flex-col min-w-0 ${
+      <div className={`flex-1 flex flex-col min-w-0 min-h-0 ${
         currentRoute === 'ai' 
-          ? `h-[100dvh] md:h-screen overflow-hidden ${isKeyboardVisible ? 'pb-0' : 'pb-16'} md:pb-0` 
+          ? 'h-[100dvh] md:h-screen overflow-hidden' 
           : 'pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8'
       }`}>
         {/* Mobile Top Bar - Only shown for non-AI routes; AI route has its own integrated top-to-bottom header */}
