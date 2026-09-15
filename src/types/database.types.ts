@@ -11,7 +11,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-export type MemberRole = 'owner' | 'admin' | 'staff';
+export type MemberRole = 'owner' | 'admin' | 'manager' | 'staff' | 'cashier';
 
 export type InventoryTransactionType =
   | 'purchase'

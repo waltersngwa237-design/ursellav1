@@ -16,6 +16,9 @@ interface BusinessContextType {
   activeBusiness: Business | null;
   activeMembership: UserBusinessMembership | null;
   activeRole: MemberRole | null;
+  simulatedRole: MemberRole | null;
+  effectiveRole: MemberRole;
+  setSimulatedRole: (role: MemberRole | null) => void;
   activeSettings: BusinessSettings | null;
   currency: SupportedCurrency;
   timezone: string;
@@ -266,10 +269,33 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const clearError = () => setError(null);
 
+  // Role simulation for POS terminal restriction and RBAC testing
+  const [simulatedRole, setSimulatedRoleState] = useState<MemberRole | null>(() => {
+    try {
+      return (localStorage.getItem('ursella_simulated_role') as MemberRole) || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const setSimulatedRole = (role: MemberRole | null) => {
+    setSimulatedRoleState(role);
+    try {
+      if (role) {
+        localStorage.setItem('ursella_simulated_role', role);
+      } else {
+        localStorage.removeItem('ursella_simulated_role');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   // Derive active business objects
   const activeMembership = businesses.find((b) => b.business.id === activeBusinessId) || null;
   const activeBusiness = activeMembership?.business || null;
   const activeRole = activeMembership?.role || null;
+  const effectiveRole: MemberRole = simulatedRole || activeRole || 'owner';
   const activeSettings = activeMembership?.settings || null;
   const currency = (activeSettings?.currency || activeBusiness?.currency || 'XAF') as SupportedCurrency;
   const timezone = activeSettings?.timezone || activeBusiness?.timezone || 'Africa/Douala';
@@ -281,6 +307,9 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         activeBusiness,
         activeMembership,
         activeRole,
+        simulatedRole,
+        effectiveRole,
+        setSimulatedRole,
         activeSettings,
         currency,
         timezone,

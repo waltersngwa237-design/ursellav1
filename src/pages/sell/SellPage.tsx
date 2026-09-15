@@ -43,20 +43,31 @@ import {
   X,
   UserPlus,
   Printer,
+  Lock,
+  ShieldAlert,
 } from 'lucide-react';
 import { PDFAndPrintService } from '../../services/pdf.service.ts';
 import { HardwarePrinterService } from '../../services/hardware-printer.service.ts';
 import { HardwareSettingsModal } from '../../components/hardware/HardwareSettingsModal.tsx';
+import { RegisterCloseoutModal } from '../../components/reports/RegisterCloseoutModal.tsx';
 import { IndexedDBService } from '../../services/indexed-db.service.ts';
 import { calculateCartTotals, calculateChangeDue, roundToDecimals } from '../../utils/currency-math.ts';
+import { verifyManagerPin, getMaxAllowedDiscount, ROLE_CONFIGS } from '../../utils/rbac.ts';
 import { Sliders, DollarSign } from 'lucide-react';
 
 export const SellPage: React.FC = () => {
-  const { activeBusiness, currency } = useBusiness();
+  const { activeBusiness, currency, effectiveRole } = useBusiness();
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
 
   const [activeTab, setActiveTab] = useState<'pos' | 'history'>('pos');
   const [isHardwareModalOpen, setIsHardwareModalOpen] = useState(false);
+  const [isRegisterCloseoutOpen, setIsRegisterCloseoutOpen] = useState(false);
+
+  // Discount RBAC & Manager Override
+  const [isManagerDiscountApprovalOpen, setIsManagerDiscountApprovalOpen] = useState(false);
+  const [managerDiscountPin, setManagerDiscountPin] = useState('');
+  const [managerDiscountError, setManagerDiscountError] = useState<string | null>(null);
+  const [isDiscountOverrideApproved, setIsDiscountOverrideApproved] = useState(false);
 
   // Products & Categories
   const [products, setProducts] = useState<ProductWithCategory[]>([]);
@@ -280,6 +291,7 @@ export const SellPage: React.FC = () => {
   const clearCart = () => {
     setCart([]);
     setDiscountAmount(0);
+    setIsDiscountOverrideApproved(false);
     setAmountPaidInput('');
     setPaymentReference('');
     setSaleNotes('');
@@ -291,6 +303,14 @@ export const SellPage: React.FC = () => {
     if (!activeBusiness?.id) return;
     if (cart.length === 0) {
       setSaleError('Cart is empty. Select products to sell.');
+      return;
+    }
+
+    // Role-based discount authorization check
+    const maxAllowedDiscountPct = getMaxAllowedDiscount(effectiveRole);
+    const currentDiscountPct = cartSubtotal > 0 ? (Number(discountAmount) / cartSubtotal) * 100 : 0;
+    if (currentDiscountPct > maxAllowedDiscountPct && !isDiscountOverrideApproved) {
+      setIsManagerDiscountApprovalOpen(true);
       return;
     }
 
@@ -440,6 +460,22 @@ export const SellPage: React.FC = () => {
           >
             <Printer className="w-4 h-4 text-emerald-400" />
           </button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsRegisterCloseoutOpen(true)}
+            className="flex items-center gap-1.5 border-zinc-800 bg-zinc-900 text-zinc-200 hover:text-white"
+            title="Open Register Audit & End-of-Day Closeout (Z-Report)"
+          >
+            <Receipt className="w-4 h-4 text-emerald-400" />
+            <span className="hidden sm:inline">Register & Z-Report</span>
+          </Button>
+
+          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-zinc-800 bg-zinc-900 text-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="capitalize font-semibold text-zinc-300">{effectiveRole}</span>
+          </div>
         </div>
       </div>
 
@@ -764,21 +800,57 @@ export const SellPage: React.FC = () => {
               {cart.length > 0 && (
                 <div className="space-y-3 pt-3 border-t border-zinc-800 text-xs">
                   {/* Discount Field */}
-                  <div className="flex items-center justify-between gap-3">
-                    <label className="text-zinc-400 flex items-center gap-1 shrink-0">
-                      <Tag className="w-3.5 h-3.5" /> Discount:
-                    </label>
-                    <div className="w-32">
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        placeholder="0"
-                        value={discountAmount || ''}
-                        onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value) || 0))}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-right text-xs text-zinc-100 focus:outline-none focus:border-emerald-500"
-                      />
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <label className="text-zinc-400 flex items-center gap-1">
+                          <Tag className="w-3.5 h-3.5" /> Discount:
+                        </label>
+                        {effectiveRole === 'cashier' && (
+                          <span className="text-[10px] text-zinc-500 font-mono">(Max 10%)</span>
+                        )}
+                      </div>
+                      <div className="w-32">
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          placeholder="0"
+                          value={discountAmount || ''}
+                          onChange={(e) => {
+                            setDiscountAmount(Math.max(0, Number(e.target.value) || 0));
+                            setIsDiscountOverrideApproved(false);
+                          }}
+                          className={`w-full bg-zinc-950 border rounded-lg px-2.5 py-1 text-right text-xs font-semibold focus:outline-none ${
+                            cartSubtotal > 0 &&
+                            (Number(discountAmount) / cartSubtotal) * 100 > getMaxAllowedDiscount(effectiveRole) &&
+                            !isDiscountOverrideApproved
+                              ? 'border-amber-500/60 text-amber-300'
+                              : 'border-zinc-800 text-zinc-100 focus:border-emerald-500'
+                          }`}
+                        />
+                      </div>
                     </div>
+                    {cartSubtotal > 0 &&
+                      (Number(discountAmount) / cartSubtotal) * 100 > getMaxAllowedDiscount(effectiveRole) && (
+                        <div className="flex items-center justify-between text-[11px] text-amber-400 bg-amber-500/10 px-2 py-1 rounded">
+                          <span className="flex items-center gap-1">
+                            <Lock className="w-3 h-3" />
+                            {isDiscountOverrideApproved
+                              ? 'Manager override approved'
+                              : `Discount exceeds ${getMaxAllowedDiscount(effectiveRole)}% limit`}
+                          </span>
+                          {!isDiscountOverrideApproved && (
+                            <button
+                              type="button"
+                              onClick={() => setIsManagerDiscountApprovalOpen(true)}
+                              className="font-bold underline hover:text-amber-300 ml-1"
+                            >
+                              Enter PIN
+                            </button>
+                          )}
+                        </div>
+                      )}
                   </div>
 
                   {/* Payment Method Selector */}
@@ -1159,6 +1231,84 @@ export const SellPage: React.FC = () => {
         isOpen={isHardwareModalOpen}
         onClose={() => setIsHardwareModalOpen(false)}
       />
+
+      {/* Register Closeout & End-of-Day Z-Report Modal */}
+      <RegisterCloseoutModal
+        isOpen={isRegisterCloseoutOpen}
+        onClose={() => setIsRegisterCloseoutOpen(false)}
+      />
+
+      {/* Manager Discount Approval PIN Modal */}
+      <Modal
+        isOpen={isManagerDiscountApprovalOpen}
+        onClose={() => {
+          setIsManagerDiscountApprovalOpen(false);
+          setManagerDiscountPin('');
+          setManagerDiscountError(null);
+        }}
+        title="Manager Approval Required"
+        description="This discount exceeds the cashier limit. A manager or owner must enter their PIN to authorize this override."
+      >
+        <div className="space-y-4 pt-2">
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div className="text-xs">
+              <p className="font-bold text-amber-300">Excess Discount Override</p>
+              <p className="text-zinc-400">
+                Discount: {currencyConfig.format(Number(discountAmount))} ({cartSubtotal > 0 ? Math.round((Number(discountAmount) / cartSubtotal) * 100) : 0}%) exceeds cashier threshold of {getMaxAllowedDiscount(effectiveRole)}%.
+              </p>
+            </div>
+          </div>
+
+          <Input
+            label="Manager PIN *"
+            type="password"
+            placeholder="Enter PIN (default: 8888)"
+            value={managerDiscountPin}
+            onChange={(e) => {
+              setManagerDiscountPin(e.target.value);
+              setManagerDiscountError(null);
+            }}
+            autoFocus
+          />
+
+          {managerDiscountError && (
+            <p className="text-xs text-rose-500 font-medium">{managerDiscountError}</p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsManagerDiscountApprovalOpen(false);
+                setManagerDiscountPin('');
+                setManagerDiscountError(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => {
+                if (!verifyManagerPin(managerDiscountPin)) {
+                  setManagerDiscountError('Invalid manager PIN. Please enter an authorized manager PIN.');
+                  return;
+                }
+                setIsDiscountOverrideApproved(true);
+                setIsManagerDiscountApprovalOpen(false);
+                setManagerDiscountPin('');
+                setManagerDiscountError(null);
+              }}
+            >
+              Authorize Discount
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

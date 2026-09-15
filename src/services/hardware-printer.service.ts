@@ -9,6 +9,7 @@
  */
 
 import type { Business, CurrencyConfig, SaleWithDetails } from '../types/index.ts';
+import type { RegisterShift } from './register-closeout.service.ts';
 
 export type ThermalPaperWidth = '58mm' | '80mm';
 export type HardwareConnectionType = 'browser' | 'bluetooth' | 'serial';
@@ -502,6 +503,228 @@ class HardwarePrinterServiceClass {
         iframe?.contentWindow?.print();
       } catch (e) {
         console.error('Thermal print failed:', e);
+      }
+    }, 250);
+  }
+
+  /**
+   * Browser-based and ESC/POS thermal printing for End-of-Day Z-Report
+   */
+  printZReport(
+    shift: RegisterShift,
+    business: Business | null,
+    currencyConfig: CurrencyConfig
+  ): void {
+    if (typeof window === 'undefined') return;
+
+    const settings = this.getSettings();
+    const widthMm = settings.paperWidth === '58mm' ? '58mm' : '80mm';
+    const iframeId = 'ursella-zreport-print-frame';
+
+    let iframe = document.getElementById(iframeId) as HTMLIFrameElement | null;
+    if (iframe) {
+      iframe.remove();
+    }
+
+    iframe = document.createElement('iframe');
+    iframe.id = iframeId;
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    const discLabel =
+      shift.discrepancy === 0
+        ? 'BALANCED (EXACT MATCH)'
+        : shift.discrepancy > 0
+        ? `CASH OVER (+${currencyConfig.format(shift.discrepancy)})`
+        : `CASH SHORT (-${currencyConfig.format(Math.abs(shift.discrepancy))})`;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Z-Report ${shift.z_report_number}</title>
+        <style>
+          @page {
+            size: ${widthMm} auto;
+            margin: 0;
+          }
+          * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Courier New', Courier, monospace;
+            color: #000;
+            background: #fff;
+          }
+          body {
+            width: ${widthMm};
+            padding: 3mm 4mm;
+            font-size: 11px;
+            line-height: 1.35;
+          }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .title { font-size: 15px; font-weight: 900; margin-bottom: 2px; }
+          .subtitle { font-size: 11px; font-weight: bold; margin-bottom: 4px; }
+          .divider { border-bottom: 1px dashed #000; margin: 4px 0; }
+          .double-divider { border-bottom: 2px solid #000; margin: 5px 0; }
+          .row { display: flex; justify-content: space-between; align-items: flex-start; }
+          .header-box { border: 1px solid #000; padding: 4px; margin: 5px 0; text-align: center; font-weight: bold; }
+          .audit-box { border: 1px solid #000; padding: 4px; margin: 4px 0; font-size: 10px; }
+          .footer { text-align: center; margin-top: 10px; font-size: 9px; }
+          .signature-line { border-top: 1px dashed #000; margin-top: 20px; padding-top: 2px; text-align: center; font-size: 9px; }
+        </style>
+      </head>
+      <body>
+        <div class="center">
+          <div class="title">${business?.name || 'URSELLA BUSINESS'}</div>
+          ${(business as any)?.address ? `<div>${(business as any).address}</div>` : ''}
+          ${(business as any)?.phone ? `<div>Tel: ${(business as any).phone}</div>` : ''}
+          <div class="divider"></div>
+          <div class="subtitle">OFFICIAL END-OF-DAY Z-REPORT</div>
+          <div class="bold">REPORT #: ${shift.z_report_number}</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row">
+          <span>Shift #:</span>
+          <span class="bold">${shift.shift_number}</span>
+        </div>
+        <div class="row">
+          <span>Opened:</span>
+          <span>${new Date(shift.opened_at).toLocaleString()}</span>
+        </div>
+        <div class="row">
+          <span>Closed:</span>
+          <span>${shift.closed_at ? new Date(shift.closed_at).toLocaleString() : 'Active (X-Reading)'}</span>
+        </div>
+        <div class="row">
+          <span>Cashier:</span>
+          <span class="bold">${shift.opened_by || 'Store Cashier'}</span>
+        </div>
+        ${shift.manager_name ? `<div class="row"><span>Manager:</span><span>${shift.manager_name}</span></div>` : ''}
+
+        <div class="double-divider"></div>
+        <div class="bold center">--- SALES SUMMARY ---</div>
+
+        <div class="row">
+          <span>Total Transactions:</span>
+          <span class="bold">${shift.sales_count}</span>
+        </div>
+        <div class="row">
+          <span>Gross Revenue:</span>
+          <span class="bold">${currencyConfig.format(shift.total_sales)}</span>
+        </div>
+        <div class="row">
+          <span>Total Discounts:</span>
+          <span>-${currencyConfig.format(shift.total_discounts)}</span>
+        </div>
+        <div class="row">
+          <span>Total Tax / VAT:</span>
+          <span>+${currencyConfig.format(shift.total_tax)}</span>
+        </div>
+
+        <div class="divider"></div>
+        <div class="bold center">--- PAYMENT TENDER BREAKDOWN ---</div>
+
+        <div class="row">
+          <span>Cash Payments:</span>
+          <span class="bold">${currencyConfig.format(shift.cash_sales)}</span>
+        </div>
+        <div class="row">
+          <span>Card / POS Terminals:</span>
+          <span>${currencyConfig.format(shift.card_sales)}</span>
+        </div>
+        <div class="row">
+          <span>Mobile Money (MoMo/OM):</span>
+          <span>${currencyConfig.format(shift.momo_sales)}</span>
+        </div>
+        <div class="row">
+          <span>Invoiced / Credit:</span>
+          <span>${currencyConfig.format(shift.credit_sales)}</span>
+        </div>
+
+        <div class="double-divider"></div>
+        <div class="bold center">--- CASH DRAWER RECONCILIATION ---</div>
+
+        <div class="row">
+          <span>Opening Float:</span>
+          <span>${currencyConfig.format(shift.opening_float)}</span>
+        </div>
+        <div class="row">
+          <span>+ Cash Sales:</span>
+          <span>+${currencyConfig.format(shift.cash_sales)}</span>
+        </div>
+        <div class="row">
+          <span>+ Paid In (Cash In):</span>
+          <span>+${currencyConfig.format(shift.cash_in)}</span>
+        </div>
+        <div class="row">
+          <span>- Paid Out (Petty Cash):</span>
+          <span>-${currencyConfig.format(shift.cash_out)}</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row bold">
+          <span>EXPECTED DRAWER CASH:</span>
+          <span>${currencyConfig.format(shift.expected_cash)}</span>
+        </div>
+        <div class="row bold">
+          <span>ACTUAL CASH COUNTED:</span>
+          <span>${currencyConfig.format(shift.actual_cash_counted)}</span>
+        </div>
+
+        <div class="header-box">
+          AUDIT RESULT:<br/>
+          ${discLabel}
+        </div>
+
+        ${
+          shift.notes
+            ? `<div class="audit-box"><strong>Notes / Variance Reason:</strong><br/>${shift.notes}</div>`
+            : ''
+        }
+
+        <div class="double-divider"></div>
+
+        <div class="row" style="margin-top: 15px;">
+          <div style="width: 48%;">
+            <div class="signature-line">Cashier Signature</div>
+          </div>
+          <div style="width: 48%;">
+            <div class="signature-line">Manager Sign-off</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div>Report generated automatically by Ursella POS</div>
+          <div>All financial transactions tamper-evident & sealed</div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe?.contentWindow?.focus();
+        iframe?.contentWindow?.print();
+      } catch (e) {
+        console.error('Thermal Z-Report print failed:', e);
       }
     }, 250);
   }
