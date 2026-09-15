@@ -26,18 +26,12 @@ import {
   LogOut,
   Building2,
   Plus,
-  Coins,
-  Globe,
-  Clock,
-  Sparkles,
   CheckCircle2,
-  Key,
   FileText,
   Database,
   CreditCard,
   MessageSquare,
   ChevronRight,
-  Zap,
   Sun,
   Moon,
   Trash2,
@@ -47,31 +41,33 @@ import {
   Check,
   Phone,
   Mail,
-  MapPin,
   Printer,
   Sliders,
 } from 'lucide-react';
 
 interface MoreMenuPageProps {
   onNavigate: (route: AppNavRoute) => void;
+  defaultTab?: 'general' | 'business' | 'team' | 'hardware' | 'data';
 }
 
-export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate }) => {
+type SettingsTab = 'general' | 'business' | 'team' | 'hardware' | 'data';
+
+export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultTab = 'general' }) => {
   const { user, profile, updateProfile, signOut } = useAuth();
   const {
     businesses,
     activeBusiness,
     activeRole,
-    activeSettings,
     currency,
-    timezone,
     setActiveBusinessId,
     updateBusiness,
     createDemoBusiness,
     resetCurrentBusinessData,
     seedSampleCatalog,
   } = useBusiness();
-  const { theme, isDark, setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
 
   const [isNewBusinessModalOpen, setIsNewBusinessModalOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
@@ -185,7 +181,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate }) => {
       setIsResetLoading(true);
       await resetCurrentBusinessData();
       setShowResetConfirm(false);
-      setStatusMessage('Business data reset! You now have a 100% clean and fresh account.');
+      setStatusMessage('Business data reset! You now have a clean, fresh workspace.');
     } finally {
       setIsResetLoading(false);
     }
@@ -201,16 +197,47 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate }) => {
     }
   };
 
+  const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'general', label: 'General', icon: <User className="w-4 h-4" /> },
+    { id: 'business', label: 'Store Profile', icon: <Store className="w-4 h-4" /> },
+    { id: 'team', label: 'Team & Staff', icon: <Users className="w-4 h-4" /> },
+    { id: 'hardware', label: 'POS Hardware', icon: <Printer className="w-4 h-4" /> },
+    { id: 'data', label: 'Data & Cloud', icon: <Database className="w-4 h-4" /> },
+  ];
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
       {/* Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-          Settings & Business Management
-        </h1>
-        <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-          Manage your user profile, business settings, interface appearance, and workspace controls.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+            Settings
+          </h1>
+          <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
+            Manage your store preferences, staff access, POS peripherals, and data architecture.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsFeedbackModalOpen(true)}
+            leftIcon={<MessageSquare className="w-3.5 h-3.5 text-zinc-400" />}
+            className="text-xs text-zinc-400 hover:text-zinc-200"
+          >
+            Feedback
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => signOut()}
+            leftIcon={<LogOut className="w-3.5 h-3.5" />}
+            className="text-xs"
+          >
+            Sign Out
+          </Button>
+        </div>
       </div>
 
       {statusMessage && (
@@ -228,473 +255,483 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* Quick Navigation Cards: Core Hubs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <button
-          onClick={() => onNavigate('reports')}
-          className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 text-left transition-all group flex flex-col justify-between cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
-              <FileText className="w-5 h-5" />
-            </div>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-emerald-400 transition-colors" />
-          </div>
-          <div className="mt-3">
-            <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
-              Financial Reports
-            </h4>
-            <p className="text-[11px] text-zinc-400 mt-0.5">
-              GAAP-aligned P&L, Sales, Cash Flow, and Inventory reports.
-            </p>
-          </div>
-        </button>
-
-        <button
-          onClick={() => {
-            const el = document.getElementById('team-management-section');
-            if (el) {
-              el.scrollIntoView({ behavior: 'smooth' });
-            }
-          }}
-          className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-purple-500/50 text-left transition-all group flex flex-col justify-between cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl">
-              <Users className="w-5 h-5" />
-            </div>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-purple-400 transition-colors" />
-          </div>
-          <div className="mt-3">
-            <h4 className="text-sm font-bold text-white group-hover:text-purple-300 transition-colors">
-              Team & Staff
-            </h4>
-            <p className="text-[11px] text-zinc-400 mt-0.5">
-              Multi-user access, POS cashier PINs, and permissions.
-            </p>
-          </div>
-        </button>
-
-        <button
-          onClick={() => onNavigate('data-io')}
-          className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 text-left transition-all group flex flex-col justify-between cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl">
-              <Database className="w-5 h-5" />
-            </div>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-cyan-400 transition-colors" />
-          </div>
-          <div className="mt-3">
-            <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
-              Data Migration Hub
-            </h4>
-            <p className="text-[11px] text-zinc-400 mt-0.5">
-              CSV spreadsheet upload, validation, and full business export.
-            </p>
-          </div>
-        </button>
-
-        <button
-          onClick={() => onNavigate('billing')}
-          className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 text-left transition-all group flex flex-col justify-between cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
-              <CreditCard className="w-5 h-5" />
-            </div>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-emerald-400 transition-colors" />
-          </div>
-          <div className="mt-3">
-            <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
-              Free Plan & Quota
-            </h4>
-            <p className="text-[11px] text-zinc-400 mt-0.5">
-              Full access to all POS, Inventory, and AI capabilities at zero cost.
-            </p>
-          </div>
-        </button>
+      {/* Segmented Tab Navigation */}
+      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-zinc-900/90 border border-zinc-800/80 overflow-x-auto no-scrollbar">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                isActive
+                  ? 'bg-zinc-800 text-white shadow-xs border border-zinc-700/80'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850/50'
+              }`}
+            >
+              <span className={isActive ? 'text-emerald-400' : 'text-zinc-500'}>
+                {tab.icon}
+              </span>
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* 1. Theme & Appearance Mode */}
-      <Card className="space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
-            <Sun className="w-4 h-4 text-amber-400" />
-            <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
-              Interface Appearance
-            </h3>
-          </div>
-          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 border border-zinc-700/60">
-            {theme === 'light' ? 'Light Mode Active' : 'Dark Mode Active'}
-          </span>
-        </div>
-
-        <p className="text-xs text-zinc-400">
-          Choose between Dark and Light mode depending on your working environment and lighting conditions.
-        </p>
-
-        <div className="grid grid-cols-2 gap-3 pt-1">
-          <button
-            onClick={() => setTheme('light')}
-            className={`p-3.5 rounded-xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
-              theme === 'light'
-                ? 'bg-amber-500/10 border-amber-500/50 ring-1 ring-amber-500/30'
-                : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700'
-            }`}
-          >
-            <div className="p-2 rounded-lg bg-amber-500/15 text-amber-500">
-              <Sun className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
-                Light Mode
-                {theme === 'light' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+      {/* ========================================================================= */}
+      {/* TAB 1: GENERAL (USER & APPEARANCE)                                        */}
+      {/* ========================================================================= */}
+      {activeTab === 'general' && (
+        <div className="space-y-5 animate-in fade-in duration-150">
+          {/* User Identity Profile */}
+          <Card className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-lg shrink-0">
+                  {profile?.full_name?.charAt(0) || user?.email?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-zinc-100">
+                      {profile?.full_name || 'Business User'}
+                    </h3>
+                    <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                      Account Owner
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5">
+                    <Mail className="w-3.5 h-3.5 text-zinc-500" />
+                    <span>{user?.email}</span>
+                  </p>
+                  {profile?.phone && (
+                    <p className="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5">
+                      <Phone className="w-3.5 h-3.5 text-zinc-500" />
+                      <span>{profile.phone}</span>
+                    </p>
+                  )}
+                </div>
               </div>
-              <span className="text-[10px] text-zinc-400">Crisp high-contrast day theme</span>
-            </div>
-          </button>
 
-          <button
-            onClick={() => setTheme('dark')}
-            className={`p-3.5 rounded-xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
-              theme === 'dark'
-                ? 'bg-emerald-500/10 border-emerald-500/50 ring-1 ring-emerald-500/30'
-                : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700'
-            }`}
-          >
-            <div className="p-2 rounded-lg bg-indigo-500/15 text-indigo-400">
-              <Moon className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
-                Dark Mode
-                {theme === 'dark' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+              <div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setProfileName(profile?.full_name || '');
+                    setProfilePhone(profile?.phone || '');
+                    setProfileError(null);
+                    setIsEditProfileModalOpen(true);
+                  }}
+                  leftIcon={<Edit3 className="w-3.5 h-3.5 text-emerald-400" />}
+                  className="text-xs cursor-pointer"
+                >
+                  Edit Profile
+                </Button>
               </div>
-              <span className="text-[10px] text-zinc-400">Sleek, eye-safe night theme</span>
             </div>
-          </button>
-        </div>
-      </Card>
+          </Card>
 
-      {/* 2. User Identity Profile */}
-      <Card className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-lg shrink-0">
-              {profile?.full_name?.charAt(0) || user?.email?.charAt(0).toUpperCase() || 'U'}
-            </div>
-            <div>
+          {/* Theme & Appearance Mode */}
+          <Card className="space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-zinc-100">
-                  {profile?.full_name || 'Business User'}
+                <Sun className="w-4 h-4 text-amber-400" />
+                <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
+                  Interface Appearance
                 </h3>
-                <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                  Account Owner
-                </span>
               </div>
-              <p className="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5">
-                <Mail className="w-3.5 h-3.5 text-zinc-500" />
-                <span>{user?.email}</span>
-              </p>
-              {profile?.phone && (
-                <p className="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5">
-                  <Phone className="w-3.5 h-3.5 text-zinc-500" />
-                  <span>{profile.phone}</span>
-                </p>
-              )}
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+                {theme === 'light' ? 'Light Mode Active' : 'Dark Mode Active'}
+              </span>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setProfileName(profile?.full_name || '');
-                setProfilePhone(profile?.phone || '');
-                setProfileError(null);
-                setIsEditProfileModalOpen(true);
-              }}
-              leftIcon={<Edit3 className="w-3.5 h-3.5 text-emerald-400" />}
-              className="text-xs cursor-pointer"
-            >
-              Edit Profile Info
-            </Button>
+            <p className="text-xs text-zinc-400">
+              Switch between daylight high-contrast and low-light eye-safe night mode.
+            </p>
 
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setIsFeedbackModalOpen(true)}
-              leftIcon={<MessageSquare className="w-3.5 h-3.5 text-zinc-400" />}
-              className="text-xs text-zinc-400 hover:text-zinc-200 cursor-pointer"
-            >
-              Feedback
-            </Button>
-          </div>
-        </div>
-      </Card>
-
-      {/* 3. Active Business Details & Multi-Tenant Switcher */}
-      <Card className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-zinc-800 gap-2">
-          <div className="flex items-center gap-2.5">
-            <Store className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-sm font-bold text-zinc-100 uppercase tracking-wider">
-              Active Business Profile
-            </h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="emerald">{activeRole?.toUpperCase()}</Badge>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setBizName(activeBusiness?.name || '');
-                setBizType(activeBusiness?.business_type || 'Retail');
-                setBizCountry(activeBusiness?.country || 'Cameroon');
-                setBizCurrency((activeBusiness?.currency || currency || 'XAF') as SupportedCurrency);
-                setBizTimezone(activeBusiness?.timezone || 'Africa/Douala');
-                setBizDescription(activeBusiness?.description || '');
-                setBizError(null);
-                setIsEditBusinessModalOpen(true);
-              }}
-              leftIcon={<Edit3 className="w-3.5 h-3.5 text-emerald-400" />}
-              className="text-xs py-1"
-            >
-              Edit Business Info
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
-            <span className="text-[11px] text-zinc-400 block">Business Name</span>
-            <span className="text-sm font-bold text-zinc-100">{activeBusiness?.name}</span>
-          </div>
-
-          <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
-            <span className="text-[11px] text-zinc-400 block">Industry</span>
-            <span className="text-sm font-bold text-zinc-100">
-              {activeBusiness?.business_type || 'Retail'}
-            </span>
-          </div>
-
-          <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
-            <span className="text-[11px] text-zinc-400 block">Currency & Country</span>
-            <span className="text-sm font-bold text-zinc-100">
-              {currencyConfig.code} ({currencyConfig.symbol}) • {activeBusiness?.country}
-            </span>
-          </div>
-        </div>
-
-        {activeBusiness?.description && (
-          <div className="p-3 rounded-xl bg-zinc-950/40 border border-zinc-800/60 text-xs text-zinc-400">
-            <span className="text-zinc-500 font-semibold block mb-0.5">Description:</span>
-            {activeBusiness.description}
-          </div>
-        )}
-
-        {/* Business Switcher List */}
-        <div className="pt-2">
-          <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-            Switch Managed Business ({businesses.length})
-          </div>
-          <div className="space-y-1.5">
-            {businesses.map((b) => (
-              <div
-                key={b.business.id}
-                className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
-                  b.business.id === activeBusiness?.id
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-white'
-                    : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700 text-zinc-300'
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <button
+                onClick={() => setTheme('light')}
+                className={`p-3.5 rounded-xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
+                  theme === 'light'
+                    ? 'bg-amber-500/10 border-amber-500/50 ring-1 ring-amber-500/30'
+                    : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Building2 className="w-4 h-4 text-zinc-400 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold truncate text-zinc-100">
-                      {b.business.name}
-                    </p>
-                    <p className="text-[10px] text-zinc-400">
-                      {b.business.currency} • Role: {b.role.toUpperCase()}
-                    </p>
-                  </div>
+                <div className="p-2 rounded-lg bg-amber-500/15 text-amber-500">
+                  <Sun className="w-5 h-5" />
                 </div>
+                <div>
+                  <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
+                    Light Mode
+                    {theme === 'light' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                  </div>
+                  <span className="text-[10px] text-zinc-400">Crisp high-contrast day theme</span>
+                </div>
+              </button>
 
-                {b.business.id === activeBusiness?.id ? (
-                  <Badge variant="emerald" size="sm">
-                    ACTIVE
-                  </Badge>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs py-1"
-                    onClick={() => setActiveBusinessId(b.business.id)}
-                  >
-                    Select
-                  </Button>
-                )}
+              <button
+                onClick={() => setTheme('dark')}
+                className={`p-3.5 rounded-xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
+                  theme === 'dark'
+                    ? 'bg-emerald-500/10 border-emerald-500/50 ring-1 ring-emerald-500/30'
+                    : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700'
+                }`}
+              >
+                <div className="p-2 rounded-lg bg-indigo-500/15 text-indigo-400">
+                  <Moon className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
+                    Dark Mode
+                    {theme === 'dark' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                  </div>
+                  <span className="text-[10px] text-zinc-400">Sleek, eye-safe night theme</span>
+                </div>
+              </button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: BUSINESS PROFILE & STORE SWITCHER                                   */}
+      {/* ========================================================================= */}
+      {activeTab === 'business' && (
+        <div className="space-y-5 animate-in fade-in duration-150">
+          <Card className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-zinc-800 gap-2">
+              <div className="flex items-center gap-2.5">
+                <Store className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-sm font-bold text-zinc-100 uppercase tracking-wider">
+                  Active Business Entity
+                </h3>
               </div>
-            ))}
-          </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="emerald">{activeRole?.toUpperCase()}</Badge>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setBizName(activeBusiness?.name || '');
+                    setBizType(activeBusiness?.business_type || 'Retail');
+                    setBizCountry(activeBusiness?.country || 'Cameroon');
+                    setBizCurrency((activeBusiness?.currency || currency || 'XAF') as SupportedCurrency);
+                    setBizTimezone(activeBusiness?.timezone || 'Africa/Douala');
+                    setBizDescription(activeBusiness?.description || '');
+                    setBizError(null);
+                    setIsEditBusinessModalOpen(true);
+                  }}
+                  leftIcon={<Edit3 className="w-3.5 h-3.5 text-emerald-400" />}
+                  className="text-xs py-1"
+                >
+                  Edit Business Info
+                </Button>
+              </div>
+            </div>
 
-          <div className="flex flex-wrap gap-2.5 mt-3 pt-3 border-t border-zinc-800">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsNewBusinessModalOpen(true)}
-              leftIcon={<Plus className="w-4 h-4" />}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
+                <span className="text-[11px] text-zinc-400 block">Business Name</span>
+                <span className="text-sm font-bold text-zinc-100">{activeBusiness?.name}</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
+                <span className="text-[11px] text-zinc-400 block">Industry</span>
+                <span className="text-sm font-bold text-zinc-100">
+                  {activeBusiness?.business_type || 'Retail'}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
+                <span className="text-[11px] text-zinc-400 block">Currency & Region</span>
+                <span className="text-sm font-bold text-zinc-100">
+                  {currencyConfig.code} ({currencyConfig.symbol}) • {activeBusiness?.country}
+                </span>
+              </div>
+            </div>
+
+            {activeBusiness?.description && (
+              <div className="p-3 rounded-xl bg-zinc-950/40 border border-zinc-800/60 text-xs text-zinc-400">
+                <span className="text-zinc-500 font-semibold block mb-0.5">Description:</span>
+                {activeBusiness.description}
+              </div>
+            )}
+          </Card>
+
+          {/* Multi-Tenant Switcher */}
+          <Card className="space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
+                  Managed Businesses ({businesses.length})
+                </h3>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsNewBusinessModalOpen(true)}
+                leftIcon={<Plus className="w-3.5 h-3.5" />}
+                className="text-xs"
+              >
+                Add Business
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              {businesses.map((b) => (
+                <div
+                  key={b.business.id}
+                  className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                    b.business.id === activeBusiness?.id
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-white'
+                      : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700 text-zinc-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Building2 className="w-4 h-4 text-zinc-400 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold truncate text-zinc-100">
+                        {b.business.name}
+                      </p>
+                      <p className="text-[10px] text-zinc-400">
+                        {b.business.currency} • Role: {b.role.toUpperCase()}
+                      </p>
+                    </div>
+                  </div>
+
+                  {b.business.id === activeBusiness?.id ? (
+                    <Badge variant="emerald" size="sm">
+                      ACTIVE
+                    </Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs py-1"
+                      onClick={() => setActiveBusinessId(b.business.id)}
+                    >
+                      Select
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleAddDemoBusiness}
+                isLoading={isDemoLoading}
+                className="text-zinc-400 hover:text-zinc-200 cursor-pointer text-xs"
+              >
+                + Create Sample Demo Business
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: TEAM & STAFF                                                       */}
+      {/* ========================================================================= */}
+      {activeTab === 'team' && (
+        <div className="animate-in fade-in duration-150">
+          <TeamManagementSection />
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 4: POS HARDWARE & THERMAL PRINTING                                    */}
+      {/* ========================================================================= */}
+      {activeTab === 'hardware' && (
+        <div className="space-y-5 animate-in fade-in duration-150">
+          <Card className="space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <Printer className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
+                  Thermal Receipt Printing & Peripherals
+                </h3>
+              </div>
+              <Badge variant="emerald">{hwSettings.paperWidth} Thermal</Badge>
+            </div>
+
+            <p className="text-xs text-zinc-400">
+              Configure ESC/POS thermal printers (58mm/80mm), Bluetooth pairing, and automatic cash drawer kick commands on cash checkout.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs">
+              <div className="p-3 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
+                <span className="text-zinc-500 block text-[10px] uppercase font-bold">Paper Format</span>
+                <span className="text-zinc-200 font-semibold">{hwSettings.paperWidth} Roll</span>
+              </div>
+              <div className="p-3 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
+                <span className="text-zinc-500 block text-[10px] uppercase font-bold">Cash Drawer Trigger</span>
+                <span className="text-zinc-200 font-semibold">
+                  {hwSettings.autoKickDrawerOnCash ? 'Auto-Kick Active' : 'Manual Only'}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
+                <span className="text-zinc-500 block text-[10px] uppercase font-bold">Connection Mode</span>
+                <span className="text-zinc-200 font-semibold truncate">
+                  {hwSettings.pairedDeviceName || 'Browser / Raw Print'}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setHwSettings(HardwarePrinterService.getSettings());
+                  setIsHardwareModalOpen(true);
+                }}
+                leftIcon={<Sliders className="w-3.5 h-3.5 text-emerald-400" />}
+                className="text-xs"
+              >
+                Configure Hardware & Printers
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 5: DATA & CLOUD SECURITY                                              */}
+      {/* ========================================================================= */}
+      {activeTab === 'data' && (
+        <div className="space-y-5 animate-in fade-in duration-150">
+          {/* Quick Hub Navigation */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button
+              onClick={() => onNavigate('reports')}
+              className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 text-left transition-all group flex flex-col justify-between cursor-pointer"
             >
-              Register Another Business
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleAddDemoBusiness}
-              isLoading={isDemoLoading}
-              leftIcon={<Sparkles className="w-4 h-4 text-amber-400" />}
-              className="text-zinc-400 hover:text-zinc-200 cursor-pointer"
+              <div className="flex items-center justify-between">
+                <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-emerald-400 transition-colors" />
+              </div>
+              <div className="mt-3">
+                <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
+                  Financial Reports
+                </h4>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  P&L, Gross Margins, Sales, and Cash Flow.
+                </p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => onNavigate('data-io')}
+              className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-cyan-500/50 text-left transition-all group flex flex-col justify-between cursor-pointer"
             >
-              Create Sample Demo Business
-            </Button>
+              <div className="flex items-center justify-between">
+                <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl">
+                  <Database className="w-5 h-5" />
+                </div>
+                <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-cyan-400 transition-colors" />
+              </div>
+              <div className="mt-3">
+                <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
+                  Data Migration Hub
+                </h4>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  CSV spreadsheet upload and full business export.
+                </p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => onNavigate('billing')}
+              className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 text-left transition-all group flex flex-col justify-between cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-emerald-400 transition-colors" />
+              </div>
+              <div className="mt-3">
+                <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
+                  Plan & Quota
+                </h4>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Usage status and free enterprise retail capabilities.
+                </p>
+              </div>
+            </button>
           </div>
+
+          {/* Database Security & Infrastructure Status */}
+          <Card className="space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
+                  Database & Multi-Tenant Isolation
+                </h3>
+              </div>
+              <Badge variant={isSupabaseConfigured ? 'emerald' : 'amber'}>
+                {isSupabaseConfigured ? 'SUPABASE RLS ACTIVE' : 'LOCAL / PREVIEW MODE'}
+              </Badge>
+            </div>
+
+            <div className="text-xs text-zinc-400 space-y-2 leading-relaxed">
+              <p>
+                Ursella enforces strict Row Level Security (RLS) across all tables, ensuring strict multi-tenant isolation. No business entity can ever access or modify records belonging to another store.
+              </p>
+              <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 font-mono text-[11px] text-zinc-300">
+                Current User ID: {user?.id}
+              </div>
+            </div>
+          </Card>
+
+          {/* Account Freshness & Data Controls */}
+          <Card className="space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
+                  Workspace Reset & Clean Slate
+                </h3>
+              </div>
+              <Badge variant="zinc">Data Controls</Badge>
+            </div>
+
+            <p className="text-xs text-zinc-400">
+              You can wipe test data at any time to return to a pristine zero-state, or load sample starter items.
+            </p>
+
+            <div className="flex flex-wrap gap-2.5 pt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowResetConfirm(true)}
+                leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-400" />}
+                className="text-rose-400 border-rose-500/30 hover:bg-rose-500/10 cursor-pointer"
+              >
+                Reset Store to Clean Slate
+              </Button>
+
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleSeedCatalog}
+                isLoading={isSeedLoading}
+                className="text-zinc-400 hover:text-zinc-200 cursor-pointer text-xs"
+              >
+                Load Starter Catalog Sample
+              </Button>
+            </div>
+          </Card>
         </div>
-      </Card>
-
-      {/* 4. Team & Staff Management (Multi-Tenant Access Control) */}
-      <div id="team-management-section">
-        <TeamManagementSection />
-      </div>
-
-      {/* 5. Account Freshness & Data Controls */}
-      <Card className="space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
-              Account Cleanliness & Data Freshness
-            </h3>
-          </div>
-          <Badge variant="emerald">Clean Account Ready</Badge>
-        </div>
-
-        <p className="text-xs text-zinc-400">
-          Every new business account starts 100% clean and fresh. You can wipe test data at any time to return to a pristine zero-state, or optionally populate starter items for testing.
-        </p>
-
-        <div className="flex flex-wrap gap-2.5 pt-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowResetConfirm(true)}
-            leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-400" />}
-            className="text-rose-400 border-rose-500/30 hover:bg-rose-500/10 cursor-pointer"
-          >
-            Reset Business to Clean Slate
-          </Button>
-
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleSeedCatalog}
-            isLoading={isSeedLoading}
-            leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-400" />}
-            className="text-zinc-400 hover:text-zinc-200 cursor-pointer"
-          >
-            Load Starter Catalog Sample
-          </Button>
-        </div>
-      </Card>
-
-      {/* 5. POS Hardware, Thermal Printers & Peripherals */}
-      <Card className="space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
-            <Printer className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
-              POS Hardware & Thermal Receipt Printing
-            </h3>
-          </div>
-          <Badge variant="emerald">{hwSettings.paperWidth} Thermal</Badge>
-        </div>
-
-        <p className="text-xs text-zinc-400">
-          Configure direct ESC/POS thermal printers (58mm/80mm), wireless Bluetooth pairing, and automatic cash drawer kick triggers on cash tender.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-xs">
-          <div className="p-2.5 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
-            <span className="text-zinc-500 block text-[10px] uppercase font-bold">Paper Format</span>
-            <span className="text-zinc-200 font-semibold">{hwSettings.paperWidth} Roll</span>
-          </div>
-          <div className="p-2.5 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
-            <span className="text-zinc-500 block text-[10px] uppercase font-bold">Cash Drawer</span>
-            <span className="text-zinc-200 font-semibold">
-              {hwSettings.autoKickDrawerOnCash ? 'Auto-Kick Active' : 'Manual Only'}
-            </span>
-          </div>
-          <div className="p-2.5 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
-            <span className="text-zinc-500 block text-[10px] uppercase font-bold">Interface</span>
-            <span className="text-zinc-200 font-semibold truncate">
-              {hwSettings.pairedDeviceName || 'Browser / Native'}
-            </span>
-          </div>
-        </div>
-
-        <div className="pt-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setHwSettings(HardwarePrinterService.getSettings());
-              setIsHardwareModalOpen(true);
-            }}
-            leftIcon={<Sliders className="w-3.5 h-3.5 text-emerald-400" />}
-            className="text-xs"
-          >
-            Configure Printers & Peripherals
-          </Button>
-        </div>
-      </Card>
-
-      {/* 6. Database Security & Infrastructure Status */}
-      <Card className="space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
-              Database & Security Architecture
-            </h3>
-          </div>
-          <Badge variant={isSupabaseConfigured ? 'emerald' : 'amber'}>
-            {isSupabaseConfigured ? 'SUPABASE RLS ACTIVE' : 'PREVIEW MODE'}
-          </Badge>
-        </div>
-
-        <div className="text-xs text-zinc-400 space-y-2 leading-relaxed">
-          <p>
-            Ursella enforces Row Level Security (RLS) across all tables, ensuring strict multi-tenant isolation. No business tenant can ever read or modify records belonging to another business.
-          </p>
-          <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 font-mono text-[11px] text-zinc-300">
-            Current User ID: {user?.id}
-          </div>
-        </div>
-      </Card>
-
-      {/* 6. Sign Out */}
-      <div className="pt-2">
-        <Button
-          variant="danger"
-          size="md"
-          className="w-full sm:w-auto cursor-pointer"
-          onClick={() => signOut()}
-          leftIcon={<LogOut className="w-4 h-4" />}
-        >
-          Sign Out of Ursella
-        </Button>
-      </div>
+      )}
 
       {/* Edit User Profile Modal */}
       <Modal
@@ -908,7 +945,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate }) => {
       <Modal
         isOpen={showResetConfirm}
         onClose={() => setShowResetConfirm(false)}
-        title="Reset Business Workspace"
+        title="Reset Store Workspace"
         description="Are you sure you want to wipe all local transactions and inventory?"
       >
         <div className="space-y-4 py-2">

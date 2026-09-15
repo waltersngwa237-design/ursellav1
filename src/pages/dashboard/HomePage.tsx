@@ -207,18 +207,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
             <span>Full Analytics</span>
           </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => loadData(true)}
-            disabled={refreshing}
-            className="text-xs flex items-center gap-1.5 px-3 py-1.5 text-zinc-300 hover:text-white border-zinc-700 bg-zinc-800/60 cursor-pointer"
-            title="Refresh dashboard data"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-emerald-400' : 'text-zinc-400'}`} />
-            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-          </Button>
         </div>
       </div>
 

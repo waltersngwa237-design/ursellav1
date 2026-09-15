@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
 import {
-  Send,
-  Edit3,
   TrendingUp,
   Package,
   Users,
   PieChart,
   Sparkles,
-  HelpCircle,
-  ArrowRight,
+  ArrowUpRight,
+  Edit3,
 } from 'lucide-react';
 
 interface SuggestedPromptChipsProps {
@@ -34,77 +32,65 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
     { id: 'profit', label: 'Profit', icon: PieChart },
   ];
 
-  const suggestedQuestions = [
+  const defaultQuestions = [
     {
       category: 'advisory',
       question: 'What should I focus on today?',
       topic: 'Daily Priorities',
-      subtitle: 'Quick recommendations and priorities for your shop today',
+      subtitle: 'Key recommendations and urgent actions for your store today',
     },
     {
       category: 'sales',
       question: 'How are my sales today?',
       topic: "Today's Sales",
-      subtitle: 'Check today\'s revenue, customer orders, and cash collected',
+      subtitle: 'Check revenue, order count, and total cash collected today',
     },
     {
       category: 'sales',
       question: "What's my best-selling product?",
       topic: 'Top Sellers',
-      subtitle: 'See what products are moving the fastest',
+      subtitle: 'Find out which products are generating the most revenue',
     },
     {
       category: 'inventory',
       question: 'Which items are running low on stock?',
-      topic: 'Low Stock',
-      subtitle: 'Find out what you need to reorder soon',
+      topic: 'Low Stock Alerts',
+      subtitle: 'Identify products near depletion that need reordering',
     },
     {
       category: 'debts',
       question: 'Who owes me money?',
       topic: 'Customer Debts',
-      subtitle: 'View customer balances and overdue payments',
+      subtitle: 'Review outstanding customer balances and overdue payments',
     },
     {
       category: 'profit',
       question: 'What was my profit this month?',
       topic: 'Monthly Profit',
-      subtitle: 'Review revenue, expenses, and net profit',
+      subtitle: 'Breakdown of net revenue, product costs, and gross profit',
     },
     {
       category: 'profit',
-      question: 'Which products make me the most profit?',
+      question: 'Which products have the highest profit margins?',
       topic: 'Highest Margins',
-      subtitle: 'See which items give you the best gross return',
-    },
-    {
-      category: 'inventory',
-      question: 'Add 50 bags of Portland Cement at 4500 selling and 3800 cost',
-      topic: 'Quick Add Stock',
-      subtitle: 'Draft and register new stock with units and pricing',
+      subtitle: 'See which inventory items generate the best percentage returns',
     },
     {
       category: 'sales',
-      question: 'Why are sales slower this week?',
+      question: 'Why are sales different this week?',
       topic: 'Sales Trends',
-      subtitle: 'Compare recent sales against earlier weeks',
-    },
-    {
-      category: 'advisory',
-      question: 'Can you explain gross margin?',
-      topic: 'Business Guide',
-      subtitle: 'Learn how to calculate and boost your margins',
+      subtitle: 'Compare current performance against prior week patterns',
     },
   ];
 
   const filteredQuestions =
     activeCategory === 'all'
-      ? suggestedQuestions
-      : suggestedQuestions.filter((q) => q.category === activeCategory);
+      ? defaultQuestions
+      : defaultQuestions.filter((q) => q.category === activeCategory);
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto">
-      {/* Category Pills */}
+    <div className="space-y-4 max-w-3xl mx-auto">
+      {/* Category Filter Pills */}
       <div className="flex items-center justify-center gap-1.5 flex-wrap">
         {categories.map((cat) => {
           const Icon = cat.icon;
@@ -126,7 +112,7 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
               {Icon && (
                 <Icon
                   className={`w-3.5 h-3.5 ${
-                    isActive ? 'text-amber-500' : isDark ? 'text-zinc-500' : 'text-slate-400'
+                    isActive ? 'text-sky-400' : isDark ? 'text-zinc-500' : 'text-slate-400'
                   }`}
                 />
               )}
@@ -137,88 +123,58 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
       </div>
 
       {/* Suggested Questions Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {filteredQuestions.map((item, idx) => (
           <div
             key={idx}
-            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between group shadow-xs ${
+            onClick={() => onSelectPrompt(item.question)}
+            className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between group cursor-pointer text-left ${
               isDark
-                ? 'bg-zinc-900/50 border-zinc-800 hover:border-amber-500/40 hover:bg-zinc-900/90'
-                : 'bg-white border-slate-200 hover:border-amber-500/60 hover:bg-amber-50/20'
+                ? 'bg-zinc-900/60 border-zinc-800 hover:border-sky-500/50 hover:bg-zinc-850'
+                : 'bg-white border-slate-200 hover:border-sky-500/60 hover:bg-sky-50/30 shadow-xs'
             }`}
           >
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] uppercase font-bold tracking-wider font-mono px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                <span className="text-[10px] uppercase font-bold tracking-wider font-mono px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20">
                   {item.topic}
                 </span>
-                {onInsertPrompt && (
-                  <button
-                    type="button"
-                    onClick={() => onInsertPrompt(item.question)}
-                    className={`p-1 rounded-md text-xs transition-colors ${
-                      isDark ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
-                    }`}
-                    title="Insert question into chat box to edit"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+
+                <div className="flex items-center gap-1">
+                  {onInsertPrompt && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onInsertPrompt(item.question);
+                      }}
+                      className={`p-1 rounded-md text-xs transition-colors opacity-0 group-hover:opacity-100 ${
+                        isDark ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                      }`}
+                      title="Edit question in composer before sending"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <ArrowUpRight className="w-4 h-4 text-zinc-500 group-hover:text-sky-400 transition-colors shrink-0" />
+                </div>
               </div>
 
-              {/* The Actual Question - Prominent & Conversational */}
               <p
-                onClick={() => {
-                  if (onInsertPrompt) {
-                    onInsertPrompt(item.question);
-                  } else {
-                    onSelectPrompt(item.question);
-                  }
-                }}
-                className={`text-xs sm:text-[13px] font-semibold leading-relaxed cursor-pointer transition-colors ${
+                className={`text-xs sm:text-[13px] font-semibold leading-snug transition-colors ${
                   isDark
-                    ? 'text-zinc-100 group-hover:text-amber-300'
-                    : 'text-slate-900 group-hover:text-amber-800'
+                    ? 'text-zinc-100 group-hover:text-white'
+                    : 'text-slate-900 group-hover:text-sky-900'
                 }`}
-                title="Click to put into composer"
               >
                 "{item.question}"
               </p>
 
-              <p className={`text-[11px] leading-normal line-clamp-1 ${
+              <p className={`text-[11px] leading-relaxed line-clamp-2 ${
                 isDark ? 'text-zinc-400' : 'text-slate-500'
               }`}>
                 {item.subtitle}
               </p>
-            </div>
-
-            {/* Actions: Insert into composer or Ask directly */}
-            <div className="pt-3 mt-3 border-t border-zinc-800/40 dark:border-zinc-800/80 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => {
-                  if (onInsertPrompt) {
-                    onInsertPrompt(item.question);
-                  } else {
-                    onSelectPrompt(item.question);
-                  }
-                }}
-                className={`text-[10px] font-medium transition-colors cursor-pointer flex items-center gap-1 ${
-                  isDark ? 'text-zinc-400 hover:text-zinc-200' : 'text-slate-500 hover:text-slate-800'
-                }`}
-                title="Copy to composer to edit"
-              >
-                <Edit3 className="w-3 h-3" />
-                <span>Insert in chat</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onSelectPrompt(item.question)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold transition-all shadow-xs group-hover:shadow-amber-500/20 cursor-pointer"
-              >
-                <span>Ask</span>
-                <Send className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-              </button>
             </div>
           </div>
         ))}

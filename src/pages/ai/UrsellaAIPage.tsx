@@ -852,15 +852,8 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                   <h1 className={`text-xs sm:text-sm font-bold truncate leading-tight tracking-tight ${
                     isDark ? 'text-zinc-100' : 'text-slate-900'
                   }`}>
-                    Ursella AI
+                    Ursella AI Advisor
                   </h1>
-                  <span className={`hidden xs:inline-flex px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider border font-mono ${
-                    isDark 
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  }`}>
-                    Advisor
-                  </span>
                 </div>
                 <p className={`text-[10px] sm:text-[11px] truncate mt-0.5 ${
                   isDark ? 'text-zinc-500' : 'text-slate-500'

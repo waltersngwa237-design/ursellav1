@@ -407,9 +407,6 @@ export const AppShell: React.FC<AppShellProps> = ({
                     <span className="text-xs sm:text-sm font-bold text-white tracking-tight truncate">
                       AI Advisor
                     </span>
-                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      Advisor
-                    </span>
                   </div>
                   {activeBusiness?.name && (
                     <p className="text-[10px] text-zinc-400 truncate max-w-[140px] sm:max-w-[200px]">
