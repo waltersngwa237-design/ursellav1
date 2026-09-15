@@ -1,213 +1,233 @@
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import { fileURLToPath } from 'url';
 
-// Canonical Ursella Interwoven Ribbon U Symbol (transparent, scalable)
-function getCanonicalSymbolSvg(size = 32) {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const publicDir = path.resolve(__dirname, '../public');
+
+/**
+ * Builds the canonical Ursella Vector Emblem.
+ * Viewbox: 0 0 32 32
+ * 
+ * Geometry:
+ * - Mathematical 6px constant stroke width across left pillar, bottom semicircular sweep, and right pillar.
+ * - Symmetrical counter (width 9px).
+ * - Left foundation pillar has a refined top fillet.
+ * - Right pillar ascends dynamically with a 45° angle cut (dx=6, dy=6) that forms a forward-momentum chevron.
+ * - An integrated architectural facet highlights the 45° apex.
+ * - The center counter features the Ursella Keystone Diamond (the geometric seed for the AI Advisor).
+ */
+export function buildUrsellaSvg({
+  size = 32,
+  theme = 'emerald', // 'emerald' | 'light' | 'mono-black' | 'mono-white'
+  showBg = false,
+  bgRadius = 0,
+}) {
+  const isWhite = theme === 'mono-white';
+  const isBlack = theme === 'mono-black';
+  const isLight = theme === 'light';
+
+  const uid = Math.random().toString(36).substring(2, 8);
+  const gradPriId = `ur_pri_${uid}`;
+  const gradFacetId = `ur_facet_${uid}`;
+  const gradGemId = `ur_gem_${uid}`;
+
+  let fillPri = `url(#${gradPriId})`;
+  let fillFacet = `url(#${gradFacetId})`;
+  let fillGem = `url(#${gradGemId})`;
+
+  if (isWhite) {
+    fillPri = '#FFFFFF';
+    fillFacet = '#E2E8F0';
+    fillGem = '#FFFFFF';
+  } else if (isBlack) {
+    fillPri = '#09090B';
+    fillFacet = '#27272A';
+    fillGem = '#09090B';
+  }
+
+  let defs = '';
+  if (!isWhite && !isBlack) {
+    if (isLight) {
+      defs = `
+        <defs>
+          <linearGradient id="${gradPriId}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#10B981" />
+            <stop offset="60%" stop-color="#059669" />
+            <stop offset="100%" stop-color="#047857" />
+          </linearGradient>
+          <linearGradient id="${gradFacetId}" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#059669" />
+            <stop offset="50%" stop-color="#10B981" />
+            <stop offset="100%" stop-color="#34D399" />
+          </linearGradient>
+          <linearGradient id="${gradGemId}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#047857" />
+            <stop offset="100%" stop-color="#065F46" />
+          </linearGradient>
+        </defs>
+      `;
+    } else {
+      // Default Obsidian / Emerald theme
+      defs = `
+        <defs>
+          <linearGradient id="${gradPriId}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#34D399" />
+            <stop offset="35%" stop-color="#10B981" />
+            <stop offset="100%" stop-color="#059669" />
+          </linearGradient>
+          <linearGradient id="${gradFacetId}" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#059669" />
+            <stop offset="50%" stop-color="#10B981" />
+            <stop offset="100%" stop-color="#6EE7B7" />
+          </linearGradient>
+          <linearGradient id="${gradGemId}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#ECFDF5" />
+            <stop offset="50%" stop-color="#6EE7B7" />
+            <stop offset="100%" stop-color="#10B981" />
+          </linearGradient>
+        </defs>
+      `;
+    }
+  }
+
+  const bg = showBg ? `<rect width="32" height="32" rx="${bgRadius}" fill="#090d16" />` : '';
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="${size}" height="${size}" fill="none">
-  <defs>
-    <!-- Primary Electric / Royal Blue Gradient -->
-    <linearGradient id="ur_ribbon_left_grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38BDF8"/>
-      <stop offset="35%" stop-color="#2563EB"/>
-      <stop offset="100%" stop-color="#1D4ED8"/>
-    </linearGradient>
-
-    <!-- Deep Navy to Electric Gradient for dimensional depth -->
-    <linearGradient id="ur_ribbon_right_grad" x1="100%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#60A5FA"/>
-      <stop offset="45%" stop-color="#1E40AF"/>
-      <stop offset="100%" stop-color="#0F172A"/>
-    </linearGradient>
-
-    <!-- Accent Cyan Gradient for the inner return loop -->
-    <linearGradient id="ur_ribbon_fold_grad" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#06B6D4"/>
-      <stop offset="50%" stop-color="#2563EB"/>
-      <stop offset="100%" stop-color="#38BDF8"/>
-    </linearGradient>
-
-    <!-- Core highlight -->
-    <linearGradient id="ur_core_grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="100%" stop-color="#93C5FD"/>
-    </linearGradient>
-
-    <!-- Drop shadow for depth -->
-    <filter id="ur_shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="1.2" stdDeviation="1.5" flood-color="#2563EB" flood-opacity="0.45"/>
-    </filter>
-  </defs>
-
-  <g filter="url(#ur_shadow)">
-    <!-- 1. Right Ribbon Strand: Underweave Loop -->
+    ${defs}
+    ${bg}
+    <!-- Architectural U Foundation (Constant 6px Stroke Geometry) -->
     <path
-      d="M22 4 C22 3.45 22.45 3 23 3 H26 C26.55 3 27 3.45 27 4 V18 C27 23.5 22.5 28 16 28 C12.8 28 9.8 26.5 7.8 24.2 L11.2 20.8 C12.4 22.2 14.1 23 16 23 C19.3 23 22 20.3 22 17 V4 Z"
-      fill="url(#ur_ribbon_right_grad)"
+      d="M 5.5 6 C 5.5 4.9 6.4 4 7.5 4 H 11.5 V 17 C 11.5 19.485 13.515 21.5 16 21.5 C 18.485 21.5 20.5 19.485 20.5 17 V 10 L 26.5 4 V 17 C 26.5 22.799 21.799 27.5 16 27.5 C 10.201 27.5 5.5 22.799 5.5 17 Z"
+      fill="${fillPri}"
     />
 
-    <!-- 2. Optical Under-Weave Depth Shadow -->
+    <!-- Apex Dynamic Growth Facet (45° Angle Chamfer Highlight) -->
     <path
-      d="M12.8 22.2 C13.7 23 14.8 23.4 16 23.4 L17.2 20.2 C16.2 20.2 15.2 19.8 14.4 19.2 Z"
-      fill="#0B132B"
-      opacity="0.85"
+      d="M 20.5 10 L 26.5 4 V 10 L 20.5 16 Z"
+      fill="${fillFacet}"
+      opacity="${isWhite ? '0.85' : isBlack ? '0.7' : '0.95'}"
     />
 
-    <!-- 3. Left Ribbon Strand: Main Foreground Loop -->
+    <!-- Keystone Intelligence Core (Unified AI Diamond) -->
     <path
-      d="M5 4 C5 3.45 5.45 3 6 3 H9 C9.55 3 10 3.45 10 4 V17 C10 20.3 12.7 23 16 23 C17.8 23 19.4 22.2 20.5 20.9 L23.8 24.2 C21.8 26.5 19.1 28 16 28 C9.5 28 5 23.5 5 18 V4 Z"
-      fill="url(#ur_ribbon_left_grad)"
+      d="M 16 6.2 L 19 10.5 L 16 14.8 L 13 10.5 Z"
+      fill="${fillGem}"
     />
-
-    <!-- 4. Upper Interlocking Crest Ribbon Fold -->
-    <path
-      d="M10 13.5 C10 11.2 12.4 9.2 16 9.2 C19.6 9.2 22 11.2 22 13.5 L19.8 14.6 C19.8 13.2 18.2 11.8 16 11.8 C13.8 11.8 12.2 13.2 12.2 14.6 Z"
-      fill="url(#ur_ribbon_fold_grad)"
-    />
-
-    <!-- 5. Central Luminous Core Focal Node -->
-    <circle cx="16" cy="15.5" r="1" fill="url(#ur_core_grad)" />
-  </g>
-</svg>`;
-}
-
-// 512x512 Dark App Canvas Icon SVG
-function getIconSvg(size = 512, isMaskable = false) {
-  // Safe zone for maskable icon is centered ~70% size, normal icon ~75%
-  const scale = isMaskable ? 10.5 : 12;
-  const translate = isMaskable ? 88 : 64;
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="${size}" height="${size}" fill="none">
-  <!-- Solid Dark Navy/Zinc Canvas for PWA & App Icons -->
-  <rect width="512" height="512" fill="#090d16" />
-
-  <!-- Subtle Radial Ambient Blue Glow -->
-  <radialGradient id="amb_blue_glow" cx="50%" cy="50%" r="50%">
-    <stop offset="0%" stop-color="#2563EB" stop-opacity="0.32" />
-    <stop offset="55%" stop-color="#1D4ED8" stop-opacity="0.12" />
-    <stop offset="100%" stop-color="#090d16" stop-opacity="0" />
-  </radialGradient>
-  <circle cx="256" cy="256" r="220" fill="url(#amb_blue_glow)" />
-
-  <defs>
-    <!-- Primary Electric / Royal Blue Gradient -->
-    <linearGradient id="pwa_ribbon_l" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38BDF8"/>
-      <stop offset="35%" stop-color="#2563EB"/>
-      <stop offset="100%" stop-color="#1D4ED8"/>
-    </linearGradient>
-
-    <linearGradient id="pwa_ribbon_r" x1="100%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#60A5FA"/>
-      <stop offset="45%" stop-color="#1E40AF"/>
-      <stop offset="100%" stop-color="#0F172A"/>
-    </linearGradient>
-
-    <linearGradient id="pwa_ribbon_f" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#06B6D4"/>
-      <stop offset="50%" stop-color="#2563EB"/>
-      <stop offset="100%" stop-color="#38BDF8"/>
-    </linearGradient>
-
-    <linearGradient id="pwa_core" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="100%" stop-color="#93C5FD"/>
-    </linearGradient>
-
-    <filter id="pwa_glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" flood-color="#2563EB" flood-opacity="0.5"/>
-    </filter>
-  </defs>
-
-  <!-- Scaled Centered Ursella Ribbon Mark -->
-  <g filter="url(#pwa_glow)" transform="translate(${translate}, ${translate}) scale(${scale})">
-    <!-- Right Ribbon Underweave -->
-    <path
-      d="M22 4 C22 3.45 22.45 3 23 3 H26 C26.55 3 27 3.45 27 4 V18 C27 23.5 22.5 28 16 28 C12.8 28 9.8 26.5 7.8 24.2 L11.2 20.8 C12.4 22.2 14.1 23 16 23 C19.3 23 22 20.3 22 17 V4 Z"
-      fill="url(#pwa_ribbon_r)"
-    />
-
-    <!-- Optical Depth Shadow -->
-    <path
-      d="M12.8 22.2 C13.7 23 14.8 23.4 16 23.4 L17.2 20.2 C16.2 20.2 15.2 19.8 14.4 19.2 Z"
-      fill="#0B132B"
-      opacity="0.85"
-    />
-
-    <!-- Left Ribbon Foreground -->
-    <path
-      d="M5 4 C5 3.45 5.45 3 6 3 H9 C9.55 3 10 3.45 10 4 V17 C10 20.3 12.7 23 16 23 C17.8 23 19.4 22.2 20.5 20.9 L23.8 24.2 C21.8 26.5 19.1 28 16 28 C9.5 28 5 23.5 5 18 V4 Z"
-      fill="url(#pwa_ribbon_l)"
-    />
-
-    <!-- Upper Interlocking Crest Ribbon Fold -->
-    <path
-      d="M10 13.5 C10 11.2 12.4 9.2 16 9.2 C19.6 9.2 22 11.2 22 13.5 L19.8 14.6 C19.8 13.2 18.2 11.8 16 11.8 C13.8 11.8 12.2 13.2 12.2 14.6 Z"
-      fill="url(#pwa_ribbon_f)"
-    />
-
-    <!-- Central Core -->
-    <circle cx="16" cy="15.5" r="1" fill="url(#pwa_core)" />
-  </g>
-</svg>`;
+  </svg>`;
 }
 
 async function main() {
-  const publicDir = path.resolve(process.cwd(), 'public');
+  console.log('Generating production brand assets...');
 
-  // 1. Write favicon.svg (Vector)
-  const faviconSvg = getCanonicalSymbolSvg(32);
-  fs.writeFileSync(path.join(publicDir, 'favicon.svg'), faviconSvg, 'utf-8');
-  console.log('Updated public/favicon.svg');
+  // 1. Generate favicon.svg (crisp 32x32)
+  const faviconSvg = buildUrsellaSvg({ size: 32, theme: 'emerald', showBg: false });
+  fs.writeFileSync(path.join(publicDir, 'favicon.svg'), faviconSvg);
+  console.log('✔ Generated favicon.svg');
 
-  // 2. Write icon.svg (512x512 Dark Theme Vector)
-  const iconSvg = getIconSvg(512, false);
-  fs.writeFileSync(path.join(publicDir, 'icon.svg'), iconSvg, 'utf-8');
-  console.log('Updated public/icon.svg');
+  // 2. Generate icon.svg (512x512 with obsidian canvas and ambient radial glow)
+  const iconSvg512 = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+    <rect width="512" height="512" fill="#090d16" />
+    <radialGradient id="icon_radial" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#10B981" stop-opacity="0.25" />
+      <stop offset="60%" stop-color="#059669" stop-opacity="0.06" />
+      <stop offset="100%" stop-color="#090d16" stop-opacity="0" />
+    </radialGradient>
+    <circle cx="256" cy="256" r="230" fill="url(#icon_radial)" />
+    <defs>
+      <linearGradient id="pwa_pri" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#34D399" />
+        <stop offset="35%" stop-color="#10B981" />
+        <stop offset="100%" stop-color="#059669" />
+      </linearGradient>
+      <linearGradient id="pwa_facet" x1="0%" y1="100%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#059669" />
+        <stop offset="50%" stop-color="#10B981" />
+        <stop offset="100%" stop-color="#6EE7B7" />
+      </linearGradient>
+      <linearGradient id="pwa_gem" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ECFDF5" />
+        <stop offset="50%" stop-color="#6EE7B7" />
+        <stop offset="100%" stop-color="#10B981" />
+      </linearGradient>
+    </defs>
+    <!-- Scaled centered mark (32x32 scaled to 360x360, centered at 256, 256) -->
+    <g transform="translate(76, 76) scale(11.25)">
+      <path
+        d="M 5.5 6 C 5.5 4.9 6.4 4 7.5 4 H 11.5 V 17 C 11.5 19.485 13.515 21.5 16 21.5 C 18.485 21.5 20.5 19.485 20.5 17 V 10 L 26.5 4 V 17 C 26.5 22.799 21.799 27.5 16 27.5 C 10.201 27.5 5.5 22.799 5.5 17 Z"
+        fill="url(#pwa_pri)"
+      />
+      <path
+        d="M 20.5 10 L 26.5 4 V 10 L 20.5 16 Z"
+        fill="url(#pwa_facet)"
+        opacity="0.95"
+      />
+      <path
+        d="M 16 6.2 L 19 10.5 L 16 14.8 L 13 10.5 Z"
+        fill="url(#pwa_gem)"
+      />
+    </g>
+  </svg>`;
+  fs.writeFileSync(path.join(publicDir, 'icon.svg'), iconSvg512);
+  console.log('✔ Generated icon.svg');
 
-  // 3. Generate PNGs using Sharp
-  const pwaSvgBuffer = Buffer.from(iconSvg);
-  const maskableSvgBuffer = Buffer.from(getIconSvg(512, true));
+  // Maskable SVG with safe margin padding (scaled down to fit within inner 80% circle)
+  const maskableSvg512 = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+    <rect width="512" height="512" fill="#090d16" />
+    <defs>
+      <linearGradient id="pwa_m_pri" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#34D399" />
+        <stop offset="35%" stop-color="#10B981" />
+        <stop offset="100%" stop-color="#059669" />
+      </linearGradient>
+      <linearGradient id="pwa_m_facet" x1="0%" y1="100%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#059669" />
+        <stop offset="50%" stop-color="#10B981" />
+        <stop offset="100%" stop-color="#6EE7B7" />
+      </linearGradient>
+      <linearGradient id="pwa_m_gem" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ECFDF5" />
+        <stop offset="50%" stop-color="#6EE7B7" />
+        <stop offset="100%" stop-color="#10B981" />
+      </linearGradient>
+    </defs>
+    <!-- Scaled with safe margins for Android adaptive icons -->
+    <g transform="translate(106, 106) scale(9.375)">
+      <path
+        d="M 5.5 6 C 5.5 4.9 6.4 4 7.5 4 H 11.5 V 17 C 11.5 19.485 13.515 21.5 16 21.5 C 18.485 21.5 20.5 19.485 20.5 17 V 10 L 26.5 4 V 17 C 26.5 22.799 21.799 27.5 16 27.5 C 10.201 27.5 5.5 22.799 5.5 17 Z"
+        fill="url(#pwa_m_pri)"
+      />
+      <path
+        d="M 20.5 10 L 26.5 4 V 10 L 20.5 16 Z"
+        fill="url(#pwa_m_facet)"
+        opacity="0.95"
+      />
+      <path
+        d="M 16 6.2 L 19 10.5 L 16 14.8 L 13 10.5 Z"
+        fill="url(#pwa_m_gem)"
+      />
+    </g>
+  </svg>`;
 
-  // pwa-512x512.png
-  await sharp(pwaSvgBuffer)
-    .resize(512, 512)
-    .png()
-    .toFile(path.join(publicDir, 'pwa-512x512.png'));
-  console.log('Generated public/pwa-512x512.png');
+  // 3. Render raster PNGs via sharp
+  await sharp(Buffer.from(iconSvg512)).resize(512, 512).png().toFile(path.join(publicDir, 'pwa-512x512.png'));
+  console.log('✔ Rendered pwa-512x512.png');
 
-  // pwa-192x192.png
-  await sharp(pwaSvgBuffer)
-    .resize(192, 192)
-    .png()
-    .toFile(path.join(publicDir, 'pwa-192x192.png'));
-  console.log('Generated public/pwa-192x192.png');
+  await sharp(Buffer.from(iconSvg512)).resize(192, 192).png().toFile(path.join(publicDir, 'pwa-192x192.png'));
+  console.log('✔ Rendered pwa-192x192.png');
 
-  // pwa-maskable-512x512.png
-  await sharp(maskableSvgBuffer)
-    .resize(512, 512)
-    .png()
-    .toFile(path.join(publicDir, 'pwa-maskable-512x512.png'));
-  console.log('Generated public/pwa-maskable-512x512.png');
+  await sharp(Buffer.from(iconSvg512)).resize(180, 180).png().toFile(path.join(publicDir, 'apple-touch-icon.png'));
+  console.log('✔ Rendered apple-touch-icon.png');
 
-  // pwa-maskable-192x192.png
-  await sharp(maskableSvgBuffer)
-    .resize(192, 192)
-    .png()
-    .toFile(path.join(publicDir, 'pwa-maskable-192x192.png'));
-  console.log('Generated public/pwa-maskable-192x192.png');
+  await sharp(Buffer.from(maskableSvg512)).resize(512, 512).png().toFile(path.join(publicDir, 'pwa-maskable-512x512.png'));
+  console.log('✔ Rendered pwa-maskable-512x512.png');
 
-  // apple-touch-icon.png (180x180)
-  await sharp(pwaSvgBuffer)
-    .resize(180, 180)
-    .png()
-    .toFile(path.join(publicDir, 'apple-touch-icon.png'));
-  console.log('Generated public/apple-touch-icon.png');
+  await sharp(Buffer.from(maskableSvg512)).resize(192, 192).png().toFile(path.join(publicDir, 'pwa-maskable-192x192.png'));
+  console.log('✔ Rendered pwa-maskable-192x192.png');
 
-  console.log('All brand assets successfully built!');
+  console.log('All brand assets successfully generated!');
 }
 
-main().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+main().catch(console.error);

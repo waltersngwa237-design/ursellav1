@@ -434,6 +434,11 @@ class HardwarePrinterServiceClass {
       </head>
       <body>
         <div class="center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="24" height="24" fill="none" style="margin: 0 auto 3px auto; display: block;">
+            <path d="M 5.5 6 C 5.5 4.9 6.4 4 7.5 4 H 11.5 V 17 C 11.5 19.485 13.515 21.5 16 21.5 C 18.485 21.5 20.5 19.485 20.5 17 V 10 L 26.5 4 V 17 C 26.5 22.799 21.799 27.5 16 27.5 C 10.201 27.5 5.5 22.799 5.5 17 Z" fill="#000000" />
+            <path d="M 20.5 10 L 26.5 4 V 10 L 20.5 16 Z" fill="#333333" />
+            <path d="M 16 6.2 L 19 10.5 L 16 14.8 L 13 10.5 Z" fill="#000000" />
+          </svg>
           <div class="title">${business?.name || 'URSELLA POS'}</div>
           ${business?.description ? `<div>${business.description}</div>` : ''}
           ${business?.country ? `<div>${business.country}</div>` : ''}
@@ -586,6 +591,11 @@ class HardwarePrinterServiceClass {
       </head>
       <body>
         <div class="center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="24" height="24" fill="none" style="margin: 0 auto 3px auto; display: block;">
+            <path d="M 5.5 6 C 5.5 4.9 6.4 4 7.5 4 H 11.5 V 17 C 11.5 19.485 13.515 21.5 16 21.5 C 18.485 21.5 20.5 19.485 20.5 17 V 10 L 26.5 4 V 17 C 26.5 22.799 21.799 27.5 16 27.5 C 10.201 27.5 5.5 22.799 5.5 17 Z" fill="#000000" />
+            <path d="M 20.5 10 L 26.5 4 V 10 L 20.5 16 Z" fill="#333333" />
+            <path d="M 16 6.2 L 19 10.5 L 16 14.8 L 13 10.5 Z" fill="#000000" />
+          </svg>
           <div class="title">${business?.name || 'URSELLA BUSINESS'}</div>
           ${(business as any)?.address ? `<div>${(business as any).address}</div>` : ''}
           ${(business as any)?.phone ? `<div>Tel: ${(business as any).phone}</div>` : ''}

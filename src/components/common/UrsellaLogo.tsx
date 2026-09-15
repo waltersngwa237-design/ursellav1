@@ -33,8 +33,9 @@ export interface UrsellaGlyphProps {
  * UrsellaAIGlyph
  * 
  * Distinctive four-point geometric intelligence diamond/spark.
+ * Directly derived from the keystone core inside the canonical Ursella brand mark.
  * Represents the AI Advisor intelligence layer inside the Ursella platform.
- * Clean, modern, futuristic, and recognizable at 16–24px.
+ * Clean, modern, authoritative, and recognizable down to 14px.
  */
 export const UrsellaAIGlyph: React.FC<UrsellaGlyphProps> = ({
   sizeClass = 'w-5 h-5',
@@ -49,7 +50,6 @@ export const UrsellaAIGlyph: React.FC<UrsellaGlyphProps> = ({
   const uid = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
   const aiGradPriId = `ur_ai_pri_${uid}`;
   const aiGradSecId = `ur_ai_sec_${uid}`;
-  const aiGlowId = `ur_ai_glow_${uid}`;
 
   const isMonoWhite = theme === 'mono-white';
   const isMonoBlack = theme === 'mono-black';
@@ -84,77 +84,68 @@ export const UrsellaAIGlyph: React.FC<UrsellaGlyphProps> = ({
         ) : isMonoBlack ? (
           <>
             <linearGradient id={aiGradPriId} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#334155" />
-              <stop offset="100%" stopColor="#0F172A" />
+              <stop offset="0%" stopColor="#27272A" />
+              <stop offset="100%" stopColor="#09090B" />
             </linearGradient>
             <linearGradient id={aiGradSecId} x1="22" y1="2" x2="2" y2="22" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#1E293B" />
-              <stop offset="100%" stopColor="#020617" />
+              <stop offset="0%" stopColor="#3F3F46" />
+              <stop offset="100%" stopColor="#18181B" />
             </linearGradient>
           </>
         ) : isLight ? (
           <>
-            <linearGradient id={aiGradPriId} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#0284C7" />
-              <stop offset="50%" stopColor="#2563EB" />
-              <stop offset="100%" stopColor="#1D4ED8" />
+            <linearGradient id={aiGradPriId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#10B981" />
+              <stop offset="60%" stopColor="#059669" />
+              <stop offset="100%" stopColor="#047857" />
             </linearGradient>
-            <linearGradient id={aiGradSecId} x1="22" y1="2" x2="2" y2="22" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#38BDF8" />
-              <stop offset="60%" stopColor="#1D4ED8" />
-              <stop offset="100%" stopColor="#0F172A" />
+            <linearGradient id={aiGradSecId} x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#34D399" />
+              <stop offset="50%" stopColor="#10B981" />
+              <stop offset="100%" stopColor="#059669" />
             </linearGradient>
           </>
         ) : (
           <>
-            <linearGradient id={aiGradPriId} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#38BDF8" />
-              <stop offset="45%" stopColor="#2563EB" />
-              <stop offset="100%" stopColor="#1D4ED8" />
+            <linearGradient id={aiGradPriId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#6EE7B7" />
+              <stop offset="50%" stopColor="#10B981" />
+              <stop offset="100%" stopColor="#047857" />
             </linearGradient>
-            <linearGradient id={aiGradSecId} x1="22" y1="2" x2="2" y2="22" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#60A5FA" />
-              <stop offset="55%" stopColor="#1E40AF" />
-              <stop offset="100%" stopColor="#0F172A" />
+            <linearGradient id={aiGradSecId} x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#A7F3D0" />
+              <stop offset="50%" stopColor="#34D399" />
+              <stop offset="100%" stopColor="#059669" />
             </linearGradient>
           </>
         )}
-        <filter id={aiGlowId} x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow
-            dx="0"
-            dy="1"
-            stdDeviation="1.5"
-            floodColor={isMonoBlack || isMonoWhite ? '#000000' : '#38BDF8'}
-            floodOpacity={isMonoBlack || isMonoWhite ? 0 : 0.45}
-          />
-        </filter>
       </defs>
 
-      <g filter={`url(#${aiGlowId})`}>
-        {/* Primary Left/Upper Intelligence Facet */}
+      <g>
+        {/* Left Facet: Sweeping dynamic curve into core */}
         <path
-          d="M12 2 C12 7.2 7.8 11.5 2.5 12 C7.8 12.5 12 16.8 12 22 L12 12 Z"
+          d="M 12 2 C 12 6.8 8.2 10.8 3.5 12 C 8.2 13.2 12 17.2 12 22 L 12 12 Z"
           fill={`url(#${aiGradPriId})`}
         />
 
-        {/* Primary Right/Lower Facet with Dimensional Contrast */}
+        {/* Right Facet: Dimensional contrast */}
         <path
-          d="M12 2 L12 22 C12 16.8 16.2 12.5 21.5 12 C16.2 11.5 12 7.2 12 2 Z"
+          d="M 12 2 L 12 22 C 12 17.2 15.8 13.2 20.5 12 C 15.8 10.8 12 6.8 12 2 Z"
           fill={`url(#${aiGradSecId})`}
         />
 
-        {/* Center Luminous Intelligence Aperture */}
+        {/* Center Precision Diamond Core */}
         <path
-          d="M12 8.5 L14.8 12 L12 15.5 L9.2 12 Z"
-          fill={isMonoWhite ? '#FFFFFF' : isMonoBlack ? '#0F172A' : '#E0F2FE'}
-          opacity={0.92}
+          d="M 12 8.5 L 14.5 12 L 12 15.5 L 9.5 12 Z"
+          fill={isMonoWhite ? '#FFFFFF' : isMonoBlack ? '#09090B' : '#ECFDF5'}
+          opacity={0.96}
         />
 
-        {/* Orbiting Satellite Insight Spark */}
+        {/* Satellite Micro Spark (Insight/Guidance) */}
         <path
-          d="M19 3 C19 4.3 17.7 5.5 16.5 5.5 C17.7 5.5 19 6.7 19 8 C19 6.7 20.3 5.5 21.5 5.5 C20.3 5.5 19 4.3 19 3 Z"
-          fill={isMonoWhite ? '#FFFFFF' : isMonoBlack ? '#334155' : '#38BDF8'}
-          opacity={0.88}
+          d="M 18.5 3 C 18.5 4.1 17.4 5.2 16.5 5.5 C 17.4 5.8 18.5 6.9 18.5 8 C 18.5 6.9 19.6 5.8 20.5 5.5 C 19.6 5.2 18.5 4.1 18.5 3 Z"
+          fill={isMonoWhite ? '#FFFFFF' : isMonoBlack ? '#3F3F46' : '#34D399'}
+          opacity={0.92}
         />
       </g>
     </svg>
@@ -164,8 +155,14 @@ export const UrsellaAIGlyph: React.FC<UrsellaGlyphProps> = ({
 /**
  * UrsellaSymbolMark
  * 
- * Canonical Ursella brand symbol: An abstract interwoven ribbon-style U-shaped emblem.
- * Clean, geometric, mature, technical, and engineered for a serious business operating system.
+ * Canonical Ursella Brand Mark: The "Vault & Prism U".
+ * Engineered with pure mathematical geometry:
+ * - Constant 6px stroke width across pillars and base.
+ * - Robust left anchor pillar (balance sheet security, inventory capital, uptime).
+ * - Semicircular bottom sweep.
+ * - Ascending right pillar with a dynamic 45° angle growth apex (dx=6, dy=6).
+ * - Architectural highlight facet celebrating upward momentum.
+ * - Keystone Intelligence Diamond centered in the counter (shared DNA with AI Advisor).
  */
 export const UrsellaSymbolMark: React.FC<{
   sizeClass?: string;
@@ -205,11 +202,9 @@ export const UrsellaSymbolMark: React.FC<{
 
   const rawId = useId();
   const uid = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const ribbonLeftGradId = `ur_ribbon_l_${uid}`;
-  const ribbonRightGradId = `ur_ribbon_r_${uid}`;
-  const ribbonFoldGradId = `ur_ribbon_f_${uid}`;
-  const ribbonShadowId = `ur_ribbon_s_${uid}`;
-  const glowFilterId = `ur_glow_${uid}`;
+  const priGradId = `ur_p_${uid}`;
+  const facetGradId = `ur_f_${uid}`;
+  const gemGradId = `ur_g_${uid}`;
 
   const dimensionStyle: React.CSSProperties = {};
   if (width) dimensionStyle.width = width;
@@ -228,115 +223,90 @@ export const UrsellaSymbolMark: React.FC<{
       <defs>
         {isMonoWhite ? (
           <>
-            <linearGradient id={ribbonLeftGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id={priGradId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="100%" stopColor="#CBD5E1" />
+              <stop offset="100%" stopColor="#E2E8F0" />
             </linearGradient>
-            <linearGradient id={ribbonRightGradId} x1="100%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#E2E8F0" />
-              <stop offset="100%" stopColor="#94A3B8" />
+            <linearGradient id={facetGradId} x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#CBD5E1" />
+              <stop offset="100%" stopColor="#FFFFFF" />
             </linearGradient>
-            <linearGradient id={ribbonFoldGradId} x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#F8FAFC" />
-              <stop offset="100%" stopColor="#CBD5E1" />
+            <linearGradient id={gemGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="100%" stopColor="#F1F5F9" />
             </linearGradient>
           </>
         ) : isMonoBlack ? (
           <>
-            <linearGradient id={ribbonLeftGradId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#334155" />
-              <stop offset="100%" stopColor="#0F172A" />
+            <linearGradient id={priGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#18181B" />
+              <stop offset="100%" stopColor="#09090B" />
             </linearGradient>
-            <linearGradient id={ribbonRightGradId} x1="100%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#1E293B" />
-              <stop offset="100%" stopColor="#020617" />
+            <linearGradient id={facetGradId} x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#27272A" />
+              <stop offset="100%" stopColor="#3F3F46" />
             </linearGradient>
-            <linearGradient id={ribbonFoldGradId} x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#475569" />
-              <stop offset="100%" stopColor="#1E293B" />
+            <linearGradient id={gemGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#09090B" />
+              <stop offset="100%" stopColor="#18181B" />
             </linearGradient>
           </>
         ) : isLight ? (
           <>
-            <linearGradient id={ribbonLeftGradId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#0284C7" />
-              <stop offset="40%" stopColor="#2563EB" />
-              <stop offset="100%" stopColor="#1D4ED8" />
+            <linearGradient id={priGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#10B981" />
+              <stop offset="60%" stopColor="#059669" />
+              <stop offset="100%" stopColor="#047857" />
             </linearGradient>
-            <linearGradient id={ribbonRightGradId} x1="100%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#38BDF8" />
-              <stop offset="45%" stopColor="#1E40AF" />
-              <stop offset="100%" stopColor="#0F172A" />
+            <linearGradient id={facetGradId} x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#059669" />
+              <stop offset="50%" stopColor="#10B981" />
+              <stop offset="100%" stopColor="#34D399" />
             </linearGradient>
-            <linearGradient id={ribbonFoldGradId} x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#06B6D4" />
-              <stop offset="50%" stopColor="#2563EB" />
-              <stop offset="100%" stopColor="#38BDF8" />
+            <linearGradient id={gemGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#047857" />
+              <stop offset="100%" stopColor="#065F46" />
             </linearGradient>
           </>
         ) : (
           <>
-            <linearGradient id={ribbonLeftGradId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#38BDF8" />
-              <stop offset="35%" stopColor="#2563EB" />
-              <stop offset="100%" stopColor="#1D4ED8" />
+            <linearGradient id={priGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#34D399" />
+              <stop offset="35%" stopColor="#10B981" />
+              <stop offset="100%" stopColor="#059669" />
             </linearGradient>
-            <linearGradient id={ribbonRightGradId} x1="100%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#60A5FA" />
-              <stop offset="45%" stopColor="#1E40AF" />
-              <stop offset="100%" stopColor="#0F172A" />
+            <linearGradient id={facetGradId} x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#059669" />
+              <stop offset="50%" stopColor="#10B981" />
+              <stop offset="100%" stopColor="#6EE7B7" />
             </linearGradient>
-            <linearGradient id={ribbonFoldGradId} x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#06B6D4" />
-              <stop offset="50%" stopColor="#2563EB" />
-              <stop offset="100%" stopColor="#38BDF8" />
+            <linearGradient id={gemGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ECFDF5" />
+              <stop offset="50%" stopColor="#6EE7B7" />
+              <stop offset="100%" stopColor="#10B981" />
             </linearGradient>
           </>
         )}
-        <filter id={glowFilterId} x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow
-            dx="0"
-            dy="1.5"
-            stdDeviation="1.5"
-            floodColor="#2563EB"
-            floodOpacity={isMonoBlack || isMonoWhite ? 0 : 0.38}
-          />
-        </filter>
       </defs>
 
-      <g filter={`url(#${glowFilterId})`}>
-        {/* 1. Right Ribbon Strand: Underweave Loop curving across base */}
+      <g>
+        {/* 1. Architectural U Foundation (Constant 6px Stroke Geometry) */}
         <path
-          d="M22 4 C22 3.45 22.45 3 23 3 H26 C26.55 3 27 3.45 27 4 V18 C27 23.5 22.5 28 16 28 C12.8 28 9.8 26.5 7.8 24.2 L11.2 20.8 C12.4 22.2 14.1 23 16 23 C19.3 23 22 20.3 22 17 V4 Z"
-          fill={`url(#${ribbonRightGradId})`}
+          d="M 5.5 6 C 5.5 4.9 6.4 4 7.5 4 H 11.5 V 17 C 11.5 19.485 13.515 21.5 16 21.5 C 18.485 21.5 20.5 19.485 20.5 17 V 10 L 26.5 4 V 17 C 26.5 22.799 21.799 27.5 16 27.5 C 10.201 27.5 5.5 22.799 5.5 17 Z"
+          fill={`url(#${priGradId})`}
         />
 
-        {/* 2. Optical Under-Weave Depth Shadow */}
+        {/* 2. Apex Dynamic Growth Facet (Precision 45° Angle Chamfer Highlight) */}
         <path
-          d="M12.8 22.2 C13.7 23 14.8 23.4 16 23.4 L17.2 20.2 C16.2 20.2 15.2 19.8 14.4 19.2 Z"
-          fill="#0B132B"
-          opacity={isMonoBlack || isMonoWhite ? 0.3 : 0.8}
+          d="M 20.5 10 L 26.5 4 V 10 L 20.5 16 Z"
+          fill={`url(#${facetGradId})`}
+          opacity={isMonoWhite ? 0.85 : isMonoBlack ? 0.75 : 0.95}
         />
 
-        {/* 3. Left Ribbon Strand: Main Foreground Loop */}
+        {/* 3. Keystone Intelligence Core (Unified AI Diamond) */}
         <path
-          d="M5 4 C5 3.45 5.45 3 6 3 H9 C9.55 3 10 3.45 10 4 V17 C10 20.3 12.7 23 16 23 C17.8 23 19.4 22.2 20.5 20.9 L23.8 24.2 C21.8 26.5 19.1 28 16 28 C9.5 28 5 23.5 5 18 V4 Z"
-          fill={`url(#${ribbonLeftGradId})`}
-        />
-
-        {/* 4. Upper Interlocking Crest Ribbon Fold */}
-        <path
-          d="M10 13.5 C10 11.2 12.4 9.2 16 9.2 C19.6 9.2 22 11.2 22 13.5 L19.8 14.6 C19.8 13.2 18.2 11.8 16 11.8 C13.8 11.8 12.2 13.2 12.2 14.6 Z"
-          fill={`url(#${ribbonFoldGradId})`}
-        />
-
-        {/* 5. Central Luminous Core Focal Node */}
-        <circle
-          cx="16"
-          cy="15.5"
-          r="1"
-          fill={isMonoWhite ? '#FFFFFF' : isMonoBlack ? '#0F172A' : '#E0F2FE'}
-          opacity={0.95}
+          d="M 16 6.2 L 19 10.5 L 16 14.8 L 13 10.5 Z"
+          fill={`url(#${gemGradId})`}
         />
       </g>
     </svg>
@@ -467,8 +437,8 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
       theme === 'mono-black'
         ? 'bg-zinc-100 border border-zinc-300'
         : theme === 'light'
-        ? 'bg-white border border-sky-200 shadow-sm'
-        : 'bg-zinc-900/90 border border-sky-500/30 shadow-md shadow-sky-950/50';
+        ? 'bg-white border border-emerald-200 shadow-sm'
+        : 'bg-zinc-900/90 border border-emerald-500/30 shadow-md shadow-emerald-950/40';
 
     return (
       <div
@@ -491,8 +461,8 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
       theme === 'mono-black'
         ? 'bg-zinc-100 border border-zinc-300'
         : theme === 'light'
-        ? 'bg-white border border-blue-200 shadow-sm'
-        : 'bg-zinc-900/90 border border-blue-500/30 shadow-md shadow-blue-950/40';
+        ? 'bg-white border border-emerald-200 shadow-sm'
+        : 'bg-zinc-900/90 border border-emerald-500/30 shadow-md shadow-emerald-950/40';
 
     return (
       <div
@@ -520,7 +490,7 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
       >
         <span className={`font-sans tracking-tight ${currentSize.text}`}>Ursella</span>
         {showBetaBadge && (
-          <span className="ml-2 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-300 border border-blue-500/20">
+          <span className="ml-2 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             beta
           </span>
         )}
@@ -536,7 +506,7 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
         role="img"
         aria-label={ariaLabel || 'Ursella'}
       >
-        <div className="p-2.5 rounded-2xl bg-zinc-900/90 border border-blue-500/25 shadow-lg shadow-blue-950/40 mb-2">
+        <div className="p-2.5 rounded-2xl bg-zinc-900/90 border border-emerald-500/25 shadow-lg shadow-emerald-950/40 mb-2">
           <UrsellaSymbolMark
             sizeClass={currentSize.symbol}
             theme={theme}
@@ -548,7 +518,7 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
         <div className="flex items-center gap-1.5">
           <span className={`font-sans ${textColor} ${currentSize.text}`}>Ursella</span>
           {showBetaBadge && (
-            <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-300 border border-blue-500/20">
+            <span className="px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               beta
             </span>
           )}
@@ -585,7 +555,7 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
             Ursella
           </span>
           {showBetaBadge && (
-            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-300 border border-blue-500/20 leading-none">
+            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 leading-none">
               beta
             </span>
           )}
