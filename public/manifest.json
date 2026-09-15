@@ -1,6 +1,6 @@
 {
   "id": "/",
-  "name": "Ursella — AI Operating System for Small Business",
+  "name": "Ursella — Business Operating Intelligence",
   "short_name": "Ursella",
   "description": "Smart, multi-tenant operating system for commerce, POS, inventory, real-time analytics, and proactive AI insights.",
   "start_url": "/",
@@ -33,6 +33,22 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Ursella POS & Analytics Dashboard"
+    },
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Ursella Mobile POS & AI Advisor"
     }
   ],
   "categories": ["business", "finance", "productivity", "utilities"],

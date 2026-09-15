@@ -11,6 +11,8 @@ import { NotificationDrawer } from '../components/notifications/NotificationDraw
 import { MobileMenuDrawer } from '../components/navigation/MobileMenuDrawer.tsx';
 import { FloatingActionButton } from '../components/common/FloatingActionButton.tsx';
 import { FeedbackModal } from '../components/feedback/FeedbackModal.tsx';
+import { OfflineSyncIndicator } from '../components/common/OfflineSyncCenter.tsx';
+import { PWAInstallButton } from '../components/common/PWAInstallPrompt.tsx';
 import { ProactiveService } from '../services/proactive.service.ts';
 import type { AppNotification } from '../types/proactive.ts';
 import {
@@ -340,6 +342,11 @@ export const AppShell: React.FC<AppShellProps> = ({
           })}
         </nav>
 
+        {/* PWA Install Button in Desktop Sidebar */}
+        <div className="px-4 pb-2">
+          <PWAInstallButton variant="sidebar" />
+        </div>
+
         {/* User Footer Profile & Sign Out */}
         <div className="p-4 border-t border-zinc-800/80 bg-zinc-950/40">
           <div className="flex items-center justify-between gap-3">
@@ -451,6 +458,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             </div>
           ) : (
             <div className="flex items-center gap-1.5 shrink-0">
+              <OfflineSyncIndicator />
               <button
                 onClick={() => setIsFeedbackModalOpen(true)}
                 className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
@@ -476,6 +484,8 @@ export const AppShell: React.FC<AppShellProps> = ({
         {currentRoute !== 'ai' && (
           <div className="hidden md:flex items-center justify-end px-8 py-3 border-b border-zinc-800/60 bg-zinc-950/40 shrink-0">
             <div className="flex items-center gap-2.5">
+              <OfflineSyncIndicator />
+              <PWAInstallButton variant="outline" />
               <button
                 onClick={() => setIsFeedbackModalOpen(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors border border-zinc-800"

@@ -1,5 +1,5 @@
 // Ursella Progressive Web App Service Worker
-const CACHE_NAME = 'ursella-app-v7';
+const CACHE_NAME = 'ursella-app-v8';
 const FONT_CACHE_NAME = 'ursella-fonts-v1';
 
 const STATIC_ASSETS = [
@@ -12,6 +12,9 @@ const STATIC_ASSETS = [
   '/pwa-512x512.png',
   '/pwa-maskable-512x512.png',
   '/apple-touch-icon.png',
+  '/apple-splash-portrait.png',
+  '/screenshot-desktop.png',
+  '/screenshot-mobile.png',
   '/icon.svg',
   '/favicon.svg',
 ];

@@ -6,6 +6,7 @@ import type { AppNavRoute } from '../../types/index.ts';
 import { UrsellaLogo, UrsellaAIGlyph } from '../common/UrsellaLogo.tsx';
 import { BusinessSwitcher } from '../business/BusinessSwitcher.tsx';
 import { ThemeToggle } from '../common/ThemeToggle.tsx';
+import { PWAInstallButton } from '../common/PWAInstallPrompt.tsx';
 import {
   X,
   Home,
@@ -211,6 +212,9 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
             paddingBottom: 'max(0.875rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)))',
           }}
         >
+          {/* PWA Install Button */}
+          <PWAInstallButton variant="sidebar" />
+
           {/* Quick theme pill switch */}
           <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-zinc-800/60 border border-zinc-700/60 text-xs">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
