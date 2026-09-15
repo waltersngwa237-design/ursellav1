@@ -1,5 +1,6 @@
 import { generateUUID } from '../lib/uuid.ts';
 import { SalesService } from './sales.service.ts';
+import { ProactiveService } from './proactive.service.ts';
 import type { SaleWithDetails } from '../types/index.ts';
 
 export interface CashMovement {

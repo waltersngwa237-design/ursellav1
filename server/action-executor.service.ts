@@ -1103,6 +1103,8 @@ export class ActionExecutorService {
         return ['owner', 'admin', 'staff'];
       case 'record_payment':
         return ['owner', 'admin', 'staff'];
+      case 'close_register':
+        return ['owner', 'admin', 'staff', 'manager', 'cashier' as any];
       case 'create_inventory_adjustment':
         return ['owner', 'admin'];
       case 'create_expense':

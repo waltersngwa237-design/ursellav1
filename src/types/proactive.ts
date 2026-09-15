@@ -73,7 +73,8 @@ export type ActionType =
   | 'create_customer_followup'
   | 'send_customer_message'
   | 'create_restock_task'
-  | 'view_daily_brief';
+  | 'view_daily_brief'
+  | 'close_register';
 
 export type ActionStatus =
   | 'pending_approval'

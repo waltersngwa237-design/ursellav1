@@ -727,6 +727,23 @@ app.get('/api/actions/audit-logs', async (req, res) => {
   }
 });
 
+app.post('/api/actions/audit-logs', async (req, res) => {
+  try {
+    const { businessId, log } = req.body;
+    if (!businessId || !log) return res.status(400).json({ error: 'businessId and log required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
+    const recorded = await ActionExecutorService.recordAuditLog(log);
+    return res.json({ success: true, log: recorded });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Failed to record audit log', details: error.message });
+  }
+});
+
 // 8. Reminders & Tasks Management
 app.get('/api/reminders', async (req, res) => {
   try {

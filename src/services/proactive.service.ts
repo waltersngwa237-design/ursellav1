@@ -597,16 +597,61 @@ export class ProactiveService {
 
   /**
    * Fetch action audit logs / execution history.
+   * Merges server-authoritative logs with instant local logs.
    */
   public static async getAuditLogs(businessId: string): Promise<ActionAuditLog[]> {
+    let localLogs: ActionAuditLog[] = [];
+    try {
+      const raw = localStorage.getItem(`${LOCAL_AUDIT_LOGS_KEY}${businessId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) localLogs = parsed;
+      }
+    } catch {}
+
     try {
       const response = await fetch(`/api/actions/audit-logs?businessId=${encodeURIComponent(businessId)}`, {
         headers: await this.getAuthHeaders(),
       });
-      if (!response.ok) return [];
-      return await response.json();
+      if (response.ok) {
+        const serverLogs: ActionAuditLog[] = await response.json();
+        if (Array.isArray(serverLogs)) {
+          const map = new Map<string, ActionAuditLog>();
+          serverLogs.forEach((l) => map.set(l.id, l));
+          localLogs.forEach((l) => {
+            if (!map.has(l.id)) map.set(l.id, l);
+          });
+          return Array.from(map.values()).sort(
+            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+        }
+      }
     } catch {
-      return [];
+      // Fallback to local logs
+    }
+    return localLogs;
+  }
+
+  /**
+   * Public helper to record an operational or system audit log.
+   * Immediately saves locally, dispatches real-time UI events, and syncs to server.
+   */
+  public static async recordAuditLog(businessId: string, log: ActionAuditLog): Promise<void> {
+    this.recordLocalAuditLog(businessId, log);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ursella_data_changed'));
+    }
+
+    try {
+      const headers = await this.getAuthHeaders();
+      await fetch('/api/actions/audit-logs', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ businessId, log }),
+      });
+    } catch (err) {
+      console.warn('[ProactiveService] Background audit log sync failed:', err);
     }
   }
 
