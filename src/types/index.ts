@@ -37,6 +37,37 @@ export interface UserBusinessMembership {
   settings: BusinessSettings | null;
 }
 
+export interface TeamMember {
+  id: string;
+  userId: string;
+  businessId: string;
+  role: MemberRole;
+  fullName: string;
+  email: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
+  joinedAt: string;
+  pin?: string;
+  status: 'active' | 'suspended';
+  isCurrentUser?: boolean;
+}
+
+export interface TeamInvitation {
+  id: string;
+  businessId: string;
+  businessName: string;
+  email: string;
+  fullName: string;
+  role: MemberRole;
+  pin?: string;
+  invitedByUserId: string;
+  invitedByUserName: string;
+  inviteCode: string;
+  createdAt: string;
+  expiresAt: string;
+  status: 'pending' | 'accepted' | 'revoked';
+}
+
 // Cart Item for Point of Sale
 export interface CartItem {
   product: Product;

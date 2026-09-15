@@ -17,9 +17,11 @@ import { OnboardingPage } from '../onboarding/OnboardingPage.tsx';
 import { FeedbackModal } from '../../components/feedback/FeedbackModal.tsx';
 import { HardwareSettingsModal } from '../../components/hardware/HardwareSettingsModal.tsx';
 import { HardwarePrinterService } from '../../services/hardware-printer.service.ts';
+import { TeamManagementSection } from '../../components/team/TeamManagementSection.tsx';
 import {
   Store,
   User,
+  Users,
   Shield,
   LogOut,
   Building2,
@@ -227,7 +229,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate }) => {
       )}
 
       {/* Quick Navigation Cards: Core Hubs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
           onClick={() => onNavigate('reports')}
           className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 text-left transition-all group flex flex-col justify-between cursor-pointer"
@@ -244,6 +246,31 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate }) => {
             </h4>
             <p className="text-[11px] text-zinc-400 mt-0.5">
               GAAP-aligned P&L, Sales, Cash Flow, and Inventory reports.
+            </p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => {
+            const el = document.getElementById('team-management-section');
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth' });
+            }
+          }}
+          className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-purple-500/50 text-left transition-all group flex flex-col justify-between cursor-pointer"
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl">
+              <Users className="w-5 h-5" />
+            </div>
+            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-purple-400 transition-colors" />
+          </div>
+          <div className="mt-3">
+            <h4 className="text-sm font-bold text-white group-hover:text-purple-300 transition-colors">
+              Team & Staff
+            </h4>
+            <p className="text-[11px] text-zinc-400 mt-0.5">
+              Multi-user access, POS cashier PINs, and permissions.
             </p>
           </div>
         </button>
@@ -536,7 +563,12 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate }) => {
         </div>
       </Card>
 
-      {/* 4. Account Freshness & Data Controls */}
+      {/* 4. Team & Staff Management (Multi-Tenant Access Control) */}
+      <div id="team-management-section">
+        <TeamManagementSection />
+      </div>
+
+      {/* 5. Account Freshness & Data Controls */}
       <Card className="space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
           <div className="flex items-center gap-2">

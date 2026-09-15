@@ -15,10 +15,12 @@ export const BusinessSwitcher: React.FC<BusinessSwitcherProps> = ({ onOpenNewBus
   const activeCurrency = (activeBusiness?.currency || 'XAF') as SupportedCurrency;
   const currencyInfo = CURRENCY_MAP[activeCurrency] || CURRENCY_MAP.XAF;
 
-  const roleVariantMap = {
-    owner: 'emerald' as const,
-    admin: 'blue' as const,
-    staff: 'zinc' as const,
+  const roleVariantMap: Record<string, 'emerald' | 'blue' | 'amber' | 'zinc'> = {
+    owner: 'emerald',
+    admin: 'blue',
+    manager: 'emerald',
+    cashier: 'amber',
+    staff: 'zinc',
   };
 
   return (

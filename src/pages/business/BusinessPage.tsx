@@ -9,6 +9,7 @@ import { Button } from '../../components/common/Button.tsx';
 import { Input } from '../../components/common/Input.tsx';
 import { Select } from '../../components/common/Select.tsx';
 import { Modal } from '../../components/common/Modal.tsx';
+import { TeamManagementSection } from '../../components/team/TeamManagementSection.tsx';
 import {
   CURRENCY_MAP,
   EXPENSE_CATEGORIES,
@@ -44,6 +45,7 @@ import {
   Tag,
   Boxes,
   Truck,
+  Users,
 } from 'lucide-react';
 
 export const UNIT_OF_MEASURE_GROUPS = [
@@ -101,7 +103,7 @@ export const BusinessPage: React.FC = () => {
   const { activeBusiness, currency } = useBusiness();
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
 
-  const [activeTab, setActiveTab] = useState<'catalog' | 'inventory' | 'categories' | 'expenses'>('catalog');
+  const [activeTab, setActiveTab] = useState<'catalog' | 'inventory' | 'categories' | 'expenses' | 'team'>('catalog');
 
   // ==========================================
   // STATE: CATALOG & PRODUCTS
@@ -643,6 +645,18 @@ export const BusinessPage: React.FC = () => {
           >
             <Receipt className="w-3.5 h-3.5" />
             <span>Expenses</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('team')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+              activeTab === 'team'
+                ? 'bg-purple-600 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Team & Staff</span>
           </button>
         </div>
       </div>
@@ -1273,6 +1287,15 @@ export const BusinessPage: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 5: TEAM & STAFF MANAGEMENT                                            */}
+      {/* ========================================================================= */}
+      {activeTab === 'team' && (
+        <div className="space-y-4">
+          <TeamManagementSection />
         </div>
       )}
 
