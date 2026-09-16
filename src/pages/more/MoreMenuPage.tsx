@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { isSupabaseConfigured } from '../../lib/supabase/client.ts';
 import {
   CURRENCY_MAP,
@@ -43,6 +44,7 @@ import {
   Mail,
   Printer,
   Sliders,
+  Globe,
 } from 'lucide-react';
 
 interface MoreMenuPageProps {
@@ -66,6 +68,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
     seedSampleCatalog,
   } = useBusiness();
   const { theme, setTheme } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
 
@@ -387,6 +390,69 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                     {theme === 'dark' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
                   </div>
                   <span className="text-[10px] text-zinc-400">Sleek, eye-safe night theme</span>
+                </div>
+              </button>
+            </div>
+          </Card>
+
+          {/* Language & Regional Localization */}
+          <Card className="space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-sky-400" />
+                <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
+                  {language === 'fr' ? 'Langue de l’Application' : 'Application Language'}
+                </h3>
+              </div>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+                {language === 'fr' ? 'Français (FR)' : 'English (EN)'}
+              </span>
+            </div>
+
+            <p className="text-xs text-zinc-400">
+              {language === 'fr' 
+                ? 'Basculez entre le français et l’anglais. Ursella AI adaptera aussi ses analyses et calculs en temps réel.'
+                : 'Switch between English and French. Ursella AI will also adapt its financial reasoning and prompts.'}
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <button
+                onClick={() => setLanguage('en')}
+                className={`p-3.5 rounded-xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
+                  language === 'en'
+                    ? 'bg-sky-500/10 border-sky-500/50 ring-1 ring-sky-500/30'
+                    : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700'
+                }`}
+              >
+                <div className="w-9 h-9 rounded-lg bg-sky-500/15 text-sky-400 flex items-center justify-center font-bold text-xs">
+                  EN
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
+                    English
+                    {language === 'en' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                  </div>
+                  <span className="text-[10px] text-zinc-400">Default global business language</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setLanguage('fr')}
+                className={`p-3.5 rounded-xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
+                  language === 'fr'
+                    ? 'bg-sky-500/10 border-sky-500/50 ring-1 ring-sky-500/30'
+                    : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700'
+                }`}
+              >
+                <div className="w-9 h-9 rounded-lg bg-indigo-500/15 text-indigo-400 flex items-center justify-center font-bold text-xs">
+                  FR
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
+                    Français
+                    {language === 'fr' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                  </div>
+                  <span className="text-[10px] text-zinc-400">Pour le commerce en Afrique francophone</span>
                 </div>
               </button>
             </div>

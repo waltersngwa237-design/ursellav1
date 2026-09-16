@@ -2,7 +2,9 @@ import React from 'react';
 import { UrsellaLogo } from '../../components/common/UrsellaLogo.tsx';
 import { Button } from '../../components/common/Button.tsx';
 import { ThemeToggle } from '../../components/common/ThemeToggle.tsx';
+import { LanguageToggle } from '../../components/common/LanguageToggle.tsx';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import {
   ShoppingCart,
   Boxes,
@@ -29,6 +31,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 }) => {
   const { startInstantDemo, loading } = useAuth();
   const { isDark } = useTheme();
+  const { t } = useLanguage();
 
   const handleQuickDemo = async () => {
     try {
@@ -83,6 +86,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <UrsellaLogo size="md" />
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Language Toggle */}
+            <LanguageToggle variant="pill" className="shrink-0" />
+
+            {/* Theme Toggle */}
             <ThemeToggle variant="icon" className="shrink-0" />
 
             <button
@@ -94,7 +101,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 border-slate-300'
               }`}
             >
-              Demo Store
+              {t.common.demoStore}
             </button>
             <Button
               variant="ghost"
@@ -104,7 +111,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 isDark ? 'text-zinc-300 hover:text-white' : 'text-slate-700 hover:text-slate-900'
               }`}
             >
-              Sign In
+              {t.landing.signIn}
             </Button>
             <Button
               variant="primary"
@@ -113,7 +120,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               className="text-xs font-bold"
               rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
             >
-              Get Started
+              {t.landing.signUp}
             </Button>
           </div>
         </div>
@@ -129,21 +136,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               : 'bg-emerald-50 border-emerald-300 text-emerald-900'
           }`}>
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-medium">Modern Operating Co-pilot for Local Businesses</span>
+            <span className="font-medium">{t.landing.heroTag}</span>
           </div>
 
           {/* Headline */}
           <h1 className={`text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight sm:leading-tight ${
             isDark ? 'text-white' : 'text-slate-900'
           }`}>
-            The simple way to run sales, track stock, and manage your business.
+            {t.landing.heroTitle}
           </h1>
 
           {/* Subtitle */}
           <p className={`mt-5 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed ${
             isDark ? 'text-zinc-300' : 'text-slate-600'
           }`}>
-            <strong className={isDark ? 'text-white font-semibold' : 'text-slate-900 font-semibold'}>Ursella</strong> unites rapid POS checkout, FIFO stock audits, customer credit reminders, and daily financial intelligence in one focused workspace.
+            <strong className={isDark ? 'text-white font-semibold' : 'text-slate-900 font-semibold'}>Ursella</strong> {t.landing.heroSubtitle}
           </p>
 
           {/* Action CTAs */}
@@ -155,7 +162,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               className="w-full sm:w-auto px-7 py-3 text-sm font-bold shadow-md shadow-emerald-500/20"
               rightIcon={<ArrowRight className="w-4 h-4" />}
             >
-              Create Free Account
+              {t.landing.createAccount}
             </Button>
 
             <Button
@@ -169,7 +176,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   : 'text-slate-700 hover:text-slate-900 bg-white border-slate-300'
               }`}
             >
-              Explore Interactive Demo
+              {t.landing.exploreDemo}
             </Button>
           </div>
 
@@ -178,15 +185,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           }`}>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-              <span>Multi-currency support</span>
+              <span>{t.landing.multiCurrency}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-              <span>Offline-ready PWA</span>
+              <span>{t.landing.offlinePwa}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-              <span>No credit card required</span>
+              <span>{t.landing.noCard}</span>
             </div>
           </div>
         </section>
@@ -212,16 +219,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <ShoppingCart className="w-5 h-5" />
                   </div>
                   <h3 className={`text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    Rapid POS & Mobile Money
+                    {t.landing.posFeatureTitle}
                   </h3>
                   <p className={`text-xs mt-2 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-                    Designed for fast counter checkout, partial split payments, barcode scanner input, and instant WhatsApp receipts.
+                    {t.landing.posFeatureDesc}
                   </p>
                 </div>
                 <div className={`mt-4 pt-3 border-t text-xs font-semibold flex items-center justify-between ${
                   isDark ? 'border-zinc-900/90 text-emerald-400' : 'border-slate-200/90 text-emerald-700'
                 }`}>
-                  <span>Record sales in &lt; 3s</span>
+                  <span>{t.landing.posFeatureMetric}</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
@@ -239,16 +246,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <Boxes className="w-5 h-5" />
                   </div>
                   <h3 className={`text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    Automated Stock & Margins
+                    {t.landing.fifoFeatureTitle}
                   </h3>
                   <p className={`text-xs mt-2 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-                    Tracks true cost of goods sold with FIFO layer calculations, low-stock threshold alerts, and expiry warnings.
+                    {t.landing.fifoFeatureDesc}
                   </p>
                 </div>
                 <div className={`mt-4 pt-3 border-t text-xs font-semibold flex items-center justify-between ${
                   isDark ? 'border-zinc-900/90 text-indigo-400' : 'border-slate-200/90 text-indigo-700'
                 }`}>
-                  <span>Automated reconciliations</span>
+                  <span>{t.landing.fifoFeatureMetric}</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
@@ -266,16 +273,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <BarChart3 className="w-5 h-5" />
                   </div>
                   <h3 className={`text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    Daily Financial Clarity
+                    {t.landing.financeFeatureTitle}
                   </h3>
                   <p className={`text-xs mt-2 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-                    Instant cash position, debtors ledger, operational expense tracking, and deterministic net profit margins.
+                    {t.landing.financeFeatureDesc}
                   </p>
                 </div>
                 <div className={`mt-4 pt-3 border-t text-xs font-semibold flex items-center justify-between ${
                   isDark ? 'border-zinc-900/90 text-teal-400' : 'border-slate-200/90 text-teal-700'
                 }`}>
-                  <span>Real-time profit & loss</span>
+                  <span>{t.landing.financeFeatureMetric}</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
@@ -295,10 +302,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
                 <div>
                   <h4 className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    Built-in AI Financial Co-pilot
+                    {t.landing.aiBannerTitle}
                   </h4>
                   <p className={`text-xs mt-0.5 ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-                    Ask questions like <em>&quot;What were my top sellers today?&quot;</em> or get automated alerts when margins fluctuate.
+                    {t.landing.aiBannerDesc}
                   </p>
                 </div>
               </div>
@@ -309,7 +316,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 onClick={onNavigateSignIn}
                 className="text-xs whitespace-nowrap self-end sm:self-auto font-semibold shadow-xs"
               >
-                Sign In to Ursella
+                {t.landing.aiBannerBtn}
               </Button>
             </div>
           </div>
@@ -321,10 +328,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         }`}>
           <div className="text-center max-w-xl mx-auto mb-10">
             <h2 className={`text-xl sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              Built for real retail, distribution, and service stores.
+              {t.landing.featuresTitle}
             </h2>
             <p className={`text-xs sm:text-sm mt-2 ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-              Everything you need to maintain healthy cash flow and stop revenue leakage.
+              {t.landing.featuresSubtitle}
             </p>
           </div>
 
@@ -339,9 +346,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               }`}>
                 <Receipt className="w-5 h-5" />
               </div>
-              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Digital Receipts</h3>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{t.landing.receiptsTitle}</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-                Print via standard thermal receipt printers or share instant invoice receipts with customers via WhatsApp.
+                {t.landing.receiptsDesc}
               </p>
             </div>
 
@@ -355,9 +362,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               }`}>
                 <Smartphone className="w-5 h-5" />
               </div>
-              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Mobile Money & Cash</h3>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{t.landing.momoTitle}</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-                Seamless support for local cash collections, Mobile Money transfers, and multi-tender payments.
+                {t.landing.momoDesc}
               </p>
             </div>
 
@@ -371,9 +378,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               }`}>
                 <BarChart3 className="w-5 h-5" />
               </div>
-              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Profit & Loss Reports</h3>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{t.landing.pnlTitle}</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-                Deterministic calculation of gross revenue, COGS, operating expenses, and net profit margins.
+                {t.landing.pnlDesc}
               </p>
             </div>
 
@@ -387,9 +394,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               }`}>
                 <ShieldCheck className="w-5 h-5" />
               </div>
-              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Multi-Tenant Isolation</h3>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{t.landing.securityTitle}</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-                Each store runs in a secure, isolated database tenancy with enterprise-grade row-level security.
+                {t.landing.securityDesc}
               </p>
             </div>
 
@@ -403,9 +410,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               }`}>
                 <Zap className="w-5 h-5" />
               </div>
-              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Proactive Health Checks</h3>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{t.landing.proactiveTitle}</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-                Continuous anomaly monitoring flags slow-moving stock, overdue debtors, and sudden expense spikes.
+                {t.landing.proactiveDesc}
               </p>
             </div>
 
@@ -419,9 +426,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               }`}>
                 <Users className="w-5 h-5" />
               </div>
-              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Team & Role Access</h3>
+              <h3 className={`text-xs sm:text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{t.landing.teamTitle}</h3>
               <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-                Add Cashiers, Store Managers, and Accountants with granular view and POS checkout permissions.
+                {t.landing.teamDesc}
               </p>
             </div>
           </div>
@@ -437,24 +444,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         }`}>
           <div className="flex items-center gap-2">
             <UrsellaLogo size="sm" />
-            <span>— Operating Intelligence Platform for Modern Commerce</span>
+            <span>{t.landing.footerTagline}</span>
           </div>
 
           <div className="flex items-center gap-4 font-medium">
+            <LanguageToggle variant="pill" />
             <button onClick={onNavigateSignIn} className={`transition-colors ${
               isDark ? 'hover:text-white' : 'hover:text-slate-900'
             }`}>
-              Sign In
+              {t.landing.signIn}
             </button>
             <button onClick={onNavigateSignUp} className={`transition-colors ${
               isDark ? 'hover:text-white' : 'hover:text-slate-900'
             }`}>
-              Create Account
+              {t.landing.signUp}
             </button>
             <button onClick={handleQuickDemo} className={`transition-colors ${
               isDark ? 'hover:text-white' : 'hover:text-slate-900'
             }`}>
-              Live Demo
+              {t.common.demoStore}
             </button>
           </div>
         </div>

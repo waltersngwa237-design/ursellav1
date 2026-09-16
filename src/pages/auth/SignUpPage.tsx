@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { Button } from '../../components/common/Button.tsx';
 import { Input } from '../../components/common/Input.tsx';
 import { UrsellaLogo } from '../../components/common/UrsellaLogo.tsx';
+import { LanguageToggle } from '../../components/common/LanguageToggle.tsx';
 import {
   Mail,
   Lock,
@@ -24,6 +26,7 @@ interface SignUpPageProps {
 
 export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavigateLanding }) => {
   const { requestVerificationCode, signUpWithCode, loading, error, clearError } = useAuth();
+  const { t, language } = useLanguage();
   
   // Step 1 = Enter details, Step 2 = Enter 6-digit code
   const [step, setStep] = useState<'details' | 'verify'>('details');
@@ -59,19 +62,19 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
     clearError();
 
     if (!fullName.trim()) {
-      setFormError('Please enter your full name.');
+      setFormError(language === 'fr' ? 'Veuillez saisir votre nom complet.' : 'Please enter your full name.');
       return;
     }
     if (!email || !email.includes('@')) {
-      setFormError('Please enter a valid email address.');
+      setFormError(language === 'fr' ? 'Veuillez saisir une adresse e-mail valide.' : 'Please enter a valid email address.');
       return;
     }
     if (password.length < 6) {
-      setFormError('Password must be at least 6 characters long.');
+      setFormError(language === 'fr' ? 'Le mot de passe doit contenir au moins 6 caractères.' : 'Password must be at least 6 characters long.');
       return;
     }
     if (password !== confirmPassword) {
-      setFormError('Passwords do not match.');
+      setFormError(language === 'fr' ? 'Les mots de passe ne correspondent pas.' : 'Passwords do not match.');
       return;
     }
 
@@ -80,12 +83,12 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
       const res = await requestVerificationCode(email.trim().toLowerCase(), fullName.trim(), phone.trim() || undefined);
       setStep('verify');
       setResendCooldown(res.cooldownSeconds || 60);
-      setInfoMessage(res.message || `A 6-digit code has been sent to ${email}.`);
+      setInfoMessage(res.message || (language === 'fr' ? `Un code à 6 chiffres a été envoyé à ${email}.` : `A 6-digit code has been sent to ${email}.`));
       if (res.devCode) {
         setDevCodeHint(res.devCode);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Could not send verification code.';
+      const msg = err instanceof Error ? err.message : (language === 'fr' ? 'Impossible d’envoyer le code de vérification.' : 'Could not send verification code.');
       setFormError(msg);
     } finally {
       setIsSendingCode(false);
@@ -100,12 +103,12 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
       setIsSendingCode(true);
       const res = await requestVerificationCode(email.trim().toLowerCase(), fullName.trim(), phone.trim() || undefined);
       setResendCooldown(res.cooldownSeconds || 60);
-      setInfoMessage('A fresh verification code was sent to your email.');
+      setInfoMessage(language === 'fr' ? 'Un nouveau code de vérification a été envoyé à votre e-mail.' : 'A fresh verification code was sent to your email.');
       if (res.devCode) {
         setDevCodeHint(res.devCode);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to resend code.';
+      const msg = err instanceof Error ? err.message : (language === 'fr' ? 'Échec de renvoi du code.' : 'Failed to resend code.');
       setFormError(msg);
     } finally {
       setIsSendingCode(false);
@@ -119,7 +122,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
 
     const cleanCode = verificationCode.trim().replace(/\s+/g, '');
     if (!cleanCode || cleanCode.length !== 6) {
-      setFormError('Please enter the complete 6-digit verification code.');
+      setFormError(language === 'fr' ? 'Veuillez saisir le code complet à 6 chiffres.' : 'Please enter the complete 6-digit verification code.');
       return;
     }
 
@@ -133,14 +136,14 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
         stayLoggedIn
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Registration failed. Please check the code and try again.';
+      const msg = err instanceof Error ? err.message : (language === 'fr' ? 'Échec de l’inscription. Veuillez vérifier le code et réessayer.' : 'Registration failed. Please check the code and try again.');
       setFormError(msg);
     }
   };
 
   return (
     <div 
-      className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-zinc-950 text-zinc-100"
+      className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-zinc-950 text-zinc-100 relative"
       style={{
         paddingTop: 'max(2rem, calc(1.5rem + env(safe-area-inset-top, 0px)))',
         paddingBottom: 'max(2rem, calc(1.5rem + env(safe-area-inset-bottom, 0px)))',
@@ -148,6 +151,11 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
         paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
       }}
     >
+      {/* Top right language switcher */}
+      <div className="absolute top-4 right-4 z-10">
+        <LanguageToggle variant="pill" />
+      </div>
+
       <div className="w-full max-w-md space-y-6">
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center space-y-3">
@@ -155,7 +163,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
             <button
               onClick={onNavigateLanding}
               className="hover:opacity-85 transition-opacity"
-              title="Back to home"
+              title={language === 'fr' ? 'Retour à l’accueil' : 'Back to home'}
             >
               <UrsellaLogo size="lg" />
             </button>
@@ -164,12 +172,12 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
           )}
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white">
-              {step === 'details' ? 'Create your account' : 'Verify your email'}
+              {step === 'details' ? t.auth.signUpTitle : (language === 'fr' ? 'Vérifiez votre e-mail' : 'Verify your email')}
             </h1>
             <p className="text-xs text-zinc-400 mt-1">
               {step === 'details'
-                ? 'Sign up with a verified email code — no confirmation links needed'
-                : `We sent a 6-digit verification code to ${email}`}
+                ? t.auth.signUpSubtitle
+                : (language === 'fr' ? `Nous avons envoyé un code de vérification à 6 chiffres à ${email}` : `We sent a 6-digit verification code to ${email}`)}
             </p>
           </div>
         </div>
@@ -206,7 +214,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
           {step === 'details' ? (
             <form onSubmit={handleRequestCode} className="space-y-3.5">
               <Input
-                label="Full Name"
+                label={t.auth.fullNameLabel}
                 type="text"
                 placeholder="Amara Kamga"
                 value={fullName}
@@ -217,7 +225,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
               />
 
               <Input
-                label="Email address"
+                label={t.auth.emailLabel}
                 type="email"
                 placeholder="owner@business.com"
                 value={email}
@@ -228,7 +236,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
               />
 
               <Input
-                label="Phone number (optional)"
+                label={t.auth.phoneLabel}
                 type="tel"
                 placeholder="+237 6XX XXX XXX"
                 value={phone}
@@ -238,9 +246,9 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
               />
 
               <Input
-                label="Password"
+                label={t.auth.passwordLabel}
                 type="password"
-                placeholder="At least 6 characters"
+                placeholder={language === 'fr' ? 'Au moins 6 caractères' : 'At least 6 characters'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 leftIcon={<Lock className="w-4 h-4" />}
@@ -250,9 +258,9 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
               />
 
               <Input
-                label="Confirm Password"
+                label={t.auth.confirmPasswordLabel}
                 type="password"
-                placeholder="Repeat your password"
+                placeholder={language === 'fr' ? 'Répétez votre mot de passe' : 'Repeat your password'}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 leftIcon={<Lock className="w-4 h-4" />}
@@ -269,7 +277,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
                     onChange={(e) => setStayLoggedIn(e.target.checked)}
                     className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-emerald-500 focus:ring-emerald-500/20 focus:ring-offset-0 transition-colors"
                   />
-                  <span>Stay logged in on this device (Windows & Mobile)</span>
+                  <span>{t.auth.staySignedIn}</span>
                 </label>
               </div>
 
@@ -281,14 +289,14 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
                 isLoading={isSendingCode}
                 rightIcon={<ArrowRight className="w-4 h-4" />}
               >
-                Send Verification Code
+                {language === 'fr' ? 'Envoyer le code de vérification' : 'Send Verification Code'}
               </Button>
             </form>
           ) : (
             <form onSubmit={handleCompleteSignUp} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-medium text-zinc-300">
-                  6-Digit Verification Code
+                  {language === 'fr' ? 'Code de Vérification à 6 Chiffres' : '6-Digit Verification Code'}
                 </label>
                 <div className="relative">
                   <Input
@@ -306,7 +314,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
                   />
                 </div>
                 <p className="text-[11px] text-zinc-400">
-                  Enter the numeric code sent via Brevo email. Valid for 15 minutes.
+                  {language === 'fr' ? 'Saisissez le code numérique reçu par e-mail. Valable 15 minutes.' : 'Enter the numeric code sent via Brevo email. Valid for 15 minutes.'}
                 </p>
               </div>
 
@@ -320,7 +328,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
                   className="text-zinc-400 hover:text-zinc-200 transition-colors inline-flex items-center gap-1"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Edit details</span>
+                  <span>{language === 'fr' ? 'Modifier les infos' : 'Edit details'}</span>
                 </button>
 
                 <button
@@ -336,8 +344,8 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
                   <RefreshCw className={`w-3.5 h-3.5 ${isSendingCode ? 'animate-spin' : ''}`} />
                   <span>
                     {resendCooldown > 0
-                      ? `Resend in ${resendCooldown}s`
-                      : 'Resend code'}
+                      ? (language === 'fr' ? `Renvoyer dans ${resendCooldown}s` : `Resend in ${resendCooldown}s`)
+                      : (language === 'fr' ? 'Renvoyer le code' : 'Resend code')}
                   </span>
                 </button>
               </div>
@@ -351,7 +359,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
                   isLoading={loading}
                   rightIcon={<ShieldCheck className="w-4 h-4" />}
                 >
-                  Verify & Create Account
+                  {t.auth.createAccountBtn}
                 </Button>
               </div>
             </form>
@@ -361,12 +369,12 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
         {/* Footer Navigation */}
         <div className="text-center space-y-2 text-xs text-zinc-400">
           <p>
-            Already have an account?{' '}
+            {t.auth.alreadyHaveAccount}{' '}
             <button
               onClick={onNavigateSignIn}
               className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
             >
-              Sign in
+              {t.auth.signInBtn}
             </button>
           </p>
           {onNavigateLanding && (
@@ -376,7 +384,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigateSignIn, onNavi
                 className="text-zinc-400 hover:text-zinc-300 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5 stroke-[1.75]" />
-                <span>Back to Ursella home</span>
+                <span>{language === 'fr' ? 'Retour à l’accueil Ursella' : 'Back to Ursella home'}</span>
               </button>
             </p>
           )}

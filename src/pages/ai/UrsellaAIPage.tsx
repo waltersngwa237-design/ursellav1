@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { AIService } from '../../services/ai.service.ts';
 import { AnalyticsService } from '../../services/analytics.service.ts';
 import { generateUUID, isValidUUID } from '../../lib/uuid.ts';
@@ -50,6 +51,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   const { user } = useAuth();
   const { activeBusiness, currency } = useBusiness();
   const { isDark } = useTheme();
+  const { language } = useLanguage();
 
   // Conversations & Messages State
   const [conversations, setConversations] = useState<AIConversationSummary[]>([]);
@@ -337,6 +339,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         businessId: activeBusiness.id,
         conversationId: convId,
         message: textToSend.trim(),
+        language: language === 'fr' ? 'fr' : 'en',
         history: historyPayload,
         osContext,
         businessContext: {

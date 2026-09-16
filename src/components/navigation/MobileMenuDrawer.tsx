@@ -2,10 +2,11 @@ import React, { useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import type { AppNavRoute } from '../../types/index.ts';
 import { UrsellaLogo, UrsellaAIGlyph } from '../common/UrsellaLogo.tsx';
 import { BusinessSwitcher } from '../business/BusinessSwitcher.tsx';
-import { ThemeToggle } from '../common/ThemeToggle.tsx';
+import { LanguageToggle } from '../common/LanguageToggle.tsx';
 import { PWAInstallButton } from '../common/PWAInstallPrompt.tsx';
 import {
   X,
@@ -14,7 +15,6 @@ import {
   Store,
   Users,
   BarChart3,
-  Sparkles,
   FileText,
   Database,
   CreditCard,
@@ -42,8 +42,9 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
   onOpenNewBusinessModal,
 }) => {
   const { user, profile, signOut } = useAuth();
-  const { activeBusiness, activeRole } = useBusiness();
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { activeBusiness } = useBusiness();
+  const { isDark, toggleTheme } = useTheme();
+  const { language, t } = useLanguage();
 
   const onCloseRef = React.useRef(onClose);
   useEffect(() => {
@@ -78,29 +79,87 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
 
   const navSections = [
     {
-      title: 'Operations & Cash Register',
+      title: language === 'fr' ? 'Opérations & Caisse' : 'Operations & Cash Register',
       items: [
-        { route: 'home' as AppNavRoute, label: 'Dashboard Home', icon: <Home className="w-5 h-5" />, desc: 'Real-time sales & cash overview' },
-        { route: 'sell' as AppNavRoute, label: 'Sell / POS Register', icon: <ShoppingCart className="w-5 h-5 text-emerald-400" />, desc: 'Instant checkout & receipt generator', badge: 'Active' },
-        { route: 'business' as AppNavRoute, label: 'Stock & Catalog', icon: <Store className="w-5 h-5 text-blue-400" />, desc: 'Inventory, items & low stock warnings' },
-        { route: 'customers' as AppNavRoute, label: 'Customers & CRM', icon: <Users className="w-5 h-5 text-purple-400" />, desc: 'Debtors book & purchase histories' },
+        {
+          route: 'home' as AppNavRoute,
+          label: t.navigation.home,
+          icon: <Home className="w-5 h-5" />,
+          desc: language === 'fr' ? 'Vue d’ensemble des ventes & trésorerie' : 'Real-time sales & cash overview',
+        },
+        {
+          route: 'sell' as AppNavRoute,
+          label: t.navigation.sell,
+          icon: <ShoppingCart className="w-5 h-5 text-emerald-400" />,
+          desc: language === 'fr' ? 'Encaissement rapide & impression de reçus' : 'Instant checkout & receipt generator',
+          badge: language === 'fr' ? 'Caisse' : 'Active',
+        },
+        {
+          route: 'business' as AppNavRoute,
+          label: t.navigation.inventory,
+          icon: <Store className="w-5 h-5 text-blue-400" />,
+          desc: language === 'fr' ? 'Articles, valorisation PEPS & alertes stock' : 'Inventory, items & low stock warnings',
+        },
+        {
+          route: 'customers' as AppNavRoute,
+          label: t.navigation.customers,
+          icon: <Users className="w-5 h-5 text-purple-400" />,
+          desc: language === 'fr' ? 'Carnet de dettes, relances & historiques' : 'Debtors book & purchase histories',
+        },
       ],
     },
     {
-      title: 'AI & Intelligence',
+      title: language === 'fr' ? 'IA & Intelligence' : 'AI & Intelligence',
       items: [
-        { route: 'ai' as AppNavRoute, label: 'Ursella AI', icon: <UrsellaAIGlyph sizeClass="w-5 h-5" />, desc: 'Voice & text business strategist', badge: 'AI' },
-        { route: 'insights' as AppNavRoute, label: 'Proactive Intelligence', icon: <Activity className="w-5 h-5 text-indigo-400" />, desc: 'Live alerts, dead-stock & margin audit', badge: 'Live' },
-        { route: 'analytics' as AppNavRoute, label: 'Sales & Analytics', icon: <BarChart3 className="w-5 h-5 text-emerald-400" />, desc: 'Revenue velocity & margin trends' },
-        { route: 'reports' as AppNavRoute, label: 'Financial & Tax Reports', icon: <FileText className="w-5 h-5 text-teal-400" />, desc: 'P&L, Cash Flow, and Tax estimates' },
+        {
+          route: 'ai' as AppNavRoute,
+          label: t.navigation.aiAdvisor,
+          icon: <UrsellaAIGlyph sizeClass="w-5 h-5" />,
+          desc: language === 'fr' ? 'Conseiller financier vocal & textuel' : 'Voice & text business strategist',
+          badge: 'AI',
+        },
+        {
+          route: 'insights' as AppNavRoute,
+          label: t.navigation.proactiveAI,
+          icon: <Activity className="w-5 h-5 text-indigo-400" />,
+          desc: language === 'fr' ? 'Alertes directes, stock dormant & audit de marge' : 'Live alerts, dead-stock & margin audit',
+          badge: 'Live',
+        },
+        {
+          route: 'analytics' as AppNavRoute,
+          label: t.navigation.analytics,
+          icon: <BarChart3 className="w-5 h-5 text-emerald-400" />,
+          desc: language === 'fr' ? 'Vélocité des ventes & tendances de marge' : 'Revenue velocity & margin trends',
+        },
+        {
+          route: 'reports' as AppNavRoute,
+          label: t.navigation.reports,
+          icon: <FileText className="w-5 h-5 text-teal-400" />,
+          desc: language === 'fr' ? 'Compte de résultat (P&L), trésorerie et taxes' : 'P&L, Cash Flow, and Tax estimates',
+        },
       ],
     },
     {
-      title: 'System & Configuration',
+      title: language === 'fr' ? 'Système & Configuration' : 'System & Configuration',
       items: [
-        { route: 'data-io' as AppNavRoute, label: 'Data Migration Hub', icon: <Database className="w-5 h-5 text-cyan-400" />, desc: 'Import CSVs & export complete backups' },
-        { route: 'billing' as AppNavRoute, label: 'Subscription & Quota', icon: <CreditCard className="w-5 h-5 text-amber-400" />, desc: 'Manage plan, MoMo payments & AI tokens' },
-        { route: 'more' as AppNavRoute, label: 'Business Settings', icon: <MoreHorizontal className="w-5 h-5 text-zinc-400" />, desc: 'Currencies, taxes, staff & security' },
+        {
+          route: 'data-io' as AppNavRoute,
+          label: t.navigation.dataHub,
+          icon: <Database className="w-5 h-5 text-cyan-400" />,
+          desc: language === 'fr' ? 'Import CSV et sauvegardes complètes' : 'Import CSVs & export complete backups',
+        },
+        {
+          route: 'billing' as AppNavRoute,
+          label: t.navigation.billing,
+          icon: <CreditCard className="w-5 h-5 text-amber-400" />,
+          desc: language === 'fr' ? 'Forfait, Mobile Money & quotas IA' : 'Manage plan, MoMo payments & AI tokens',
+        },
+        {
+          route: 'more' as AppNavRoute,
+          label: t.navigation.settings,
+          icon: <MoreHorizontal className="w-5 h-5 text-zinc-400" />,
+          desc: language === 'fr' ? 'Devises, taxes, langue, équipe & sécurité' : 'Currencies, taxes, staff & security',
+        },
       ],
     },
   ];
@@ -126,6 +185,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
             <UrsellaLogo size="sm" showBetaBadge={true} />
           </div>
           <div className="flex items-center gap-1.5">
+            <LanguageToggle variant="pill" />
             <button
               onClick={toggleTheme}
               className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
@@ -150,7 +210,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
         {/* Tenant Switcher Section */}
         <div className="p-3.5 bg-zinc-950/40 border-b border-zinc-800">
           <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 px-1">
-            Current Business Workspace
+            {language === 'fr' ? 'Commerce Actif' : 'Current Business Workspace'}
           </div>
           <BusinessSwitcher onOpenNewBusinessModal={() => {
             onClose();
@@ -205,7 +265,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
           ))}
         </div>
 
-        {/* Footer: User Profile, Theme & Sign Out */}
+        {/* Footer: User Profile, Language & Sign Out */}
         <div 
           className="p-3.5 border-t border-zinc-800 bg-zinc-950/70 space-y-3"
           style={{
@@ -215,20 +275,6 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
           {/* PWA Install Button */}
           <PWAInstallButton variant="sidebar" />
 
-          {/* Quick theme pill switch */}
-          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-zinc-800/60 border border-zinc-700/60 text-xs">
-            <span className="text-zinc-300 font-medium flex items-center gap-1.5">
-              {isDark ? <Moon className="w-3.5 h-3.5 text-indigo-400" /> : <Sun className="w-3.5 h-3.5 text-amber-500" />}
-              {isDark ? 'Dark Theme' : 'Light Theme'}
-            </span>
-            <button
-              onClick={toggleTheme}
-              className="text-[11px] font-bold text-emerald-400 hover:underline px-2 py-0.5 rounded bg-emerald-500/10"
-            >
-              Switch
-            </button>
-          </div>
-
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold text-white shrink-0 border border-zinc-600">
@@ -236,7 +282,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-zinc-100 truncate">
-                  {profile?.full_name || 'Business Owner'}
+                  {profile?.full_name || (language === 'fr' ? 'Gérant' : 'Business Owner')}
                 </p>
                 <p className="text-[10px] text-zinc-400 truncate">
                   {user?.email}
@@ -248,7 +294,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
                 onClose();
                 signOut();
               }}
-              title="Sign Out"
+              title={t.navigation.logout}
               className="p-2 rounded-xl text-rose-400 hover:bg-rose-950/30 transition-colors flex items-center gap-1 text-xs font-bold"
             >
               <LogOut className="w-4 h-4" />

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { isSupabaseConfigured } from '../../lib/supabase/client.ts';
 import { Button } from '../../components/common/Button.tsx';
 import { Input } from '../../components/common/Input.tsx';
 import { UrsellaLogo } from '../../components/common/UrsellaLogo.tsx';
+import { LanguageToggle } from '../../components/common/LanguageToggle.tsx';
 import { Mail, Lock, AlertCircle, ArrowRight, ShieldCheck, ArrowLeft } from 'lucide-react';
 
 interface SignInPageProps {
@@ -18,6 +20,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   onNavigateLanding,
 }) => {
   const { signIn, startInstantDemo, loading, error, clearError } = useAuth();
+  const { t, language } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [stayLoggedIn, setStayLoggedIn] = useState(true);
@@ -29,18 +32,18 @@ export const SignInPage: React.FC<SignInPageProps> = ({
     clearError();
 
     if (!email || !email.includes('@')) {
-      setFormError('Please enter a valid email address.');
+      setFormError(language === 'fr' ? 'Veuillez saisir une adresse e-mail valide.' : 'Please enter a valid email address.');
       return;
     }
     if (!password) {
-      setFormError('Please enter your password.');
+      setFormError(language === 'fr' ? 'Veuillez saisir votre mot de passe.' : 'Please enter your password.');
       return;
     }
 
     try {
       await signIn(email, password, stayLoggedIn);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Sign in failed.';
+      const msg = err instanceof Error ? err.message : (language === 'fr' ? 'Échec de connexion.' : 'Sign in failed.');
       setFormError(msg);
     }
   };
@@ -50,14 +53,14 @@ export const SignInPage: React.FC<SignInPageProps> = ({
       setFormError(null);
       await startInstantDemo();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Instant demo failed to load.';
+      const msg = err instanceof Error ? err.message : (language === 'fr' ? 'Échec du chargement de la démo.' : 'Instant demo failed to load.');
       setFormError(msg);
     }
   };
 
   return (
     <div 
-      className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-zinc-950 text-zinc-100"
+      className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 bg-zinc-950 text-zinc-100 relative"
       style={{
         paddingTop: 'max(2rem, calc(1.5rem + env(safe-area-inset-top, 0px)))',
         paddingBottom: 'max(2rem, calc(1.5rem + env(safe-area-inset-bottom, 0px)))',
@@ -65,6 +68,11 @@ export const SignInPage: React.FC<SignInPageProps> = ({
         paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
       }}
     >
+      {/* Top right language switcher */}
+      <div className="absolute top-4 right-4 z-10">
+        <LanguageToggle variant="pill" />
+      </div>
+
       <div className="w-full max-w-md space-y-6">
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center space-y-3">
@@ -72,7 +80,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
             <button
               onClick={onNavigateLanding}
               className="hover:opacity-85 transition-opacity"
-              title="Back to home"
+              title={language === 'fr' ? 'Retour à l’accueil' : 'Back to home'}
             >
               <UrsellaLogo size="lg" />
             </button>
@@ -80,9 +88,11 @@ export const SignInPage: React.FC<SignInPageProps> = ({
             <UrsellaLogo size="lg" />
           )}
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white">Welcome back</h1>
+            <h1 className="text-xl font-bold tracking-tight text-white">
+              {t.auth.welcomeBack}
+            </h1>
             <p className="text-xs text-zinc-400 mt-1">
-              Sign in to manage your businesses and operations
+              {t.auth.signInSubtitle}
             </p>
           </div>
         </div>
@@ -91,7 +101,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
         <div className="rounded-xl p-3 bg-zinc-900/60 border border-zinc-800 flex items-center justify-between text-xs text-zinc-300">
           <div className="flex items-center gap-2">
             <ShieldCheck className={`w-4 h-4 ${isSupabaseConfigured ? 'text-emerald-400' : 'text-amber-400'}`} />
-            <span>{isSupabaseConfigured ? 'Connected to Supabase PostgreSQL' : 'Local Preview & Staging Mode'}</span>
+            <span>{isSupabaseConfigured ? (language === 'fr' ? 'Connecté à Supabase PostgreSQL' : 'Connected to Supabase PostgreSQL') : (language === 'fr' ? 'Mode Démo & Aperçu Local' : 'Local Preview & Staging Mode')}</span>
           </div>
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${isSupabaseConfigured ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'}`}>
             {isSupabaseConfigured ? 'RLS ACTIVE' : 'PREVIEW'}
@@ -109,7 +119,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              label="Email address"
+              label={t.auth.emailLabel}
               type="email"
               placeholder="owner@example.com"
               value={email}
@@ -121,7 +131,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
 
             <div>
               <Input
-                label="Password"
+                label={t.auth.passwordLabel}
                 type="password"
                 placeholder="••••••••"
                 value={password}
@@ -139,14 +149,14 @@ export const SignInPage: React.FC<SignInPageProps> = ({
                     onChange={(e) => setStayLoggedIn(e.target.checked)}
                     className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-emerald-500 focus:ring-emerald-500/20 focus:ring-offset-0 transition-colors"
                   />
-                  <span>Stay signed in</span>
+                  <span>{t.auth.staySignedIn}</span>
                 </label>
                 <button
                   type="button"
                   onClick={onNavigateForgotPassword}
                   className="text-xs font-medium text-zinc-400 hover:text-emerald-400 transition-colors"
                 >
-                  Forgot password?
+                  {t.auth.forgotPassword}
                 </button>
               </div>
             </div>
@@ -159,13 +169,15 @@ export const SignInPage: React.FC<SignInPageProps> = ({
               isLoading={loading}
               rightIcon={<ArrowRight className="w-4 h-4" />}
             >
-              Sign In
+              {t.auth.signInBtn}
             </Button>
           </form>
 
           {/* Quick Demo Access */}
           <div className="mt-5 pt-5 border-t border-zinc-800/80 text-center">
-            <p className="text-xs text-zinc-400 mb-2">Want a quick test session?</p>
+            <p className="text-xs text-zinc-400 mb-2">
+              {language === 'fr' ? 'Session de test rapide ?' : 'Want a quick test session?'}
+            </p>
             <Button
               type="button"
               variant="secondary"
@@ -174,7 +186,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
               onClick={handleQuickDemo}
               disabled={loading}
             >
-              Instant Demo Sign In
+              {t.auth.instantDemoBtn}
             </Button>
           </div>
         </div>
@@ -182,12 +194,12 @@ export const SignInPage: React.FC<SignInPageProps> = ({
         {/* Footer Navigation */}
         <div className="text-center space-y-2 text-xs text-zinc-400">
           <p>
-            Don't have an Ursella account?{' '}
+            {t.auth.dontHaveAccount}{' '}
             <button
               onClick={onNavigateSignUp}
               className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
             >
-              Create account
+              {t.auth.createAccount}
             </button>
           </p>
           {onNavigateLanding && (
@@ -197,7 +209,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
                 className="text-zinc-400 hover:text-zinc-300 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5 stroke-[1.75]" />
-                <span>Back to Ursella home</span>
+                <span>{language === 'fr' ? 'Retour à l’accueil Ursella' : 'Back to Ursella home'}</span>
               </button>
             </p>
           )}

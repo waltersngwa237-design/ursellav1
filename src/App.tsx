@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext.tsx';
+import { LanguageProvider } from './contexts/LanguageContext.tsx';
 import { AuthProvider, useAuth } from './contexts/AuthContext.tsx';
 import { BusinessProvider, useBusiness } from './contexts/BusinessContext.tsx';
 import type { AppNavRoute } from './types/index.ts';
@@ -167,11 +168,13 @@ const MainRouter: React.FC = () => {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <BusinessProvider>
-          <MainRouter />
-        </BusinessProvider>
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <BusinessProvider>
+            <MainRouter />
+          </BusinessProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }

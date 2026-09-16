@@ -168,11 +168,15 @@ app.post('/api/ai/chat', async (req, res) => {
 
   try {
     const payload: AIChatRequestPayload = req.body;
-    const { businessId, message, conversationId, history = [], preferredTimeHorizonDays = 30, businessContext, osContext } = payload;
+    const { businessId, message, conversationId, history = [], preferredTimeHorizonDays = 30, businessContext, osContext, language: requestedLang } = payload;
 
     if (!businessId || !message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Missing required parameters: businessId and message are mandatory.' });
     }
+
+    // Resolve language (explicit payload language -> Accept-Language header -> auto-detect)
+    const isFrenchQuery = /[\b\s](bonjour|salut|bonsoir|merci|ventes|chiffre|bénéfice|benefice|marge|dépenses|depenses|créances|creances|débiteurs|debiteurs|stock|combien|comment|pourquoi|produits|caisse|ce mois|cette semaine|aujourd'hui|aujourdhui)[\b\s]/i.test(message);
+    const resolvedLanguage: 'en' | 'fr' = requestedLang === 'fr' || (requestedLang !== 'en' && (isFrenchQuery || req.headers['accept-language']?.includes('fr'))) ? 'fr' : 'en';
 
     // 0. Multi-Tenant Authorization Check
     const authCheck = await verifyTenantRequest(req, businessId);
@@ -346,6 +350,7 @@ app.post('/api/ai/chat', async (req, res) => {
       address,
       taxRate,
       currentDateIso: new Date().toISOString(),
+      language: resolvedLanguage,
       toolResults,
       osContext,
       conversationHistory: history,

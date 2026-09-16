@@ -393,7 +393,14 @@ export function classifyBusinessQuery(
     q.includes('which product') ||
     q.includes('what product') ||
     q.includes('product performance') ||
-    q.includes('slow moving product');
+    q.includes('slow moving product') ||
+    q.includes('meilleur produit') ||
+    q.includes('plus vendu') ||
+    q.includes('produit le plus vendu') ||
+    q.includes('meilleure vente') ||
+    q.includes('plus rentable') ||
+    q.includes('produit le plus rentable') ||
+    q.includes('quel produit');
 
   if (isBestSellingOrProductMargin) {
     return {
@@ -419,7 +426,14 @@ export function classifyBusinessQuery(
     q.includes('sold today') ||
     q.includes('sales today') ||
     q.includes('revenue today') ||
-    q.includes('orders today')
+    q.includes('orders today') ||
+    q.includes("aujourd'hui") ||
+    q.includes('aujourdhui') ||
+    q.includes('ce jour') ||
+    q.includes('ventes du jour') ||
+    q.includes('chiffre du jour') ||
+    q.includes('recette du jour') ||
+    q.includes('caisse aujourd')
   ) {
     return {
       intent: 'fact_retrieval',
@@ -436,7 +450,10 @@ export function classifyBusinessQuery(
   if (
     q.includes('yesterday') ||
     q.includes('sales yesterday') ||
-    q.includes('sold yesterday')
+    q.includes('sold yesterday') ||
+    q.includes('hier') ||
+    q.includes("ventes d'hier") ||
+    q.includes('ventes hier')
   ) {
     return {
       intent: 'fact_retrieval',
@@ -460,11 +477,20 @@ export function classifyBusinessQuery(
     q.includes('am i making profit') ||
     q.includes('make a profit') ||
     q.includes('earnings') ||
-    q.includes('how much did i earn')
+    q.includes('how much did i earn') ||
+    q.includes('mon bénéfice') ||
+    q.includes('mon benefice') ||
+    q.includes('ma marge') ||
+    q.includes('bénéfice net') ||
+    q.includes('marge brute') ||
+    q.includes('rentabilité') ||
+    q.includes('suis-je rentable') ||
+    q.includes('combien ai-je gagné') ||
+    q.includes('combien ai je gagne')
   ) {
-    const isToday = q.includes('today');
-    const isThisMonth = q.includes('month');
-    const isAllTime = q.includes('all time') || q.includes('total') || q.includes('ever');
+    const isToday = q.includes('today') || q.includes("aujourd'hui");
+    const isThisMonth = q.includes('month') || q.includes('mois');
+    const isAllTime = q.includes('all time') || q.includes('total') || q.includes('ever') || q.includes('tout le temps');
     const period = isToday ? 'today' : isThisMonth ? 'this_month' : isAllTime ? 'all_time' : 'last_30_days';
 
     return {
@@ -491,20 +517,29 @@ export function classifyBusinessQuery(
     q.includes('total sales') ||
     q.includes('all time sales') ||
     q.includes('how much did i sell') ||
-    q.includes('how much have i sold')
+    q.includes('how much have i sold') ||
+    q.includes('ce mois') ||
+    q.includes('cette semaine') ||
+    q.includes('cette année') ||
+    q.includes('ventes du mois') ||
+    q.includes('ventes de la semaine') ||
+    q.includes('chiffre d affaires') ||
+    q.includes("chiffre d'affaires") ||
+    q.includes('combien ai-je vendu') ||
+    q.includes('combien ai je vendu')
   ) {
     let period: AITimePeriod = 'last_30_days';
     let days = 30;
-    if (q.includes('this week') || q.includes('weekly')) {
+    if (q.includes('this week') || q.includes('weekly') || q.includes('cette semaine')) {
       period = 'this_week';
       days = 7;
-    } else if (q.includes('this year') || q.includes('annual')) {
+    } else if (q.includes('this year') || q.includes('annual') || q.includes('cette année')) {
       period = 'this_year';
       days = 365;
-    } else if (q.includes('all time') || q.includes('total')) {
+    } else if (q.includes('all time') || q.includes('total') || q.includes('tout le temps')) {
       period = 'all_time';
       days = 365;
-    } else if (q.includes('this month') || q.includes('monthly')) {
+    } else if (q.includes('this month') || q.includes('monthly') || q.includes('ce mois')) {
       period = 'this_month';
       days = 30;
     }
@@ -535,7 +570,12 @@ export function classifyBusinessQuery(
     q.includes('sales down') ||
     q.includes('sales report') ||
     q.includes('sales summary') ||
-    q.includes('sales overview')
+    q.includes('sales overview') ||
+    q.includes('mes ventes') ||
+    q.includes('comment vont mes ventes') ||
+    q.includes('comment se portent mes ventes') ||
+    q.includes('rapport des ventes') ||
+    q.includes('baisse des ventes')
   ) {
     return {
       intent: 'analysis',
@@ -581,7 +621,15 @@ export function classifyBusinessQuery(
     q.includes('stockout') ||
     q.includes('inventory value') ||
     q.includes('stock value') ||
-    q.includes('inventory health')
+    q.includes('inventory health') ||
+    q.includes('stock faible') ||
+    q.includes('rupture de stock') ||
+    q.includes('ruptures') ||
+    q.includes('produits en rupture') ||
+    q.includes('valeur de mon stock') ||
+    q.includes('valeur du stock') ||
+    q.includes('état du stock') ||
+    q.includes('niveau de stock')
   ) {
     return {
       intent: 'fact_retrieval',
@@ -608,7 +656,20 @@ export function classifyBusinessQuery(
     q.includes('collect money') ||
     q.includes('customers owe') ||
     q.includes('owe me') ||
-    q.includes('money owed')
+    q.includes('money owed') ||
+    q.includes('qui me doit') ||
+    q.includes('débiteur') ||
+    q.includes('debiteur') ||
+    q.includes('débiteurs') ||
+    q.includes('debiteurs') ||
+    q.includes('créance') ||
+    q.includes('creance') ||
+    q.includes('créances') ||
+    q.includes('dettes clients') ||
+    q.includes('dette') ||
+    q.includes('impayé') ||
+    q.includes('impayes') ||
+    q.includes('impayés')
   ) {
     return {
       intent: 'fact_retrieval',
@@ -630,7 +691,15 @@ export function classifyBusinessQuery(
     q.includes('spent') ||
     q.includes('costs') ||
     q.includes('operating cost') ||
-    q.includes('where am i spending')
+    q.includes('where am i spending') ||
+    q.includes('dépense') ||
+    q.includes('depense') ||
+    q.includes('dépenses') ||
+    q.includes('depenses') ||
+    q.includes('charges') ||
+    q.includes('frais') ||
+    q.includes('combien ai-je dépensé') ||
+    q.includes('combien ai je depense')
   ) {
     return {
       intent: 'analysis',
@@ -651,7 +720,12 @@ export function classifyBusinessQuery(
     q.includes('cash collected') ||
     q.includes('liquidity') ||
     q.includes('money in') ||
-    q.includes('inflow')
+    q.includes('inflow') ||
+    q.includes('flux de trésorerie') ||
+    q.includes('tresorerie') ||
+    q.includes('trésorerie') ||
+    q.includes('liquidités') ||
+    q.includes('liquidites')
   ) {
     return {
       intent: 'analysis',
@@ -669,10 +743,13 @@ export function classifyBusinessQuery(
   // =========================================================================
   if (
     q.includes('fifo') ||
+    q.includes('peps') ||
     q.includes('cost drift') ||
     q.includes('cost basis') ||
     q.includes('inventory valuation') ||
-    q.includes('cost layer')
+    q.includes('cost layer') ||
+    q.includes('lots de coût') ||
+    q.includes('lots de cout')
   ) {
     return {
       intent: 'fifo_audit',
@@ -694,7 +771,9 @@ export function classifyBusinessQuery(
     q.includes('operating currency') ||
     q.includes('what currency') ||
     q.includes('timezone') ||
-    q.includes('who am i')
+    q.includes('who am i') ||
+    q.includes('nom de la boutique') ||
+    q.includes('mon commerce')
   ) {
     return {
       intent: 'identity_lookup',
@@ -721,7 +800,15 @@ export function classifyBusinessQuery(
     q.includes('give me an update') ||
     q.includes('business update') ||
     q.includes('store overview') ||
-    q.includes('business overview')
+    q.includes('business overview') ||
+    q.includes('comment va mon commerce') ||
+    q.includes('comment se porte mon entreprise') ||
+    q.includes('comment se porte mon commerce') ||
+    q.includes('santé de mon entreprise') ||
+    q.includes('bilan global') ||
+    q.includes('bilan général') ||
+    q.includes('situation globale') ||
+    q.includes('situation de mon commerce')
   ) {
     return {
       intent: 'analysis',

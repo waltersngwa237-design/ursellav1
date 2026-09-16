@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import {
   TrendingUp,
   Package,
@@ -21,67 +22,129 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
   onInsertPrompt,
 }) => {
   const { isDark } = useTheme();
+  const { language } = useLanguage();
+  const isFr = language === 'fr';
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
-  const categories = [
-    { id: 'all', label: 'All Questions' },
-    { id: 'advisory', label: 'Strategy', icon: Sparkles },
-    { id: 'sales', label: 'Sales', icon: TrendingUp },
-    { id: 'inventory', label: 'Inventory', icon: Package },
-    { id: 'debts', label: 'Debts', icon: Users },
-    { id: 'profit', label: 'Profit', icon: PieChart },
-  ];
+  const categories = isFr
+    ? [
+        { id: 'all', label: 'Toutes les questions' },
+        { id: 'advisory', label: 'Stratégie', icon: Sparkles },
+        { id: 'sales', label: 'Ventes', icon: TrendingUp },
+        { id: 'inventory', label: 'Stock', icon: Package },
+        { id: 'debts', label: 'Créances', icon: Users },
+        { id: 'profit', label: 'Bénéfice', icon: PieChart },
+      ]
+    : [
+        { id: 'all', label: 'All Questions' },
+        { id: 'advisory', label: 'Strategy', icon: Sparkles },
+        { id: 'sales', label: 'Sales', icon: TrendingUp },
+        { id: 'inventory', label: 'Inventory', icon: Package },
+        { id: 'debts', label: 'Debts', icon: Users },
+        { id: 'profit', label: 'Profit', icon: PieChart },
+      ];
 
-  const defaultQuestions = [
-    {
-      category: 'advisory',
-      question: 'What should I focus on today?',
-      topic: 'Daily Priorities',
-      subtitle: 'Key recommendations and urgent actions for your store today',
-    },
-    {
-      category: 'sales',
-      question: 'How are my sales today?',
-      topic: "Today's Sales",
-      subtitle: 'Check revenue, order count, and total cash collected today',
-    },
-    {
-      category: 'sales',
-      question: "What's my best-selling product?",
-      topic: 'Top Sellers',
-      subtitle: 'Find out which products are generating the most revenue',
-    },
-    {
-      category: 'inventory',
-      question: 'Which items are running low on stock?',
-      topic: 'Low Stock Alerts',
-      subtitle: 'Identify products near depletion that need reordering',
-    },
-    {
-      category: 'debts',
-      question: 'Who owes me money?',
-      topic: 'Customer Debts',
-      subtitle: 'Review outstanding customer balances and overdue payments',
-    },
-    {
-      category: 'profit',
-      question: 'What was my profit this month?',
-      topic: 'Monthly Profit',
-      subtitle: 'Breakdown of net revenue, product costs, and gross profit',
-    },
-    {
-      category: 'profit',
-      question: 'Which products have the highest profit margins?',
-      topic: 'Highest Margins',
-      subtitle: 'See which inventory items generate the best percentage returns',
-    },
-    {
-      category: 'sales',
-      question: 'Why are sales different this week?',
-      topic: 'Sales Trends',
-      subtitle: 'Compare current performance against prior week patterns',
-    },
-  ];
+  const defaultQuestions = isFr
+    ? [
+        {
+          category: 'advisory',
+          question: 'Sur quoi dois-je me concentrer aujourd’hui ?',
+          topic: 'Priorités du Jour',
+          subtitle: 'Recommandations clés et actions prioritaires pour votre commerce',
+        },
+        {
+          category: 'sales',
+          question: 'Comment se portent mes ventes aujourd’hui ?',
+          topic: 'Ventes du Jour',
+          subtitle: 'Chiffre d’affaires, nombre de commandes et espèces collectées',
+        },
+        {
+          category: 'sales',
+          question: 'Quel est mon produit le plus vendu ?',
+          topic: 'Meilleures Ventes',
+          subtitle: 'Découvrez quels produits génèrent le plus de revenus',
+        },
+        {
+          category: 'inventory',
+          question: 'Quels sont les produits en rupture ou stock faible ?',
+          topic: 'Alertes de Stock',
+          subtitle: 'Identifiez les produits à réapprovisionner d’urgence',
+        },
+        {
+          category: 'debts',
+          question: 'Qui me doit de l’argent ?',
+          topic: 'Créances Clients',
+          subtitle: 'Consultez les soldes impayés et retards de paiement',
+        },
+        {
+          category: 'profit',
+          question: 'Quel est mon bénéfice ce mois-ci ?',
+          topic: 'Bénéfice Mensuel',
+          subtitle: 'Détail du chiffre d’affaires net, coût d’achat et marge brute',
+        },
+        {
+          category: 'profit',
+          question: 'Quels produits ont la marge la plus élevée ?',
+          topic: 'Meilleures Marges',
+          subtitle: 'Voyez les articles générant la plus forte rentabilité',
+        },
+        {
+          category: 'sales',
+          question: 'Comment se portent mes ventes cette semaine ?',
+          topic: 'Tendances Hebdo',
+          subtitle: 'Comparez la performance par rapport aux semaines précédentes',
+        },
+      ]
+    : [
+        {
+          category: 'advisory',
+          question: 'What should I focus on today?',
+          topic: 'Daily Priorities',
+          subtitle: 'Key recommendations and urgent actions for your store today',
+        },
+        {
+          category: 'sales',
+          question: 'How are my sales today?',
+          topic: "Today's Sales",
+          subtitle: 'Check revenue, order count, and total cash collected today',
+        },
+        {
+          category: 'sales',
+          question: "What's my best-selling product?",
+          topic: 'Top Sellers',
+          subtitle: 'Find out which products are generating the most revenue',
+        },
+        {
+          category: 'inventory',
+          question: 'Which items are running low on stock?',
+          topic: 'Low Stock Alerts',
+          subtitle: 'Identify products near depletion that need reordering',
+        },
+        {
+          category: 'debts',
+          question: 'Who owes me money?',
+          topic: 'Customer Debts',
+          subtitle: 'Review outstanding customer balances and overdue payments',
+        },
+        {
+          category: 'profit',
+          question: 'What was my profit this month?',
+          topic: 'Monthly Profit',
+          subtitle: 'Breakdown of net revenue, product costs, and gross profit',
+        },
+        {
+          category: 'profit',
+          question: 'Which products have the highest profit margins?',
+          topic: 'Highest Margins',
+          subtitle: 'See which inventory items generate the best percentage returns',
+        },
+        {
+          category: 'sales',
+          question: 'Why are sales different this week?',
+          topic: 'Sales Trends',
+          subtitle: 'Compare current performance against prior week patterns',
+        },
+      ];
 
   const filteredQuestions =
     activeCategory === 'all'

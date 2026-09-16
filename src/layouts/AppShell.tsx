@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { useBusiness } from '../contexts/BusinessContext.tsx';
 import { useTheme } from '../contexts/ThemeContext.tsx';
+import { useLanguage } from '../contexts/LanguageContext.tsx';
 import { type AppNavRoute } from '../types/index.ts';
 import { UrsellaLogo, UrsellaSymbolMark, UrsellaAIGlyph } from '../components/common/UrsellaLogo.tsx';
 import { BusinessSwitcher } from '../components/business/BusinessSwitcher.tsx';
+import { LanguageToggle } from '../components/common/LanguageToggle.tsx';
 import { Modal } from '../components/common/Modal.tsx';
 import { OnboardingPage } from '../pages/onboarding/OnboardingPage.tsx';
 import { NotificationDrawer } from '../components/notifications/NotificationDrawer.tsx';
@@ -55,6 +57,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   const { user, profile, signOut } = useAuth();
   const { activeBusiness } = useBusiness();
   const { isDark } = useTheme();
+  const { language, t } = useLanguage();
 
   const [isNewBusinessModalOpen, setIsNewBusinessModalOpen] = useState(false);
   const [isQuickActionModalOpen, setIsQuickActionModalOpen] = useState(false);
@@ -243,17 +246,17 @@ export const AppShell: React.FC<AppShellProps> = ({
   };
 
   const navItems: Array<{ route: AppNavRoute; label: string; icon: React.ReactNode }> = [
-    { route: 'home', label: 'Home', icon: <Home className="w-5 h-5" /> },
-    { route: 'sell', label: 'Sell / POS', icon: <ShoppingCart className="w-5 h-5" /> },
-    { route: 'insights', label: 'Proactive AI', icon: <Activity className="w-5 h-5 text-indigo-400" /> },
+    { route: 'home', label: language === 'fr' ? 'Accueil' : 'Home', icon: <Home className="w-5 h-5" /> },
+    { route: 'sell', label: language === 'fr' ? 'Caisse / Vente' : 'Sell / POS', icon: <ShoppingCart className="w-5 h-5" /> },
+    { route: 'insights', label: language === 'fr' ? 'IA Proactive' : 'Proactive AI', icon: <Activity className="w-5 h-5 text-indigo-400" /> },
     { route: 'ai', label: 'Ursella AI', icon: <UrsellaAIGlyph sizeClass="w-5 h-5" /> },
-    { route: 'analytics', label: 'Analytics', icon: <BarChart3 className="w-5 h-5 text-emerald-400" /> },
-    { route: 'reports', label: 'Reports', icon: <FileText className="w-5 h-5 text-teal-400" /> },
-    { route: 'business', label: 'Business & Stock', icon: <Store className="w-5 h-5" /> },
-    { route: 'customers', label: 'Customers & CRM', icon: <Users className="w-5 h-5" /> },
-    { route: 'data-io', label: 'Data Hub', icon: <Database className="w-5 h-5 text-cyan-400" /> },
-    { route: 'billing', label: 'Billing & Plan', icon: <CreditCard className="w-5 h-5 text-amber-400" /> },
-    { route: 'more', label: 'Settings', icon: <MoreHorizontal className="w-5 h-5" /> },
+    { route: 'analytics', label: language === 'fr' ? 'Analytique' : 'Analytics', icon: <BarChart3 className="w-5 h-5 text-emerald-400" /> },
+    { route: 'reports', label: language === 'fr' ? 'Rapports' : 'Reports', icon: <FileText className="w-5 h-5 text-teal-400" /> },
+    { route: 'business', label: language === 'fr' ? 'Stocks & Catalogue' : 'Business & Stock', icon: <Store className="w-5 h-5" /> },
+    { route: 'customers', label: language === 'fr' ? 'Clients & CRM' : 'Customers & CRM', icon: <Users className="w-5 h-5" /> },
+    { route: 'data-io', label: language === 'fr' ? 'Import / Export' : 'Data Hub', icon: <Database className="w-5 h-5 text-cyan-400" /> },
+    { route: 'billing', label: language === 'fr' ? 'Abonnement' : 'Billing & Plan', icon: <CreditCard className="w-5 h-5 text-amber-400" /> },
+    { route: 'more', label: language === 'fr' ? 'Paramètres' : 'Settings', icon: <MoreHorizontal className="w-5 h-5" /> },
   ];
 
   const handleNavWithHaptic = (routeTarget: AppNavRoute) => {
@@ -295,12 +298,13 @@ export const AppShell: React.FC<AppShellProps> = ({
         {/* Brand Header */}
         <div className="p-5 pb-4 border-b border-zinc-800/80 flex items-center justify-between">
           <UrsellaLogo size="md" showBetaBadge={true} />
+          <LanguageToggle variant="pill" />
         </div>
 
         {/* Business Switcher */}
         <div className="p-4 border-b border-zinc-800/80">
           <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 px-1">
-            Active Tenant
+            {language === 'fr' ? 'Commerce Actif' : 'Active Tenant'}
           </div>
           <BusinessSwitcher
             onOpenNewBusinessModal={() => setIsNewBusinessModalOpen(true)}
@@ -310,7 +314,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         {/* Navigation Items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2.5 px-3">
-            Core Modules
+            {language === 'fr' ? 'Modules Principaux' : 'Core Modules'}
           </div>
           {navItems.map((item) => {
             const isActive = currentRoute === item.route || (item.route === 'business' && currentRoute === 'expenses');

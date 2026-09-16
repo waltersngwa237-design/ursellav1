@@ -19,6 +19,7 @@ export interface ChatReasoningContext {
   address?: string;
   taxRate?: number;
   currentDateIso: string;
+  language?: 'en' | 'fr';
   toolResults: Record<string, unknown>;
   osContext?: any;
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
@@ -122,7 +123,24 @@ ${
   * Clearly guide the merchant on how to record the product or adjustment in their **Inventory & Products** dashboard.
   * Keep the tone supportive, professional, and consultative.
 
-6. OUTPUT FORMAT:
+6. BILINGUAL REASONING & LOCALIZATION (ENGLISH & FRENCH):
+- Preferred Session Language: ${ctx.language === 'fr' ? 'FRENCH (Français)' : 'ENGLISH (Auto-detect from query)'}.
+- If the merchant speaks in French OR the preferred language is 'fr', you MUST reason, compute, explain, and respond entirely in natural, polished, native French business terminology.
+- Use precise French accounting & retail terms:
+  * Revenue -> "Chiffre d'affaires"
+  * Gross Profit & Margin -> "Marge brute" & "Taux de marge brute"
+  * FIFO Purchase Cost -> "Coût d'achat PEPS (Premier Entré, Premier Sorti)"
+  * Cost of Goods Sold -> "Coût des marchandises vendues (CMV)"
+  * Net Profit -> "Bénéfice net"
+  * Operating Expenses -> "Dépenses d'exploitation" / "Charges"
+  * Customer Receivables / Debtors -> "Créances clients" / "Débiteurs" / "Dettes impayées"
+  * Low Stock / Out of Stock -> "Stock faible" / "Rupture de stock"
+  * Cash Register / Checkout -> "Caisse" / "Ticket de caisse"
+- Format numbers and currency naturally according to French locale conventions (e.g., "15 000 FCFA" or "${ctx.currency} 15 000").
+- If followUpSuggestions are generated in French, phrase them from the user's perspective (e.g., "Vérifier les ventes de la semaine", "Qui me doit de l'argent ?", "Voir les articles en rupture", "Calculer ma marge brute").
+- If the merchant speaks in English, answer in English.
+
+7. OUTPUT FORMAT:
 Respond with a JSON object strictly adhering to this schema:
 {
   "answer": "Your natural, conversational response in Markdown (or structured report if Report Mode was explicitly requested).",
@@ -146,7 +164,7 @@ Respond with a JSON object strictly adhering to this schema:
 }
 (Note: Include keyMetrics only if directly relevant to the question. Leave empty [] for greetings, navigation, or general concept explanations).
 
-7. FOLLOW-UP SUGGESTIONS PERSPECTIVE (CRITICAL):
+8. FOLLOW-UP SUGGESTIONS PERSPECTIVE (CRITICAL):
 The "followUpSuggestions" are buttons that the MERCHANT will click to ask Ursella what THEY need next.
 - They MUST be phrased from the USER'S perspective requesting what they need (e.g. "Check my sales from last week", "Show me products low on stock", "Who owes me money?", "Help me reorder this item", "What was my profit on cement?").
 - They MUST NEVER be phrased as the AI asking the user ("Would you like me to...", "Do you want to...", "Should I...", "Would you like...").
@@ -507,6 +525,18 @@ ${
 
     const currency = ctx.currency || 'XAF';
     const isExplicitReport = Boolean(ctx.parsedIntent?.isReportMode);
+    const isFr =
+      ctx.language === 'fr' ||
+      /[\b\s](bonjour|salut|bonsoir|merci|ventes|chiffre|bénéfice|benefice|marge|dépenses|depenses|créances|creances|débiteurs|debiteurs|stock|combien|comment|pourquoi|produits|caisse|ce mois|cette semaine|aujourd'hui|aujourdhui)[\b\s]/i.test(
+        q
+      );
+
+    const fmtNum = (n: number) =>
+      isFr ? Number(n || 0).toLocaleString('fr-FR') : Number(n || 0).toLocaleString('en-US');
+    const fmtCur = (n: number) =>
+      isFr
+        ? `${fmtNum(n)} ${currency === 'XAF' ? 'FCFA' : currency}`
+        : `${currency} ${fmtNum(n)}`;
 
     // New OS-wide domain tools & full OS context
     const ledger = (ctx.toolResults.get_financial_ledger || {}) as any;
@@ -529,6 +559,23 @@ ${
       /^(hello|hi|hey|good\s+(morning|afternoon|evening|day)|greetings|howdy|salut|bonjour|yo|hola)[\s!.,?]*$/i.test(q) ||
       /^(who\s+are\s+you|what\s+can\s+you\s+do|how\s+are\s+you|what\s+is\s+ursella|help)[\s!.,?]*$/i.test(q)
     ) {
+      if (isFr) {
+        return {
+          answer: `Bonjour ! Je suis votre conseiller Ursella IA pour **${ctx.businessName}**.\n\nJe peux vous aider à consulter vos ventes en direct, identifier les produits en rupture de stock à réapprovisionner, suivre les dettes de vos clients, analyser vos marges bénéficiaires ou valoriser votre inventaire avec la méthode PEPS (FIFO). Que souhaitez-vous analyser aujourd'hui ?`,
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          keyMetrics: [],
+          recommendations: [],
+          followUpSuggestions: [
+            'Comment se portent mes ventes ?',
+            'Quel est mon produit le plus vendu ?',
+            'Quels sont les produits en rupture de stock ?',
+            'Qui me doit de l’argent ?',
+          ],
+        };
+      }
+
       return {
         answer: `Hello! I'm your Ursella AI advisor for **${ctx.businessName}**.\n\nI can help you check your live sales, identify low-stock items needing replenishment, review customer credit balances, analyze your product margins, or register products in your catalog. What would you like to look at today?`,
         confidence: 'high_confidence',
@@ -549,25 +596,33 @@ ${
     // 2. NAVIGATION INTENTS (Conversational guide, no database queries)
     // =========================================================================
     if (ctx.parsedIntent?.intent === 'navigation') {
-      let targetName = 'the main dashboard';
-      if (q.includes('inventory') || q.includes('product') || q.includes('catalog')) targetName = '**Inventory & Products**';
-      else if (q.includes('sale') || q.includes('order')) targetName = '**Sales & Orders**';
-      else if (q.includes('pos')) targetName = '**POS / Point of Sale**';
-      else if (q.includes('debt') || q.includes('customer')) targetName = '**Customers & Credit**';
-      else if (q.includes('expense')) targetName = '**Expenses**';
-      else if (q.includes('setting')) targetName = '**Settings**';
+      let targetName = isFr ? 'le tableau de bord principal' : 'the main dashboard';
+      if (q.includes('inventory') || q.includes('product') || q.includes('catalog') || q.includes('stock') || q.includes('produit')) {
+        targetName = isFr ? '**Stock & Catalogue**' : '**Inventory & Products**';
+      } else if (q.includes('sale') || q.includes('order') || q.includes('vente')) {
+        targetName = isFr ? '**Ventes & Commandes**' : '**Sales & Orders**';
+      } else if (q.includes('pos') || q.includes('caisse')) {
+        targetName = isFr ? '**Caisse / Point de Vente**' : '**POS / Point of Sale**';
+      } else if (q.includes('debt') || q.includes('customer') || q.includes('client') || q.includes('dette') || q.includes('creance')) {
+        targetName = isFr ? '**Clients & Débiteurs**' : '**Customers & Credit**';
+      } else if (q.includes('expense') || q.includes('charge') || q.includes('depense')) {
+        targetName = isFr ? '**Dépenses**' : '**Expenses**';
+      } else if (q.includes('setting') || q.includes('parametre')) {
+        targetName = isFr ? '**Paramètres**' : '**Settings**';
+      }
 
       return {
-        answer: `You can access ${targetName} directly from the navigation menu on the left side of your screen.`,
+        answer: isFr
+          ? `Vous pouvez accéder à ${targetName} directement depuis le menu de navigation de votre application.`
+          : `You can access ${targetName} directly from the navigation menu on the left side of your screen.`,
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
         keyMetrics: [],
         recommendations: [],
-        followUpSuggestions: [
-          'How are my sales today?',
-          'Which products are low on stock?',
-        ],
+        followUpSuggestions: isFr
+          ? ['Comment se portent mes ventes ?', 'Quels sont les produits en rupture de stock ?']
+          : ['How are my sales today?', 'Which products are low on stock?'],
       };
     }
 
@@ -842,16 +897,23 @@ ${
       q.includes('top product') ||
       q.includes('top selling') ||
       q.includes('fastest selling') ||
-      q.includes('most sold')
+      q.includes('most sold') ||
+      q.includes('plus vendu') ||
+      q.includes('meilleur produit') ||
+      q.includes('meilleure vente')
     ) {
       if (!products || products.length === 0) {
         return {
-          answer: `You do not have any recorded product sales in your catalog yet. Once you record sales through POS or Orders, I'll identify your fastest-moving items here.`,
+          answer: isFr
+            ? `Vous n'avez pas encore de ventes de produits enregistrées dans votre catalogue. Dès que vous enregistrerez des ventes via la caisse ou les commandes, vos articles les plus populaires apparaîtront ici.`
+            : `You do not have any recorded product sales in your catalog yet. Once you record sales through POS or Orders, I'll identify your fastest-moving items here.`,
           keyMetrics: [],
           confidence: 'insufficient_data',
           responseSource: 'DETERMINISTIC_FALLBACK',
           provider: 'deterministic_fallback',
-          followUpSuggestions: ['How are my sales today?', 'Which products are low on stock?'],
+          followUpSuggestions: isFr
+            ? ['Comment se portent mes ventes ?', 'Quels sont les produits en rupture de stock ?']
+            : ['How are my sales today?', 'Which products are low on stock?'],
         };
       }
 
@@ -860,20 +922,24 @@ ${
       const topVolume = sortedByVolume[0];
 
       return {
-        answer: `Your best-selling product by volume is **${topVolume.name}** with **${topVolume.unitsSold || 0} unit(s) sold**, generating **${currency} ${Number(topVolume.revenue || 0).toLocaleString()}** in revenue (unit gross margin: **${topVolume.marginPct || 0}%**).\n\nYou currently have **${topVolume.stockQuantity || 0} unit(s)** remaining in stock.`,
+        answer: isFr
+          ? `Votre produit le plus vendu en volume est **${topVolume.name}** avec **${fmtNum(topVolume.unitsSold || 0)} unité(s) vendue(s)**, générant **${fmtCur(Number(topVolume.revenue || 0))}** de chiffre d'affaires (marge unitaire brute : **${topVolume.marginPct || 0}%**).\n\nIl vous reste actuellement **${fmtNum(topVolume.stockQuantity || 0)} unité(s)** en stock.`
+          : `Your best-selling product by volume is **${topVolume.name}** with **${topVolume.unitsSold || 0} unit(s) sold**, generating **${currency} ${Number(topVolume.revenue || 0).toLocaleString()}** in revenue (unit gross margin: **${topVolume.marginPct || 0}%**).\n\nYou currently have **${topVolume.stockQuantity || 0} unit(s)** remaining in stock.`,
         keyMetrics: [
-          { label: 'Units Sold', value: topVolume.unitsSold || 0, formattedValue: `${topVolume.unitsSold || 0}`, trend: 'positive' },
-          { label: 'Revenue', value: Number(topVolume.revenue || 0), formattedValue: `${currency} ${Number(topVolume.revenue || 0).toLocaleString()}`, trend: 'positive' },
-          { label: 'Units on Hand', value: topVolume.stockQuantity || 0, formattedValue: `${topVolume.stockQuantity || 0}`, trend: (topVolume.stockQuantity || 0) > 5 ? 'positive' : 'negative' },
+          { label: isFr ? 'Unités Vendues' : 'Units Sold', value: topVolume.unitsSold || 0, formattedValue: `${fmtNum(topVolume.unitsSold || 0)}`, trend: 'positive' },
+          { label: isFr ? "Chiffre d'Affaires" : 'Revenue', value: Number(topVolume.revenue || 0), formattedValue: fmtCur(Number(topVolume.revenue || 0)), trend: 'positive' },
+          { label: isFr ? 'Stock Disponible' : 'Units on Hand', value: topVolume.stockQuantity || 0, formattedValue: `${fmtNum(topVolume.stockQuantity || 0)}`, trend: (topVolume.stockQuantity || 0) > 5 ? 'positive' : 'negative' },
         ],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
-        followUpSuggestions: [
-          'Which product makes me the most money?',
-          'Which products are low on stock?',
-          'How are my sales today?',
-        ],
+        followUpSuggestions: isFr
+          ? ['Quel produit me rapporte le plus ?', 'Quels sont les produits en rupture de stock ?', 'Comment se portent mes ventes ?']
+          : [
+              'Which product makes me the most money?',
+              'Which products are low on stock?',
+              'How are my sales today?',
+            ],
       };
     }
 
@@ -882,16 +948,23 @@ ${
       q.includes('make me the most money') ||
       q.includes('most profitable product') ||
       q.includes('highest profit product') ||
-      q.includes('highest margin product')
+      q.includes('highest margin product') ||
+      q.includes('rapporte le plus') ||
+      q.includes('plus rentable') ||
+      q.includes('meilleure marge')
     ) {
       if (!products || products.length === 0) {
         return {
-          answer: `No product margin data is recorded in your catalog yet. Once purchase costs and sales prices are established, your highest profit contributors will be tracked here.`,
+          answer: isFr
+            ? `Aucune donnée de marge de produit n'est encore enregistrée. Dès que les coûts d'achat et les prix de vente seront configurés, vos plus forts contributeurs de profit apparaîtront ici.`
+            : `No product margin data is recorded in your catalog yet. Once purchase costs and sales prices are established, your highest profit contributors will be tracked here.`,
           keyMetrics: [],
           confidence: 'insufficient_data',
           responseSource: 'DETERMINISTIC_FALLBACK',
           provider: 'deterministic_fallback',
-          followUpSuggestions: ['How are my sales today?', 'Which products are low on stock?'],
+          followUpSuggestions: isFr
+            ? ['Comment se portent mes ventes ?', 'Quels sont les produits en rupture de stock ?']
+            : ['How are my sales today?', 'Which products are low on stock?'],
         };
       }
 
@@ -905,20 +978,24 @@ ${
       const gp = (topProfit.revenue || 0) - (topProfit.cogs || 0);
 
       return {
-        answer: `Your strongest product by gross profit is **${topProfit.name}**, generating **${currency} ${Number(gp).toLocaleString()}** in profit (${topProfit.unitsSold || 0} units sold at a **${topProfit.marginPct || 0}%** margin).\n\nCurrent stock on hand is **${topProfit.stockQuantity || 0} unit(s)**.`,
+        answer: isFr
+          ? `Votre produit le plus performant en bénéfice brut est **${topProfit.name}**, générant **${fmtCur(Number(gp))}** de bénéfice (${fmtNum(topProfit.unitsSold || 0)} unités vendues avec une marge de **${topProfit.marginPct || 0}%**).\n\nLe stock actuel disponible est de **${fmtNum(topProfit.stockQuantity || 0)} unité(s)**.`
+          : `Your strongest product by gross profit is **${topProfit.name}**, generating **${currency} ${Number(gp).toLocaleString()}** in profit (${topProfit.unitsSold || 0} units sold at a **${topProfit.marginPct || 0}%** margin).\n\nCurrent stock on hand is **${topProfit.stockQuantity || 0} unit(s)**.`,
         keyMetrics: [
-          { label: 'Gross Profit', value: gp, formattedValue: `${currency} ${Number(gp).toLocaleString()}`, trend: 'positive' },
-          { label: 'Gross Margin', value: topProfit.marginPct || 0, formattedValue: `${topProfit.marginPct || 0}%`, trend: 'positive' },
-          { label: 'Stock On Hand', value: topProfit.stockQuantity || 0, formattedValue: `${topProfit.stockQuantity || 0}`, trend: 'neutral' },
+          { label: isFr ? 'Bénéfice Brut' : 'Gross Profit', value: gp, formattedValue: fmtCur(Number(gp)), trend: 'positive' },
+          { label: isFr ? 'Marge Brute' : 'Gross Margin', value: topProfit.marginPct || 0, formattedValue: `${topProfit.marginPct || 0}%`, trend: 'positive' },
+          { label: isFr ? 'Stock Disponible' : 'Stock On Hand', value: topProfit.stockQuantity || 0, formattedValue: `${fmtNum(topProfit.stockQuantity || 0)}`, trend: 'neutral' },
         ],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
-        followUpSuggestions: [
-          'What is my best-selling product?',
-          'Which products are low on stock?',
-          'What about the hoodies?',
-        ],
+        followUpSuggestions: isFr
+          ? ['Quel est mon produit le plus vendu ?', 'Quels sont les produits en rupture de stock ?', 'Comment se portent mes ventes ?']
+          : [
+              'What is my best-selling product?',
+              'Which products are low on stock?',
+              'What about the hoodies?',
+            ],
       };
     }
 
@@ -932,7 +1009,15 @@ ${
       q.includes('earn') ||
       q.includes('making money') ||
       q.includes('net income') ||
-      q.includes('p&l')
+      q.includes('p&l') ||
+      q.includes('bénéfice') ||
+      q.includes('benefice') ||
+      q.includes('marge') ||
+      q.includes('rentabilité') ||
+      q.includes('rentabilite') ||
+      q.includes('gains') ||
+      q.includes('résultat') ||
+      q.includes('resultat')
     ) {
       const rev = Number(ledger.revenue ?? osFin?.totalRevenue ?? salesSummary.totalRevenue ?? overview.revenue ?? 0);
       const cogs = Number(ledger.cost_of_goods_sold ?? osFin?.costOfGoodsSold ?? overview.cost_of_goods_sold ?? 0);
@@ -941,48 +1026,60 @@ ${
       const opExpenses = Number(ledger.operating_expenses ?? osFin?.totalExpenses ?? expenseBreakdown.totalExpenses ?? expenses.totalExpenses ?? 0);
       const netProfit = Number(ledger.estimated_net_profit ?? osFin?.netProfit ?? (grossProfit - opExpenses));
       const netMarginPct = rev > 0 ? Number(((netProfit / rev) * 100).toFixed(1)) : 0;
-      const periodLabel = ledger.periodLabel || (q.includes('today') ? 'Today' : q.includes('week') ? 'This Week' : q.includes('year') ? 'This Year' : 'Last 30 Days');
+      const periodLabel = ledger.periodLabel || (q.includes('today') || q.includes("aujourd'hui") ? (isFr ? "Aujourd'hui" : 'Today') : q.includes('week') || q.includes('semaine') ? (isFr ? 'Cette semaine' : 'This Week') : q.includes('year') || q.includes('année') ? (isFr ? 'Cette année' : 'This Year') : (isFr ? '30 derniers jours' : 'Last 30 Days'));
 
       if (rev === 0 && opExpenses === 0) {
         return {
-          answer: `No sales transactions or operating expenses have been recorded for **${ctx.businessName}** in the selected period (${periodLabel}).\n\nOnce orders are recorded in the **POS** and overhead costs are logged in **Expenses**, your deterministic Gross and Net Profit calculations will update automatically.`,
+          answer: isFr
+            ? `Aucune transaction de vente ni dépense opérationnelle n'a été enregistrée pour **${ctx.businessName}** sur la période sélectionnée (${periodLabel}).\n\nDès que des commandes seront enregistrées dans la **Caisse** et que des charges seront saisies dans **Dépenses**, vos calculs déterministes de bénéfice brut et net se mettront à jour automatiquement.`
+            : `No sales transactions or operating expenses have been recorded for **${ctx.businessName}** in the selected period (${periodLabel}).\n\nOnce orders are recorded in the **POS** and overhead costs are logged in **Expenses**, your deterministic Gross and Net Profit calculations will update automatically.`,
           confidence: 'insufficient_data',
           responseSource: 'DETERMINISTIC_FALLBACK',
           provider: 'deterministic_fallback',
           keyMetrics: [
-            { label: 'Revenue', value: 0, formattedValue: `${currency} 0`, trend: 'neutral' },
-            { label: 'Gross Profit', value: 0, formattedValue: `${currency} 0`, trend: 'neutral' },
-            { label: 'Net Profit', value: 0, formattedValue: `${currency} 0`, trend: 'neutral' },
+            { label: isFr ? "Chiffre d'Affaires" : 'Revenue', value: 0, formattedValue: fmtCur(0), trend: 'neutral' },
+            { label: isFr ? 'Bénéfice Brut' : 'Gross Profit', value: 0, formattedValue: fmtCur(0), trend: 'neutral' },
+            { label: isFr ? 'Bénéfice Net' : 'Net Profit', value: 0, formattedValue: fmtCur(0), trend: 'neutral' },
           ],
-          followUpSuggestions: [
-            'What is my inventory valuation?',
-            'Which products are low on stock?',
-            'Who owes me money?',
-          ],
+          followUpSuggestions: isFr
+            ? ['Quelle est la valeur de mon stock ?', 'Quels produits sont en rupture de stock ?', 'Qui me doit de l’argent ?']
+            : [
+                'What is my inventory valuation?',
+                'Which products are low on stock?',
+                'Who owes me money?',
+              ],
         };
       }
 
-      const profitInsight = netProfit >= 0
-        ? `Your store is operating profitably with a **${netMarginPct}% net margin** after accounting for overhead.`
-        : `Your operating expenses currently exceed gross profit for this period, yielding a net deficit of **${currency} ${Math.abs(netProfit).toLocaleString()}**.`;
+      const profitInsight = isFr
+        ? (netProfit >= 0
+            ? `Votre entreprise est bénéficiaire avec une **marge nette de ${netMarginPct}%** après déduction des charges opérationnelles.`
+            : `Vos dépenses d'exploitation dépassent actuellement votre marge brute pour cette période, générant un déficit net de **${fmtCur(Math.abs(netProfit))}**.`)
+        : (netProfit >= 0
+            ? `Your store is operating profitably with a **${netMarginPct}% net margin** after accounting for overhead.`
+            : `Your operating expenses currently exceed gross profit for this period, yielding a net deficit of **${currency} ${Math.abs(netProfit).toLocaleString()}**.`);
 
       return {
-        answer: `For **${periodLabel}**, **${ctx.businessName}** generated **${currency} ${rev.toLocaleString()}** in revenue with **${currency} ${cogs.toLocaleString()}** in FIFO Cost of Goods Sold, producing a **Gross Profit of ${currency} ${grossProfit.toLocaleString()} (${grossMarginPct}% gross margin)**.\n\nAfter accounting for **${currency} ${opExpenses.toLocaleString()}** in operating expenses, your **Estimated Net Profit is ${currency} ${netProfit.toLocaleString()} (${netMarginPct}% net margin)**.\n\n${profitInsight}`,
+        answer: isFr
+          ? `Pour la période **${periodLabel}**, **${ctx.businessName}** a réalisé un chiffre d'affaires de **${fmtCur(rev)}** pour un coût des marchandises vendues (PEPS/FIFO) de **${fmtCur(cogs)}**, générant un **bénéfice brut de ${fmtCur(grossProfit)} (${grossMarginPct}% de marge brute)**.\n\nAprès déduction de **${fmtCur(opExpenses)}** de charges d'exploitation, votre **bénéfice net estimé est de ${fmtCur(netProfit)} (${netMarginPct}% de marge nette)**.\n\n${profitInsight}`
+          : `For **${periodLabel}**, **${ctx.businessName}** generated **${currency} ${rev.toLocaleString()}** in revenue with **${currency} ${cogs.toLocaleString()}** in FIFO Cost of Goods Sold, producing a **Gross Profit of ${currency} ${grossProfit.toLocaleString()} (${grossMarginPct}% gross margin)**.\n\nAfter accounting for **${currency} ${opExpenses.toLocaleString()}** in operating expenses, your **Estimated Net Profit is ${currency} ${netProfit.toLocaleString()} (${netMarginPct}% net margin)**.\n\n${profitInsight}`,
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
         keyMetrics: [
-          { label: 'Gross Profit', value: grossProfit, formattedValue: `${currency} ${grossProfit.toLocaleString()}`, trend: grossProfit > 0 ? 'positive' : 'neutral' },
-          { label: 'Gross Margin', value: grossMarginPct, formattedValue: `${grossMarginPct}%`, trend: grossMarginPct >= 25 ? 'positive' : 'neutral' },
-          { label: 'Operating Expenses', value: opExpenses, formattedValue: `${currency} ${opExpenses.toLocaleString()}`, trend: 'neutral' },
-          { label: 'Estimated Net Profit', value: netProfit, formattedValue: `${currency} ${netProfit.toLocaleString()}`, trend: netProfit >= 0 ? 'positive' : 'negative' },
+          { label: isFr ? 'Bénéfice Brut' : 'Gross Profit', value: grossProfit, formattedValue: fmtCur(grossProfit), trend: grossProfit > 0 ? 'positive' : 'neutral' },
+          { label: isFr ? 'Marge Brute' : 'Gross Margin', value: grossMarginPct, formattedValue: `${grossMarginPct}%`, trend: grossMarginPct >= 25 ? 'positive' : 'neutral' },
+          { label: isFr ? "Dépenses d'Exploitation" : 'Operating Expenses', value: opExpenses, formattedValue: fmtCur(opExpenses), trend: 'neutral' },
+          { label: isFr ? 'Bénéfice Net Estimé' : 'Estimated Net Profit', value: netProfit, formattedValue: fmtCur(netProfit), trend: netProfit >= 0 ? 'positive' : 'negative' },
         ],
-        followUpSuggestions: [
-          'What are my biggest operating expenses?',
-          'Which product makes me the most money?',
-          'What is my inventory valuation?',
-          'Who owes me money?',
-        ],
+        followUpSuggestions: isFr
+          ? ['Quelles sont mes plus grandes dépenses ?', 'Quel produit me rapporte le plus ?', 'Quelle est la valeur de mon stock ?', 'Qui me doit de l’argent ?']
+          : [
+              'What are my biggest operating expenses?',
+              'Which product makes me the most money?',
+              'What is my inventory valuation?',
+              'Who owes me money?',
+            ],
       };
     }
 
@@ -995,7 +1092,11 @@ ${
       q.includes('sold today') ||
       q.includes('sales today') ||
       q.includes('revenue today') ||
-      q.includes('how are my sales today')
+      q.includes('how are my sales today') ||
+      q.includes("aujourd'hui") ||
+      q.includes('aujourdhui') ||
+      q.includes('ventes du jour') ||
+      q.includes('recette du jour')
     ) {
       const revToday = Number(todaySales.revenue ?? osToday?.todayRevenue ?? dailyBrief.todayMetrics?.revenueToday ?? 0);
       const txToday = Number(todaySales.salesCount ?? osToday?.todayTransactions ?? dailyBrief.todayMetrics?.transactionCountToday ?? 0);
@@ -1003,39 +1104,47 @@ ${
 
       if (txToday === 0) {
         return {
-          answer: `No sales have been recorded yet today for **${ctx.businessName}** (${currency} 0 across 0 orders).\n\nIf you have completed transactions today that have not yet been rung up, make sure they are entered in the **POS / Sales** module.`,
+          answer: isFr
+            ? `Aucune vente n'a encore été enregistrée aujourd'hui pour **${ctx.businessName}** (${fmtCur(0)} sur 0 commande).\n\nSi vous avez finalisé des transactions aujourd'hui qui n'ont pas encore été saisies, assurez-vous de les enregistrer dans le module **Caisse / Ventes**.`
+            : `No sales have been recorded yet today for **${ctx.businessName}** (${currency} 0 across 0 orders).\n\nIf you have completed transactions today that have not yet been rung up, make sure they are entered in the **POS / Sales** module.`,
           keyMetrics: [
-            { label: "Today's Revenue", value: 0, formattedValue: `${currency} 0`, trend: 'neutral' },
-            { label: "Today's Orders", value: 0, formattedValue: '0', trend: 'neutral' },
+            { label: isFr ? "Ventes d'Aujourd'hui" : "Today's Revenue", value: 0, formattedValue: fmtCur(0), trend: 'neutral' },
+            { label: isFr ? "Commandes d'Aujourd'hui" : "Today's Orders", value: 0, formattedValue: '0', trend: 'neutral' },
           ],
           confidence: 'high_confidence',
           responseSource: 'DETERMINISTIC_FALLBACK',
           provider: 'deterministic_fallback',
-          followUpSuggestions: [
-            'What are my overall sales this month?',
-            'What is my best-selling product?',
-            'Which products are low on stock?',
-            'Who owes me money?',
-          ],
+          followUpSuggestions: isFr
+            ? ['Quelles sont mes ventes globales ce mois-ci ?', 'Quel est mon produit le plus vendu ?', 'Quels sont les produits en rupture de stock ?', 'Qui me doit de l’argent ?']
+            : [
+                'What are my overall sales this month?',
+                'What is my best-selling product?',
+                'Which products are low on stock?',
+                'Who owes me money?',
+              ],
         };
       }
 
       return {
-        answer: `Today, **${ctx.businessName}** has recorded **${currency} ${revToday.toLocaleString()}** in sales across **${txToday}** customer order(s), with **${currency} ${cashToday.toLocaleString()}** collected in cash.`,
+        answer: isFr
+          ? `Aujourd'hui, **${ctx.businessName}** a enregistré **${fmtCur(revToday)}** de chiffre d'affaires sur **${fmtNum(txToday)}** commande(s) client(s), avec **${fmtCur(cashToday)}** encaissés en espèces.`
+          : `Today, **${ctx.businessName}** has recorded **${currency} ${revToday.toLocaleString()}** in sales across **${txToday}** customer order(s), with **${currency} ${cashToday.toLocaleString()}** collected in cash.`,
         keyMetrics: [
-          { label: "Today's Revenue", value: revToday, formattedValue: `${currency} ${revToday.toLocaleString()}`, trend: 'positive' },
-          { label: "Today's Orders", value: txToday, formattedValue: `${txToday}`, trend: 'positive' },
-          { label: 'Cash Collected', value: cashToday, formattedValue: `${currency} ${cashToday.toLocaleString()}`, trend: 'positive' },
+          { label: isFr ? "Ventes d'Aujourd'hui" : "Today's Revenue", value: revToday, formattedValue: fmtCur(revToday), trend: 'positive' },
+          { label: isFr ? "Commandes d'Aujourd'hui" : "Today's Orders", value: txToday, formattedValue: `${fmtNum(txToday)}`, trend: 'positive' },
+          { label: isFr ? 'Espèces Encaissées' : 'Cash Collected', value: cashToday, formattedValue: fmtCur(cashToday), trend: 'positive' },
         ],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
-        followUpSuggestions: [
-          'What are my overall sales this month?',
-          'What is my profit this month?',
-          'Which products are low on stock?',
-          'Who owes me money?',
-        ],
+        followUpSuggestions: isFr
+          ? ['Quelles sont mes ventes globales ce mois-ci ?', 'Quel est mon bénéfice ce mois-ci ?', 'Quels sont les produits en rupture de stock ?', 'Qui me doit de l’argent ?']
+          : [
+              'What are my overall sales this month?',
+              'What is my profit this month?',
+              'Which products are low on stock?',
+              'Who owes me money?',
+            ],
       };
     }
 
@@ -1051,52 +1160,67 @@ ${
       q.includes('all time') ||
       q.includes('total sales') ||
       q.includes('volume') ||
-      q.includes('turnover')
+      q.includes('turnover') ||
+      q.includes('ventes') ||
+      q.includes('chiffre') ||
+      q.includes('cette semaine') ||
+      q.includes('ce mois') ||
+      q.includes('cette annee') ||
+      q.includes('cette année') ||
+      q.includes('tout temps')
     ) {
-      let period = 'Last 30 Days';
+      let period = isFr ? '30 Derniers Jours' : 'Last 30 Days';
       let rev = Number(ledger.revenue ?? salesSummary.totalRevenue ?? osFin?.totalRevenue ?? overview.revenue ?? 0);
       let txCount = Number(ledger.transaction_count ?? salesSummary.transactionCount ?? osFin?.transactionCount ?? overview.transaction_count ?? 0);
       let margin = Number(ledger.gross_margin ?? salesSummary.grossMarginPct ?? overview.gross_margin ?? 0);
 
-      if (q.includes('all time') || q.includes('all-time') || q.includes('total sales') || q.includes('ever')) {
-        period = 'All-Time';
+      if (q.includes('all time') || q.includes('all-time') || q.includes('total sales') || q.includes('ever') || q.includes('tout temps')) {
+        period = isFr ? 'Historique Total' : 'All-Time';
         if (osAllTime) {
           rev = Number(osAllTime.allTimeRevenue || rev);
           txCount = Number(osAllTime.allTimeTransactions || txCount);
           margin = Number(osAllTime.allTimeGrossMarginPct || margin);
         }
-      } else if (q.includes('week')) {
-        period = 'This Week';
-      } else if (q.includes('year')) {
-        period = 'This Year';
-      } else if (q.includes('month')) {
-        period = 'This Month';
+      } else if (q.includes('week') || q.includes('semaine')) {
+        period = isFr ? 'Cette Semaine' : 'This Week';
+      } else if (q.includes('year') || q.includes('année') || q.includes('annee')) {
+        period = isFr ? 'Cette Année' : 'This Year';
+      } else if (q.includes('month') || q.includes('mois')) {
+        period = isFr ? 'Ce Mois' : 'This Month';
       }
 
       const aov = txCount > 0 ? Math.round(rev / txCount) : 0;
       const todayRev = Number(todaySales.revenue ?? osToday?.todayRevenue ?? 0);
       const todayTx = Number(todaySales.salesCount ?? osToday?.todayTransactions ?? 0);
-      const todayNote = todayTx > 0
-        ? `Today's sales volume currently stands at **${currency} ${todayRev.toLocaleString()}** across ${todayTx} transaction(s).`
-        : `No transactions have been logged yet today.`;
+      const todayNote = isFr
+        ? (todayTx > 0
+            ? `Le volume de ventes d'aujourd'hui s'élève actuellement à **${fmtCur(todayRev)}** sur ${fmtNum(todayTx)} transaction(s).`
+            : `Aucune transaction n'a encore été enregistrée aujourd'hui.`)
+        : (todayTx > 0
+            ? `Today's sales volume currently stands at **${currency} ${todayRev.toLocaleString()}** across ${todayTx} transaction(s).`
+            : `No transactions have been logged yet today.`);
 
       return {
-        answer: `For the **${period}** period, **${ctx.businessName}** has generated **${currency} ${rev.toLocaleString()}** in sales across **${txCount}** customer order(s), with an average order value of **${currency} ${aov.toLocaleString()}** and an average gross margin of **${margin}%**.\n\n${todayNote}`,
+        answer: isFr
+          ? `Pour la période **${period}**, **${ctx.businessName}** a généré **${fmtCur(rev)}** de chiffre d'affaires sur **${fmtNum(txCount)}** commande(s) client(s), avec un panier moyen de **${fmtCur(aov)}** et une marge brute moyenne de **${margin}%**.\n\n${todayNote}`
+          : `For the **${period}** period, **${ctx.businessName}** has generated **${currency} ${rev.toLocaleString()}** in sales across **${txCount}** customer order(s), with an average order value of **${currency} ${aov.toLocaleString()}** and an average gross margin of **${margin}%**.\n\n${todayNote}`,
         keyMetrics: [
-          { label: `${period} Revenue`, value: rev, formattedValue: `${currency} ${rev.toLocaleString()}`, trend: rev > 0 ? 'positive' : 'neutral' },
-          { label: 'Transactions', value: txCount, formattedValue: `${txCount}`, trend: 'neutral' },
-          { label: 'Average Order Value', value: aov, formattedValue: `${currency} ${aov.toLocaleString()}`, trend: 'neutral' },
-          { label: 'Gross Margin', value: margin, formattedValue: `${margin}%`, trend: margin >= 25 ? 'positive' : 'neutral' },
+          { label: isFr ? `CA (${period})` : `${period} Revenue`, value: rev, formattedValue: fmtCur(rev), trend: rev > 0 ? 'positive' : 'neutral' },
+          { label: isFr ? 'Transactions' : 'Transactions', value: txCount, formattedValue: `${fmtNum(txCount)}`, trend: 'neutral' },
+          { label: isFr ? 'Panier Moyen' : 'Average Order Value', value: aov, formattedValue: fmtCur(aov), trend: 'neutral' },
+          { label: isFr ? 'Marge Brute' : 'Gross Margin', value: margin, formattedValue: `${margin}%`, trend: margin >= 25 ? 'positive' : 'neutral' },
         ],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
-        followUpSuggestions: [
-          'What is my net profit?',
-          'What are my biggest operating expenses?',
-          'Which product makes me the most money?',
-          'What is my inventory valuation?',
-        ],
+        followUpSuggestions: isFr
+          ? ['Quel est mon bénéfice net ?', 'Quelles sont mes plus grandes dépenses ?', 'Quel produit me rapporte le plus ?', 'Quelle est la valeur de mon stock ?']
+          : [
+              'What is my net profit?',
+              'What are my biggest operating expenses?',
+              'Which product makes me the most money?',
+              'What is my inventory valuation?',
+            ],
       };
     }
 
@@ -1109,7 +1233,12 @@ ${
       q.includes('spent') ||
       q.includes('operating cost') ||
       q.includes('overhead') ||
-      q.includes('bills')
+      q.includes('bills') ||
+      q.includes('dépenses') ||
+      q.includes('depenses') ||
+      q.includes('charges') ||
+      q.includes('frais') ||
+      q.includes('factures')
     ) {
       const totalExp = Number(expenseBreakdown.totalExpenses ?? expenses.totalExpenses ?? osExpenses?.totalExpensesThisMonth ?? 0);
       const expCount = Number(expenseBreakdown.expenseCount ?? expenses.expenseCount ?? osExpenses?.expenseCountThisMonth ?? 0);
@@ -1117,42 +1246,53 @@ ${
 
       if (totalExp === 0) {
         return {
-          answer: `No operating expenses are currently recorded for **${ctx.businessName}** in this period.\n\nRecording rent, utilities, transport, and supplier payments in the **Expenses** page helps ensure your net profit figures reflect true business reality.`,
+          answer: isFr
+            ? `Aucune dépense d'exploitation n'est actuellement enregistrée pour **${ctx.businessName}** sur cette période.\n\nEnregistrer le loyer, l'électricité, le transport et les achats de consommables dans la page **Dépenses** permet de refléter la rentabilité réelle de votre activité.`
+            : `No operating expenses are currently recorded for **${ctx.businessName}** in this period.\n\nRecording rent, utilities, transport, and supplier payments in the **Expenses** page helps ensure your net profit figures reflect true business reality.`,
           keyMetrics: [
-            { label: 'Total Expenses', value: 0, formattedValue: `${currency} 0`, trend: 'positive' },
-            { label: 'Expense Records', value: 0, formattedValue: '0', trend: 'neutral' },
+            { label: isFr ? 'Total Dépenses' : 'Total Expenses', value: 0, formattedValue: fmtCur(0), trend: 'positive' },
+            { label: isFr ? 'Lignes de Dépenses' : 'Expense Records', value: 0, formattedValue: '0', trend: 'neutral' },
           ],
           confidence: 'high_confidence',
           responseSource: 'DETERMINISTIC_FALLBACK',
           provider: 'deterministic_fallback',
-          followUpSuggestions: [
-            'What is my gross profit?',
-            'What is my inventory valuation?',
-            'Who owes me money?',
-          ],
+          followUpSuggestions: isFr
+            ? ['Quel est mon bénéfice brut ?', 'Quelle est la valeur de mon stock ?', 'Qui me doit de l’argent ?']
+            : [
+                'What is my gross profit?',
+                'What is my inventory valuation?',
+                'Who owes me money?',
+              ],
         };
       }
 
       let catBreakdown = '';
       if (byCat.length > 0) {
-        catBreakdown = '\n\n**Breakdown by Category:**\n' +
-          byCat.slice(0, 5).map((c) => `- **${c.category}**: ${currency} ${Number(c.amount).toLocaleString()} (${c.percentage}%)`).join('\n');
+        catBreakdown = isFr
+          ? '\n\n**Répartition par Catégorie :**\n' +
+            byCat.slice(0, 5).map((c) => `- **${c.category}**: ${fmtCur(Number(c.amount))} (${c.percentage}%)`).join('\n')
+          : '\n\n**Breakdown by Category:**\n' +
+            byCat.slice(0, 5).map((c) => `- **${c.category}**: ${currency} ${Number(c.amount).toLocaleString()} (${c.percentage}%)`).join('\n');
       }
 
       return {
-        answer: `Your recorded operating expenses total **${currency} ${totalExp.toLocaleString()}** across **${expCount}** logged expense item(s).${catBreakdown}\n\nKeeping non-inventory overhead in check is essential for protecting your net profit margins.`,
+        answer: isFr
+          ? `Vos dépenses d'exploitation enregistrées totalisent **${fmtCur(totalExp)}** réparties sur **${fmtNum(expCount)}** entrée(s) de charge.${catBreakdown}\n\nMaîtriser vos charges fixes et variables est essentiel pour protéger votre marge nette.`
+          : `Your recorded operating expenses total **${currency} ${totalExp.toLocaleString()}** across **${expCount}** logged expense item(s).${catBreakdown}\n\nKeeping non-inventory overhead in check is essential for protecting your net profit margins.`,
         keyMetrics: [
-          { label: 'Total Expenses', value: totalExp, formattedValue: `${currency} ${totalExp.toLocaleString()}`, trend: 'neutral' },
-          { label: 'Expense Entries', value: expCount, formattedValue: `${expCount}`, trend: 'neutral' },
+          { label: isFr ? 'Total Dépenses' : 'Total Expenses', value: totalExp, formattedValue: fmtCur(totalExp), trend: 'neutral' },
+          { label: isFr ? 'Nombre de Dépenses' : 'Expense Entries', value: expCount, formattedValue: `${fmtNum(expCount)}`, trend: 'neutral' },
         ],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
-        followUpSuggestions: [
-          'What is my net profit?',
-          'What is my gross margin?',
-          'How are my sales today?',
-        ],
+        followUpSuggestions: isFr
+          ? ['Quel est mon bénéfice net ?', 'Quelle est ma marge brute ?', 'Comment se portent mes ventes aujourd’hui ?']
+          : [
+              'What is my net profit?',
+              'What is my gross margin?',
+              'How are my sales today?',
+            ],
       };
     }
 
@@ -1165,7 +1305,11 @@ ${
       q.includes('worth') ||
       q.includes('catalog value') ||
       q.includes('how much stock') ||
-      q.includes('inventory valuation')
+      q.includes('inventory valuation') ||
+      q.includes('valeur du stock') ||
+      q.includes('valeur inventaire') ||
+      q.includes('vaut mon stock') ||
+      q.includes('valorisation')
     ) {
       const costVal = Number(invHealth.totalCostValuation ?? osInv?.totalCatalogValueAtCost ?? 0);
       const retailVal = Number(invHealth.totalRetailValuation ?? osInv?.totalCatalogValueAtRetail ?? 0);
@@ -1175,21 +1319,25 @@ ${
       const potentialProfit = retailVal - costVal;
 
       return {
-        answer: `Your inventory catalog currently consists of **${totalSKUs} active SKU(s)** with a total acquisition cost valuation (FIFO) of **${currency} ${costVal.toLocaleString()}**.\n\nAt current retail pricing, this stock represents **${currency} ${retailVal.toLocaleString()}** in gross catalog value, representing **${currency} ${potentialProfit.toLocaleString()}** in potential gross profit when completely sold.\n\nCurrently, you have **${lowCount} low-stock item(s)** and **${outCount} depleted SKU(s)**.`,
+        answer: isFr
+          ? `Votre catalogue comprend actuellement **${fmtNum(totalSKUs)} référence(s) active(s)** pour une valorisation au coût d'acquisition (PEPS / FIFO) de **${fmtCur(costVal)}**.\n\nAux prix de vente actuels, ce stock représente **${fmtCur(retailVal)}** de valeur marchande brute, soit **${fmtCur(potentialProfit)}** de bénéfice brut potentiel une fois entièrement écoulé.\n\nActuellement, vous avez **${fmtNum(lowCount)} produit(s) en stock faible** et **${fmtNum(outCount)} référence(s) en rupture totale**.`
+          : `Your inventory catalog currently consists of **${totalSKUs} active SKU(s)** with a total acquisition cost valuation (FIFO) of **${currency} ${costVal.toLocaleString()}**.\n\nAt current retail pricing, this stock represents **${currency} ${retailVal.toLocaleString()}** in gross catalog value, representing **${currency} ${potentialProfit.toLocaleString()}** in potential gross profit when completely sold.\n\nCurrently, you have **${lowCount} low-stock item(s)** and **${outCount} depleted SKU(s)**.`,
         keyMetrics: [
-          { label: 'Valuation at Cost (FIFO)', value: costVal, formattedValue: `${currency} ${costVal.toLocaleString()}`, trend: 'neutral' },
-          { label: 'Valuation at Retail', value: retailVal, formattedValue: `${currency} ${retailVal.toLocaleString()}`, trend: 'positive' },
-          { label: 'Potential Gross Profit', value: potentialProfit, formattedValue: `${currency} ${potentialProfit.toLocaleString()}`, trend: 'positive' },
-          { label: 'Active SKUs', value: totalSKUs, formattedValue: `${totalSKUs}`, trend: 'neutral' },
+          { label: isFr ? "Valeur au Coût (PEPS)" : 'Valuation at Cost (FIFO)', value: costVal, formattedValue: fmtCur(costVal), trend: 'neutral' },
+          { label: isFr ? 'Valeur Marchande' : 'Valuation at Retail', value: retailVal, formattedValue: fmtCur(retailVal), trend: 'positive' },
+          { label: isFr ? 'Marge Brute Potentielle' : 'Potential Gross Profit', value: potentialProfit, formattedValue: fmtCur(potentialProfit), trend: 'positive' },
+          { label: isFr ? 'Articles Actifs' : 'Active SKUs', value: totalSKUs, formattedValue: `${fmtNum(totalSKUs)}`, trend: 'neutral' },
         ],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
-        followUpSuggestions: [
-          'Which products are low on stock?',
-          'What is my best-selling product?',
-          'What is my net profit?',
-        ],
+        followUpSuggestions: isFr
+          ? ['Quels produits sont en rupture de stock ?', 'Quel est mon produit le plus vendu ?', 'Quel est mon bénéfice net ?']
+          : [
+              'Which products are low on stock?',
+              'What is my best-selling product?',
+              'What is my net profit?',
+            ],
       };
     }
 
@@ -1202,7 +1350,12 @@ ${
       q.includes('out of stock') ||
       q.includes('stock level') ||
       q.includes('stockout') ||
-      q.includes('reorder')
+      q.includes('reorder') ||
+      q.includes('rupture') ||
+      q.includes('faible') ||
+      q.includes('reapprovisionner') ||
+      q.includes('réapprovisionner') ||
+      q.includes('niveau de stock')
     ) {
       const outCount = Number(invHealth.outOfStockCount ?? inv.outOfStockCount ?? osInv?.outOfStockCount ?? 0);
       const lowCount = Number(invHealth.lowStockCount ?? inv.lowStockCount ?? osInv?.lowStockCount ?? 0);
@@ -1211,40 +1364,52 @@ ${
 
       if (outCount === 0 && lowCount === 0) {
         return {
-          answer: `All **${totalSKUs} active product SKUs** in your catalog are adequately stocked with zero low-stock or out-of-stock alerts.`,
+          answer: isFr
+            ? `Toutes les **${fmtNum(totalSKUs)} références actives** de votre catalogue sont convenablement approvisionnées, avec zéro alerte de stock faible ou de rupture.`
+            : `All **${totalSKUs} active product SKUs** in your catalog are adequately stocked with zero low-stock or out-of-stock alerts.`,
           keyMetrics: [
-            { label: 'Out of Stock', value: 0, formattedValue: '0', trend: 'positive' },
-            { label: 'Low Stock', value: 0, formattedValue: '0', trend: 'positive' },
+            { label: isFr ? 'En Rupture' : 'Out of Stock', value: 0, formattedValue: '0', trend: 'positive' },
+            { label: isFr ? 'Stock Faible' : 'Low Stock', value: 0, formattedValue: '0', trend: 'positive' },
           ],
           confidence: 'high_confidence',
           responseSource: 'DETERMINISTIC_FALLBACK',
           provider: 'deterministic_fallback',
-          followUpSuggestions: [
-            'What is my inventory valuation?',
-            'What is my best-selling product?',
-            'What is my net profit?',
-          ],
+          followUpSuggestions: isFr
+            ? ['Quelle est la valeur de mon stock ?', 'Quel est mon produit le plus vendu ?', 'Quel est mon bénéfice net ?']
+            : [
+                'What is my inventory valuation?',
+                'What is my best-selling product?',
+                'What is my net profit?',
+              ],
         };
       }
 
-      const itemsList = criticalItems
-        .map((item) => `- **${item.name}**: ${item.currentStock} unit(s) remaining (${item.status === 'OUT_OF_STOCK' ? '🔴 Depleted' : `⚠️ Below minimum threshold`})`)
-        .join('\n');
+      const itemsList = isFr
+        ? criticalItems
+            .map((item) => `- **${item.name}**: ${fmtNum(item.currentStock)} unité(s) restante(s) (${item.status === 'OUT_OF_STOCK' ? '🔴 Rupture totale' : `⚠️ Sous le seuil de sécurité`})`)
+            .join('\n')
+        : criticalItems
+            .map((item) => `- **${item.name}**: ${item.currentStock} unit(s) remaining (${item.status === 'OUT_OF_STOCK' ? '🔴 Depleted' : `⚠️ Below minimum threshold`})`)
+            .join('\n');
 
       return {
-        answer: `You currently have **${outCount} item(s) completely depleted** and **${lowCount} item(s) running below safety thresholds**:\n\n${itemsList}\n\nI recommend prioritizing purchase orders for high-demand items that drive recurring foot traffic.`,
+        answer: isFr
+          ? `Vous avez actuellement **${fmtNum(outCount)} article(s) en rupture totale** et **${fmtNum(lowCount)} article(s) sous le seuil d'alerte** :\n\n${itemsList}\n\nJe vous recommande de prioriser les commandes de réapprovisionnement pour vos produits moteurs.`
+          : `You currently have **${outCount} item(s) completely depleted** and **${lowCount} item(s) running below safety thresholds**:\n\n${itemsList}\n\nI recommend prioritizing purchase orders for high-demand items that drive recurring foot traffic.`,
         keyMetrics: [
-          { label: 'Out of Stock', value: outCount, formattedValue: `${outCount}`, trend: outCount > 0 ? 'negative' : 'positive' },
-          { label: 'Low Stock', value: lowCount, formattedValue: `${lowCount}`, trend: lowCount > 0 ? 'negative' : 'positive' },
+          { label: isFr ? 'En Rupture' : 'Out of Stock', value: outCount, formattedValue: `${fmtNum(outCount)}`, trend: outCount > 0 ? 'negative' : 'positive' },
+          { label: isFr ? 'Stock Faible' : 'Low Stock', value: lowCount, formattedValue: `${fmtNum(lowCount)}`, trend: lowCount > 0 ? 'negative' : 'positive' },
         ],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
-        followUpSuggestions: [
-          'What is my inventory valuation?',
-          'What is my best-selling product?',
-          'Who owes me money?',
-        ],
+        followUpSuggestions: isFr
+          ? ['Quelle est la valeur de mon stock ?', 'Quel est mon produit le plus vendu ?', 'Qui me doit de l’argent ?']
+          : [
+              'What is my inventory valuation?',
+              'What is my best-selling product?',
+              'Who owes me money?',
+            ],
       };
     }
 
@@ -1257,7 +1422,15 @@ ${
       q.includes('debtor') ||
       q.includes('unpaid') ||
       q.includes('receivable') ||
-      q.includes('owe me')
+      q.includes('owe me') ||
+      q.includes('qui me doit') ||
+      q.includes('dettes') ||
+      q.includes('créances') ||
+      q.includes('creances') ||
+      q.includes('impayés') ||
+      q.includes('impayes') ||
+      q.includes('débiteurs') ||
+      q.includes('debiteurs')
     ) {
       const totalDebt = Number(debtorSummary.totalOutstandingDebt ?? debtors.totalOutstandingDebt ?? osCustomers?.totalOutstandingDebt ?? 0);
       const debtorCount = Number(debtorSummary.debtorsCount ?? debtors.debtorsCount ?? osCustomers?.debtorsCount ?? 0);
@@ -1265,40 +1438,52 @@ ${
 
       if (debtorCount === 0 || totalDebt === 0) {
         return {
-          answer: `You currently have **no outstanding customer debts** (0 unpaid balances recorded across all customer accounts).`,
+          answer: isFr
+            ? `Vous n'avez actuellement **aucun impayé client** (0 solde débiteur sur l'ensemble de vos comptes clients).`
+            : `You currently have **no outstanding customer debts** (0 unpaid balances recorded across all customer accounts).`,
           keyMetrics: [
-            { label: 'Outstanding Debt', value: 0, formattedValue: `${currency} 0`, trend: 'positive' },
-            { label: 'Debtor Accounts', value: 0, formattedValue: '0', trend: 'positive' },
+            { label: isFr ? 'Total Créances' : 'Outstanding Debt', value: 0, formattedValue: fmtCur(0), trend: 'positive' },
+            { label: isFr ? 'Comptes Débiteurs' : 'Debtor Accounts', value: 0, formattedValue: '0', trend: 'positive' },
           ],
           confidence: 'high_confidence',
           responseSource: 'DETERMINISTIC_FALLBACK',
           provider: 'deterministic_fallback',
-          followUpSuggestions: [
-            'What is my net profit?',
-            'What is my inventory valuation?',
-            'How are my sales today?',
-          ],
+          followUpSuggestions: isFr
+            ? ['Quel est mon bénéfice net ?', 'Quelle est la valeur de mon stock ?', 'Comment se portent mes ventes aujourd’hui ?']
+            : [
+                'What is my net profit?',
+                'What is my inventory valuation?',
+                'How are my sales today?',
+              ],
         };
       }
 
-      const debtorBreakdown = topList
-        .map((d, i) => `${i + 1}. **${d.name}**: ${currency} ${Number(d.debtAmount).toLocaleString()}${d.phone ? ` (${d.phone})` : ''}`)
-        .join('\n');
+      const debtorBreakdown = isFr
+        ? topList
+            .map((d, i) => `${i + 1}. **${d.name}**: ${fmtCur(Number(d.debtAmount))}${d.phone ? ` (${d.phone})` : ''}`)
+            .join('\n')
+        : topList
+            .map((d, i) => `${i + 1}. **${d.name}**: ${currency} ${Number(d.debtAmount).toLocaleString()}${d.phone ? ` (${d.phone})` : ''}`)
+            .join('\n');
 
       return {
-        answer: `You currently have **${debtorCount} customer account(s)** with outstanding credit balances totaling **${currency} ${totalDebt.toLocaleString()}**:\n\n${debtorBreakdown}\n\nReaching out to these customers will help recover liquid working capital for inventory purchases.`,
+        answer: isFr
+          ? `Vous avez actuellement **${fmtNum(debtorCount)} compte(s) client(s)** avec des créances en attente totalisant **${fmtCur(totalDebt)}** :\n\n${debtorBreakdown}\n\nRelancer ces clients permettra de récupérer des liquidités indispensables au fonds de roulement.`
+          : `You currently have **${debtorCount} customer account(s)** with outstanding credit balances totaling **${currency} ${totalDebt.toLocaleString()}**:\n\n${debtorBreakdown}\n\nReaching out to these customers will help recover liquid working capital for inventory purchases.`,
         keyMetrics: [
-          { label: 'Outstanding Receivables', value: totalDebt, formattedValue: `${currency} ${totalDebt.toLocaleString()}`, trend: 'negative' },
-          { label: 'Debtor Accounts', value: debtorCount, formattedValue: `${debtorCount}`, trend: 'neutral' },
+          { label: isFr ? 'Créances Clients' : 'Outstanding Receivables', value: totalDebt, formattedValue: fmtCur(totalDebt), trend: 'negative' },
+          { label: isFr ? 'Clients Débiteurs' : 'Debtor Accounts', value: debtorCount, formattedValue: `${fmtNum(debtorCount)}`, trend: 'neutral' },
         ],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
-        followUpSuggestions: [
-          'What is my net profit?',
-          'What are my biggest operating expenses?',
-          'How are my sales today?',
-        ],
+        followUpSuggestions: isFr
+          ? ['Quel est mon bénéfice net ?', 'Quelles sont mes plus grandes dépenses ?', 'Comment se portent mes ventes aujourd’hui ?']
+          : [
+              'What is my net profit?',
+              'What are my biggest operating expenses?',
+              'How are my sales today?',
+            ],
       };
     }
 
@@ -1316,21 +1501,25 @@ ${
       const totalDebt = Number(debtorSummary.totalOutstandingDebt ?? debtors.totalOutstandingDebt ?? 0);
 
       return {
-        answer: `### Executive Summary\n**${ctx.businessName}** generated **${currency} ${totalRev.toLocaleString()}** in revenue across **${txCount}** completed transaction(s) over the last 30 days, achieving a **${grossMargin}% gross margin** (${currency} ${grossProfit.toLocaleString()} gross profit) and **${currency} ${netProfit.toLocaleString()} in estimated net profit**.\n\n### Analytical Diagnostics & Data Breakdown\n- **Revenue Volume:** ${currency} ${totalRev.toLocaleString()} (${txCount} transactions)\n- **Cost of Goods (COGS):** ${currency} ${Number(ledger.cost_of_goods_sold || (totalRev - grossProfit)).toLocaleString()}\n- **Operating Expenses:** ${currency} ${opExpenses.toLocaleString()}\n- **Net Profit:** ${currency} ${netProfit.toLocaleString()}\n- **Inventory Status:** ${outCount} depleted SKU(s)\n- **Receivables Exposure:** ${currency} ${totalDebt.toLocaleString()} in open customer credit\n\n### Strategic Recommendations\n1. **Protect Top Sellers:** Restock any depleted SKUs to avoid lost sales.\n2. **Collect Open Debts:** Send payment reminders to debtor accounts to recover liquid cash.\n3. **Maintain Margin Discipline:** Ensure sales prices cover replacement costs and operating overhead.`,
+        answer: isFr
+          ? `### Synthèse Opérationnelle\n**${ctx.businessName}** a réalisé un chiffre d'affaires de **${fmtCur(totalRev)}** sur **${fmtNum(txCount)}** transaction(s) au cours des 30 derniers jours, atteignant une **marge brute de ${grossMargin}%** (${fmtCur(grossProfit)} de marge brute) et **${fmtCur(netProfit)} de bénéfice net estimé**.\n\n### Diagnostics Analytiques & Données Clés\n- **Chiffre d'Affaires :** ${fmtCur(totalRev)} (${fmtNum(txCount)} transactions)\n- **Coût des Marchandises (PEPS) :** ${fmtCur(Number(ledger.cost_of_goods_sold || (totalRev - grossProfit)))}\n- **Dépenses d'Exploitation :** ${fmtCur(opExpenses)}\n- **Bénéfice Net :** ${fmtCur(netProfit)}\n- **État du Stock :** ${fmtNum(outCount)} référence(s) épuisée(s)\n- **Créances Clients :** ${fmtCur(totalDebt)} d'encours de crédit à recouvrer\n\n### Recommandations Stratégiques\n1. **Protéger les Ventes Clés :** Réapprovisionner sans délai les produits épuisés.\n2. **Recouvrement :** Envoyer des rappels de paiement aux clients débiteurs pour reconstituer la trésorerie.\n3. **Discipline de Marge :** Veiller à ce que les prix de vente couvrent l'augmentation des coûts d'approvisionnement et les charges fixes.`
+          : `### Executive Summary\n**${ctx.businessName}** generated **${currency} ${totalRev.toLocaleString()}** in revenue across **${txCount}** completed transaction(s) over the last 30 days, achieving a **${grossMargin}% gross margin** (${currency} ${grossProfit.toLocaleString()} gross profit) and **${currency} ${netProfit.toLocaleString()} in estimated net profit**.\n\n### Analytical Diagnostics & Data Breakdown\n- **Revenue Volume:** ${currency} ${totalRev.toLocaleString()} (${txCount} transactions)\n- **Cost of Goods (COGS):** ${currency} ${Number(ledger.cost_of_goods_sold || (totalRev - grossProfit)).toLocaleString()}\n- **Operating Expenses:** ${currency} ${opExpenses.toLocaleString()}\n- **Net Profit:** ${currency} ${netProfit.toLocaleString()}\n- **Inventory Status:** ${outCount} depleted SKU(s)\n- **Receivables Exposure:** ${currency} ${totalDebt.toLocaleString()} in open customer credit\n\n### Strategic Recommendations\n1. **Protect Top Sellers:** Restock any depleted SKUs to avoid lost sales.\n2. **Collect Open Debts:** Send payment reminders to debtor accounts to recover liquid cash.\n3. **Maintain Margin Discipline:** Ensure sales prices cover replacement costs and operating overhead.`,
         keyMetrics: [
-          { label: 'Revenue (30d)', value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: 'positive' },
-          { label: 'Gross Margin', value: grossMargin, formattedValue: `${grossMargin}%`, trend: grossMargin >= 30 ? 'positive' : 'neutral' },
-          { label: 'Estimated Net Profit', value: netProfit, formattedValue: `${currency} ${netProfit.toLocaleString()}`, trend: netProfit >= 0 ? 'positive' : 'negative' },
-          { label: 'Transactions', value: txCount, formattedValue: `${txCount}`, trend: 'neutral' },
+          { label: isFr ? 'CA (30j)' : 'Revenue (30d)', value: totalRev, formattedValue: fmtCur(totalRev), trend: 'positive' },
+          { label: isFr ? 'Marge Brute' : 'Gross Margin', value: grossMargin, formattedValue: `${grossMargin}%`, trend: grossMargin >= 30 ? 'positive' : 'neutral' },
+          { label: isFr ? 'Bénéfice Net Estimé' : 'Estimated Net Profit', value: netProfit, formattedValue: fmtCur(netProfit), trend: netProfit >= 0 ? 'positive' : 'negative' },
+          { label: isFr ? 'Transactions' : 'Transactions', value: txCount, formattedValue: `${fmtNum(txCount)}`, trend: 'neutral' },
         ],
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
-        followUpSuggestions: [
-          'What is my best-selling product?',
-          'Which products are low on stock?',
-          'What are my biggest operating expenses?',
-        ],
+        followUpSuggestions: isFr
+          ? ['Quel est mon produit le plus vendu ?', 'Quels sont les produits en rupture de stock ?', 'Quelles sont mes plus grandes dépenses ?']
+          : [
+              'What is my best-selling product?',
+              'Which products are low on stock?',
+              'What are my biggest operating expenses?',
+            ],
       };
     }
 
@@ -1347,22 +1536,26 @@ ${
     const totalDebt = Number(debtorSummary.totalOutstandingDebt ?? debtors.totalOutstandingDebt ?? osCustomers?.totalOutstandingDebt ?? 0);
 
     return {
-      answer: `Here is the current operational health of **${ctx.businessName}** across the operating system:\n\n- **Recent Performance (30 Days):** **${currency} ${totalRev.toLocaleString()}** in sales across **${txCount}** transactions, producing **${currency} ${grossProfit.toLocaleString()}** in gross profit (${grossMargin}% margin) and **${currency} ${netProfit.toLocaleString()}** in estimated net profit.\n- **Inventory Assets:** **${currency} ${totalCostValuation.toLocaleString()}** in catalog stock valuation at acquisition cost.\n- **Customer Credit:** **${currency} ${totalDebt.toLocaleString()}** in open receivables awaiting collection.\n\nWhat domain would you like to explore deeper? You can ask about product margins, operating expenses, stock replenishment, or today's register.`,
+      answer: isFr
+        ? `Voici la situation opérationnelle de **${ctx.businessName}** dans votre système d'exploitation :\n\n- **Performance Récente (30 jours) :** **${fmtCur(totalRev)}** de ventes sur **${fmtNum(txCount)}** transactions, générant **${fmtCur(grossProfit)}** de bénéfice brut (${grossMargin}% de marge) et **${fmtCur(netProfit)}** de bénéfice net estimé.\n- **Actifs en Stock :** **${fmtCur(totalCostValuation)}** de valorisation d'inventaire au coût d'achat.\n- **Crédit Clients :** **${fmtCur(totalDebt)}** de créances ouvertes en attente de paiement.\n\nQuel domaine souhaitez-vous explorer davantage ? Vous pouvez poser des questions sur les marges de vos produits, les charges, le réapprovisionnement ou les ventes du jour.`
+        : `Here is the current operational health of **${ctx.businessName}** across the operating system:\n\n- **Recent Performance (30 Days):** **${currency} ${totalRev.toLocaleString()}** in sales across **${txCount}** transactions, producing **${currency} ${grossProfit.toLocaleString()}** in gross profit (${grossMargin}% margin) and **${currency} ${netProfit.toLocaleString()}** in estimated net profit.\n- **Inventory Assets:** **${currency} ${totalCostValuation.toLocaleString()}** in catalog stock valuation at acquisition cost.\n- **Customer Credit:** **${currency} ${totalDebt.toLocaleString()}** in open receivables awaiting collection.\n\nWhat domain would you like to explore deeper? You can ask about product margins, operating expenses, stock replenishment, or today's register.`,
       keyMetrics: [
-        { label: 'Revenue (30d)', value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: totalRev > 0 ? 'positive' : 'neutral' },
-        { label: 'Gross Margin', value: grossMargin, formattedValue: `${grossMargin}%`, trend: 'neutral' },
-        { label: 'Estimated Net Profit', value: netProfit, formattedValue: `${currency} ${netProfit.toLocaleString()}`, trend: netProfit >= 0 ? 'positive' : 'negative' },
-        { label: 'Stock Valuation (Cost)', value: totalCostValuation, formattedValue: `${currency} ${totalCostValuation.toLocaleString()}`, trend: 'neutral' },
+        { label: isFr ? 'CA (30j)' : 'Revenue (30d)', value: totalRev, formattedValue: fmtCur(totalRev), trend: totalRev > 0 ? 'positive' : 'neutral' },
+        { label: isFr ? 'Marge Brute' : 'Gross Margin', value: grossMargin, formattedValue: `${grossMargin}%`, trend: 'neutral' },
+        { label: isFr ? 'Bénéfice Net Estimé' : 'Estimated Net Profit', value: netProfit, formattedValue: fmtCur(netProfit), trend: netProfit >= 0 ? 'positive' : 'negative' },
+        { label: isFr ? 'Valeur Stock (Coût)' : 'Stock Valuation (Cost)', value: totalCostValuation, formattedValue: fmtCur(totalCostValuation), trend: 'neutral' },
       ],
       confidence: txCount > 0 ? 'high_confidence' : 'insufficient_data',
       responseSource: 'DETERMINISTIC_FALLBACK',
       provider: 'deterministic_fallback',
-      followUpSuggestions: [
-        'What is my profit this month?',
-        'What are my biggest operating expenses?',
-        'Which products are low on stock?',
-        'Who owes me money?',
-      ],
+      followUpSuggestions: isFr
+        ? ['Quel est mon bénéfice ce mois-ci ?', 'Quelles sont mes plus grandes dépenses ?', 'Quels sont les produits en rupture de stock ?', 'Qui me doit de l’argent ?']
+        : [
+            'What is my profit this month?',
+            'What are my biggest operating expenses?',
+            'Which products are low on stock?',
+            'Who owes me money?',
+          ],
     };
   }
 
@@ -1372,6 +1565,10 @@ ${
   public static async generateDailyBrief(ctx: ChatReasoningContext): Promise<AIDailyBrief> {
     const briefFacts = (ctx.toolResults.get_daily_brief_facts || {}) as any;
     const currency = ctx.currency || 'XAF';
+    const isFr = (ctx.language || '').toLowerCase().startsWith('fr');
+
+    const fmtNum = (n: number) => isFr ? n.toLocaleString('fr-FR') : n.toLocaleString('en-US');
+    const fmtCur = (n: number) => isFr ? `${fmtNum(n)} ${currency}` : `${currency} ${fmtNum(n)}`;
 
     const revenue = Number(briefFacts.todayMetrics?.revenueToday ?? 0);
     const transactions = Number(briefFacts.todayMetrics?.transactionCountToday ?? 0);
@@ -1382,42 +1579,73 @@ ${
     const inventoryAlerts: string[] = [];
     if (briefFacts.inventoryAlerts?.criticalItemsToRestock?.length) {
       for (const item of briefFacts.inventoryAlerts.criticalItemsToRestock.slice(0, 4)) {
-        inventoryAlerts.push(`${item.name} (${item.currentStock} remaining - ${item.status})`);
+        if (isFr) {
+          inventoryAlerts.push(`${item.name} (${fmtNum(item.currentStock)} restants - ${item.status === 'OUT_OF_STOCK' ? 'Épuisé' : 'Stock faible'})`);
+        } else {
+          inventoryAlerts.push(`${item.name} (${item.currentStock} remaining - ${item.status})`);
+        }
       }
     }
 
     const debtFollowUps: string[] = [];
     if (briefFacts.debtorAlerts?.topDebtors?.length) {
       for (const debtor of briefFacts.debtorAlerts.topDebtors.slice(0, 3)) {
-        debtFollowUps.push(`${debtor.name} owes ${currency} ${Number(debtor.debtAmount).toLocaleString()}`);
+        if (isFr) {
+          debtFollowUps.push(`${debtor.name} doit ${fmtCur(Number(debtor.debtAmount))}`);
+        } else {
+          debtFollowUps.push(`${debtor.name} owes ${currency} ${Number(debtor.debtAmount).toLocaleString()}`);
+        }
       }
     }
 
-    const headline = transactions > 0
-      ? `${transactions} transaction(s) logged today generating ${currency} ${revenue.toLocaleString()}`
-      : `No transactions recorded yet today for ${ctx.businessName}`;
+    const headline = isFr
+      ? (transactions > 0
+          ? `${fmtNum(transactions)} transaction(s) enregistrée(s) aujourd'hui pour ${fmtCur(revenue)} de ventes`
+          : `Aucune transaction enregistrée pour l'instant aujourd'hui pour ${ctx.businessName}`)
+      : (transactions > 0
+          ? `${transactions} transaction(s) logged today generating ${currency} ${revenue.toLocaleString()}`
+          : `No transactions recorded yet today for ${ctx.businessName}`);
 
-    const keyTakeaways: string[] = [
-      `Today's Revenue: ${currency} ${revenue.toLocaleString()} across ${transactions} order(s)`,
-      `Cash Collected: ${currency} ${amountCollected.toLocaleString()}`,
-    ];
+    const keyTakeaways: string[] = isFr
+      ? [
+          `Recette du jour : ${fmtCur(revenue)} sur ${fmtNum(transactions)} commande(s)`,
+          `Espèces encaissées : ${fmtCur(amountCollected)}`,
+        ]
+      : [
+          `Today's Revenue: ${currency} ${revenue.toLocaleString()} across ${transactions} order(s)`,
+          `Cash Collected: ${currency} ${amountCollected.toLocaleString()}`,
+        ];
 
     if (outstandingReceivables > 0) {
-      keyTakeaways.push(`Open Customer Debt: ${currency} ${outstandingReceivables.toLocaleString()} across ${briefFacts.debtorAlerts?.debtorsCount || 0} account(s)`);
+      if (isFr) {
+        keyTakeaways.push(`Créances clients ouvertes : ${fmtCur(outstandingReceivables)} sur ${fmtNum(briefFacts.debtorAlerts?.debtorsCount || 0)} compte(s)`);
+      } else {
+        keyTakeaways.push(`Open Customer Debt: ${currency} ${outstandingReceivables.toLocaleString()} across ${briefFacts.debtorAlerts?.debtorsCount || 0} account(s)`);
+      }
     }
 
-    const recommendedFocusToday = inventoryAlerts.length > 0
-      ? `Review depleted inventory items to prevent missed sales.`
-      : outstandingReceivables > 0
-      ? `Follow up with top debtor accounts to recover working capital.`
-      : `Focus on customer checkout service and recording daily transactions.`;
+    const recommendedFocusToday = isFr
+      ? (inventoryAlerts.length > 0
+          ? `Vérifier les articles en rupture pour éviter des ventes manquées.`
+          : outstandingReceivables > 0
+          ? `Relancer les principaux débiteurs pour récupérer du fonds de roulement.`
+          : `Se concentrer sur le service client en caisse et l'enregistrement rigoureux des ventes.`)
+      : (inventoryAlerts.length > 0
+          ? `Review depleted inventory items to prevent missed sales.`
+          : outstandingReceivables > 0
+          ? `Follow up with top debtor accounts to recover working capital.`
+          : `Focus on customer checkout service and recording daily transactions.`);
+
+    const executiveSummary = isFr
+      ? `${ctx.businessName} a enregistré ${fmtNum(transactions)} commande(s) aujourd'hui générant ${fmtCur(revenue)}. ${inventoryAlerts.length > 0 ? `${fmtNum(inventoryAlerts.length)} produit(s) nécessitent un réapprovisionnement.` : 'Le stock du catalogue est convenablement approvisionné.'}`
+      : `${ctx.businessName} has recorded ${transactions} order(s) today generating ${currency} ${revenue.toLocaleString()}. ${inventoryAlerts.length > 0 ? `${inventoryAlerts.length} product(s) require inventory replenishment.` : 'Catalog inventory is adequately stocked.'}`;
 
     return {
       generatedAt: new Date().toISOString(),
       businessName: ctx.businessName,
       currency,
       headline,
-      executiveSummary: `${ctx.businessName} has recorded ${transactions} order(s) today generating ${currency} ${revenue.toLocaleString()}. ${inventoryAlerts.length > 0 ? `${inventoryAlerts.length} product(s) require inventory replenishment.` : 'Catalog inventory is adequately stocked.'}`,
+      executiveSummary,
       performanceSnapshot: {
         revenue,
         transactions,

@@ -142,6 +142,7 @@ export interface AIChatRequestPayload {
   businessId: string;
   conversationId?: string;
   message: string;
+  language?: 'en' | 'fr';
   history?: Array<{
     role: 'user' | 'assistant';
     content: string;
