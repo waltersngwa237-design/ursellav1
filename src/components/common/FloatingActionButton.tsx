@@ -42,9 +42,9 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
       bg: 'bg-blue-500/15 border-blue-500/30 hover:bg-blue-500/25',
     },
     {
-      label: 'Record Expense',
+      label: 'Add Expense',
       description: 'Track outgoing cash',
-      route: 'business' as AppNavRoute,
+      route: 'expenses' as AppNavRoute,
       icon: <Receipt className="w-5 h-5 text-amber-400" />,
       bg: 'bg-amber-500/15 border-amber-500/30 hover:bg-amber-500/25',
     },

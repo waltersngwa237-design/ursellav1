@@ -276,13 +276,11 @@ export const AppShell: React.FC<AppShellProps> = ({
   };
 
   // Check if current route is a "menu-tier" secondary page
-  const isMenuSectionActive = ['insights', 'analytics', 'reports', 'customers', 'data-io', 'billing', 'more'].includes(currentRoute);
+  const isMenuSectionActive = ['insights', 'analytics', 'reports', 'customers', 'data-io', 'billing', 'more', 'expenses'].includes(currentRoute);
 
   return (
     <div
-      className={`bg-zinc-950 text-zinc-100 flex flex-col md:flex-row ${
-        currentRoute === 'ai' ? 'h-screen md:h-screen overflow-hidden' : 'min-h-screen'
-      }`}
+      className="bg-zinc-950 text-zinc-100 flex flex-col md:flex-row h-screen overflow-hidden"
       style={{
         paddingTop: currentRoute === 'ai' ? '0px' : 'var(--offline-banner-height, 0px)',
         transition: 'padding-top 0.2s ease-out',
@@ -313,7 +311,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             Core Modules
           </div>
           {navItems.map((item) => {
-            const isActive = currentRoute === item.route;
+            const isActive = currentRoute === item.route || (item.route === 'business' && currentRoute === 'expenses');
             return (
               <button
                 key={item.route}
@@ -378,10 +376,10 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* MAIN CONTENT AREA & TOPBAR                                                */}
       {/* ========================================================================= */}
       <div 
-        className={`flex-1 flex flex-col min-w-0 min-h-0 ${
+        className={`flex-1 overflow-hidden flex flex-col min-w-0 min-h-0 ${
           currentRoute === 'ai' 
-            ? 'fixed inset-0 z-20 md:relative md:inset-auto md:z-auto md:h-screen overflow-hidden' 
-            : 'pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8'
+            ? 'fixed inset-0 z-20 md:relative md:inset-auto md:z-auto md:h-screen' 
+            : 'relative h-full'
         }`}
         style={{
           height: currentRoute === 'ai' && viewportHeight ? `${viewportHeight}px` : undefined,
@@ -511,10 +509,10 @@ export const AppShell: React.FC<AppShellProps> = ({
         )}
 
         {/* Page Body */}
-        <main className={`flex-1 w-full min-h-0 ${
+        <main className={`flex-1 w-full min-h-0 overflow-y-auto ${
           currentRoute === 'ai' 
             ? 'p-0 max-w-none flex flex-col overflow-hidden' 
-            : 'p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto'
+            : 'p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-8'
         }`}>
           {React.Children.map(children, (child) => {
             if (React.isValidElement(child)) {
@@ -723,13 +721,13 @@ export const AppShell: React.FC<AppShellProps> = ({
           </button>
 
           <button
-            onClick={() => handleQuickAction('business')}
+            onClick={() => handleQuickAction('expenses')}
             className="flex flex-col items-center text-center p-4 rounded-xl bg-zinc-800/70 hover:bg-amber-500/10 hover:border-amber-500/30 border border-zinc-700/60 transition-all group"
           >
             <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
               <Receipt className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold text-zinc-100">Record Expense</span>
+            <span className="text-xs font-bold text-zinc-100">Add Expense</span>
             <span className="text-[10px] text-zinc-400 mt-0.5">Track outgoing cash</span>
           </button>
 

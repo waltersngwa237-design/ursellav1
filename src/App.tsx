@@ -42,7 +42,7 @@ const MainRouter: React.FC = () => {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#/', '').replace('#', '');
-      if (['home', 'sell', 'analytics', 'reports', 'business', 'customers', 'data-io', 'billing', 'ai', 'insights', 'more'].includes(hash)) {
+      if (['home', 'sell', 'analytics', 'reports', 'business', 'customers', 'data-io', 'billing', 'ai', 'insights', 'more', 'expenses'].includes(hash)) {
         // Any hash change navigation should clear one-time prompt state
         setAiPrompt(undefined);
         setCurrentRoute(hash as AppNavRoute);
@@ -145,7 +145,8 @@ const MainRouter: React.FC = () => {
         {currentRoute === 'sell' && <SellPage />}
         {currentRoute === 'analytics' && <AnalyticsPage onNavigate={navigateTo} />}
         {currentRoute === 'reports' && <ReportsPage businessId={activeBusiness.id} />}
-        {currentRoute === 'business' && <BusinessPage />}
+        {currentRoute === 'business' && <BusinessPage initialTab="catalog" />}
+        {currentRoute === 'expenses' && <BusinessPage initialTab="expenses" />}
         {currentRoute === 'customers' && <CustomersPage />}
         {currentRoute === 'data-io' && <DataImportExportPage businessId={activeBusiness.id} />}
         {currentRoute === 'billing' && <BillingPage businessId={activeBusiness.id} />}

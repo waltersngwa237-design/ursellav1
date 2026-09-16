@@ -237,7 +237,8 @@ export type AppNavRoute =
   | 'ai'
   | 'data-io'
   | 'billing'
-  | 'more';
+  | 'more'
+  | 'expenses';
 
 export interface SubscriptionPlan {
   id: string;

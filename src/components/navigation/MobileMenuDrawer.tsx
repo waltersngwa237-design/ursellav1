@@ -167,7 +167,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
               </div>
               <div className="space-y-1">
                 {section.items.map((item) => {
-                  const isActive = currentRoute === item.route;
+                  const isActive = currentRoute === item.route || (item.route === 'business' && currentRoute === 'expenses');
                   return (
                     <button
                       key={item.route}

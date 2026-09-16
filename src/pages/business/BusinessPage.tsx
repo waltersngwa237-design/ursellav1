@@ -99,11 +99,39 @@ export const UNIT_OF_MEASURE_GROUPS = [
   },
 ];
 
-export const BusinessPage: React.FC = () => {
+export interface BusinessPageProps {
+  initialTab?: 'catalog' | 'inventory' | 'categories' | 'expenses' | 'team';
+}
+
+export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalog' }) => {
   const { activeBusiness, currency } = useBusiness();
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
 
-  const [activeTab, setActiveTab] = useState<'catalog' | 'inventory' | 'categories' | 'expenses' | 'team'>('catalog');
+  const [activeTab, setActiveTab] = useState<'catalog' | 'inventory' | 'categories' | 'expenses' | 'team'>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      if (hash.includes('expense')) return 'expenses';
+    }
+    return initialTab;
+  });
+
+  // Sync activeTab when initialTab changes or when URL hash changes to expenses
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash.toLowerCase();
+      if (hash.includes('expense')) {
+        setActiveTab('expenses');
+      }
+    };
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
 
   // ==========================================
   // STATE: CATALOG & PRODUCTS
