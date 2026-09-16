@@ -233,22 +233,22 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
   const currentRoleConfig = ROLE_CONFIGS[effectiveRole] || ROLE_CONFIGS.owner;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 w-full min-w-0 overflow-x-hidden">
       {/* Header & Role Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-emerald-400 mb-1">
-            <FileText className="w-5 h-5" />
+            <FileText className="w-5 h-5 shrink-0" />
             <span className="text-xs font-bold uppercase tracking-wider">Financial & Register Intelligence</span>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Business Financial & Register Reports</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight break-words">Business Financial & Register Reports</h1>
           <p className="text-xs text-zinc-400 mt-1">
             Auditable, GAAP-aligned financial statements, register shift closeouts (Z-Reports), and tax estimates.
           </p>
         </div>
 
         {/* Role Simulator Switcher & Actions */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {/* Role badge with switch popover / dropdown */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-700 bg-zinc-900 text-xs">
             <span className="text-zinc-400">Role:</span>
@@ -302,7 +302,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
       </div>
 
       {/* Report Type Selector */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin max-w-full">
         {reportTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeReport === tab.id;
@@ -312,7 +312,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
             <button
               key={tab.id}
               onClick={() => setActiveReport(tab.id)}
-              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
                 isActive
                   ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                   : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
@@ -372,12 +372,12 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
         </div>
       ) : activeReport === 'z_reports' ? (
         /* Register Closeouts & Z-Reports Dashboard */
-        <div className="space-y-6">
+        <div className="space-y-6 w-full min-w-0">
           {/* Active Shift Card */}
-          <div className="p-6 rounded-2xl border border-zinc-800 bg-zinc-900 shadow-xl space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
+          <div className="p-4 sm:p-6 rounded-2xl border border-zinc-800 bg-zinc-900 shadow-xl space-y-5 overflow-hidden">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">
                     Live Cash Register
                   </span>
@@ -385,42 +385,47 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
                     {activeShift?.status === 'open' ? 'Open & Active' : 'Shift Closed'}
                   </Badge>
                 </div>
-                <h3 className="text-lg font-bold text-white mt-1">
+                <h3 className="text-lg font-bold text-white mt-1 break-words">
                   Shift #{activeShift?.shift_number || 1} &bull; Expected Z-Report: {activeShift?.z_report_number || 'Z-001'}
                 </h3>
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-zinc-400 mt-0.5 break-words">
                   Opened {activeShift?.opened_at ? new Date(activeShift.opened_at).toLocaleString() : 'Today'} by {activeShift?.opened_by || 'Store Cashier'}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => {
                     if (activeShift) {
                       HardwarePrinterService.printZReport(activeShift, activeBusiness, currencyConfig);
                     }
                   }}
+                  className="text-xs shrink-0"
+                  title="Print Mid-Day X-Reading Slip"
                 >
-                  <Printer className="w-4 h-4 mr-1.5" />
-                  Print Mid-Day X-Reading
+                  <Printer className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Print X-Reading</span>
                 </Button>
                 <Button
                   variant="primary"
+                  size="sm"
                   onClick={() => {
                     setSelectedShiftForModal(activeShift);
                     setIsCloseoutModalOpen(true);
                   }}
-                  className="bg-emerald-600 hover:bg-emerald-500"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold shadow-xs shrink-0"
+                  title="Perform End-of-Day Closeout (Z-Report)"
                 >
-                  <Receipt className="w-4 h-4 mr-1.5" />
-                  Perform End-of-Day Closeout (Z-Report)
+                  <Receipt className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Perform Closeout (Z-Report)</span>
                 </Button>
               </div>
             </div>
 
             {/* Live Register Balance Breakdown */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/60">
                 <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">Opening Float</span>
                 <p className="text-base font-bold font-mono text-zinc-200 mt-1">

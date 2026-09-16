@@ -476,13 +476,13 @@ export const RegisterCloseoutModal: React.FC<RegisterCloseoutModalProps> = ({
             )}
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
-              <Button variant="outline" onClick={onClose}>
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+              <Button variant="outline" size="sm" onClick={onClose} className="w-full sm:w-auto">
                 {shift.status === 'open' ? 'Keep Shift Open' : 'Close'}
               </Button>
 
               {shift.status === 'open' && (
-                <Button variant="primary" onClick={handleCloseShift}>
+                <Button variant="primary" size="sm" onClick={handleCloseShift} className="w-full sm:w-auto">
                   <CheckCircle2 className="w-4 h-4 mr-1.5" />
                   Seal & Close Shift (Print Z-Report)
                 </Button>
