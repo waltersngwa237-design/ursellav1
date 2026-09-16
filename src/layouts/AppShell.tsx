@@ -246,7 +246,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     { route: 'home', label: 'Home', icon: <Home className="w-5 h-5" /> },
     { route: 'sell', label: 'Sell / POS', icon: <ShoppingCart className="w-5 h-5" /> },
     { route: 'insights', label: 'Proactive AI', icon: <Activity className="w-5 h-5 text-indigo-400" /> },
-    { route: 'ai', label: 'AI Advisor', icon: <UrsellaAIGlyph sizeClass="w-5 h-5" /> },
+    { route: 'ai', label: 'Ursella AI', icon: <UrsellaAIGlyph sizeClass="w-5 h-5" /> },
     { route: 'analytics', label: 'Analytics', icon: <BarChart3 className="w-5 h-5 text-emerald-400" /> },
     { route: 'reports', label: 'Reports', icon: <FileText className="w-5 h-5 text-teal-400" /> },
     { route: 'business', label: 'Business & Stock', icon: <Store className="w-5 h-5" /> },
@@ -412,7 +412,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs sm:text-sm font-bold text-white tracking-tight truncate">
-                      AI Advisor
+                      Ursella AI
                     </span>
                   </div>
                   {activeBusiness?.name && (
@@ -623,7 +623,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           <span className="text-[10px] mt-0.5 leading-none font-semibold text-blue-400">Actions</span>
         </button>
 
-        {/* 4. AI Advisor Tab */}
+        {/* 4. AI Advisor / Ursella AI Tab */}
         <button
           onClick={() => handleNavWithHaptic('ai')}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
@@ -639,7 +639,7 @@ export const AppShell: React.FC<AppShellProps> = ({
               className={currentRoute === 'ai' ? '' : isDark ? 'opacity-60' : 'opacity-80'}
             />
           </div>
-          <span className="text-[10px] mt-0.5 leading-none font-medium">AI Advisor</span>
+          <span className="text-[10px] mt-0.5 leading-none font-medium">Ursella AI</span>
         </button>
 
         {/* 5. Menu Bar Drawer Trigger */}

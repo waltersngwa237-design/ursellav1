@@ -168,7 +168,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
   try {
     const payload: AIChatRequestPayload = req.body;
-    const { businessId, message, conversationId, history = [], preferredTimeHorizonDays = 30, businessContext } = payload;
+    const { businessId, message, conversationId, history = [], preferredTimeHorizonDays = 30, businessContext, osContext } = payload;
 
     if (!businessId || !message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Missing required parameters: businessId and message are mandatory.' });
@@ -303,7 +303,35 @@ app.post('/api/ai/chat', async (req, res) => {
             toolResults[toolName] = res;
           })
         );
+      } else if (toolName === 'get_financial_ledger') {
+        toolExecutionPromises.push(
+          BusinessToolsService.getFinancialLedger(businessId, intentResult.timePeriod || 'last_30_days', timezone).then((res) => {
+            toolResults[toolName] = res;
+          })
+        );
+      } else if (toolName === 'get_inventory_health') {
+        toolExecutionPromises.push(
+          BusinessToolsService.getInventoryHealth(businessId).then((res) => {
+            toolResults[toolName] = res;
+          })
+        );
+      } else if (toolName === 'get_debtor_and_receivables_summary') {
+        toolExecutionPromises.push(
+          BusinessToolsService.getDebtorAndReceivablesSummary(businessId).then((res) => {
+            toolResults[toolName] = res;
+          })
+        );
+      } else if (toolName === 'get_expense_breakdown') {
+        toolExecutionPromises.push(
+          BusinessToolsService.getExpenseBreakdown(businessId, horizon, timezone).then((res) => {
+            toolResults[toolName] = res;
+          })
+        );
       }
+    }
+
+    if (osContext) {
+      toolResults.comprehensive_os_context = osContext;
     }
 
     await Promise.all(toolExecutionPromises);
@@ -319,6 +347,7 @@ app.post('/api/ai/chat', async (req, res) => {
       taxRate,
       currentDateIso: new Date().toISOString(),
       toolResults,
+      osContext,
       conversationHistory: history,
       parsedIntent: {
         intent: intentResult.intent,

@@ -1359,10 +1359,35 @@ export const AnalyticsService = {
     businessId: string,
     timeHorizonDays = 30
   ): Promise<AIBusinessContextPayload> {
-    const analytics = await this.getCompleteAnalytics(
-      businessId,
-      timeHorizonDays <= 7 ? 'last_7_days' : timeHorizonDays <= 30 ? 'last_30_days' : 'this_month'
-    );
+    const [analytics, todayAnalytics, allTimeAnalytics] = await Promise.all([
+      this.getCompleteAnalytics(
+        businessId,
+        timeHorizonDays <= 7 ? 'last_7_days' : timeHorizonDays <= 30 ? 'last_30_days' : 'this_month'
+      ),
+      this.getCompleteAnalytics(businessId, 'today').catch(() => null),
+      this.getCompleteAnalytics(businessId, 'this_year').catch(() => null),
+    ]);
+
+    const todayFacts = todayAnalytics
+      ? {
+          revenue: todayAnalytics.financialOverview.revenue,
+          transactions: todayAnalytics.financialOverview.transactionCount,
+          cashCollected: todayAnalytics.financialOverview.amountCollected,
+          grossProfit: todayAnalytics.financialOverview.grossProfit,
+          grossMarginPct: todayAnalytics.financialOverview.grossMargin,
+        }
+      : undefined;
+
+    const allTimeFacts = allTimeAnalytics
+      ? {
+          totalSales: allTimeAnalytics.financialOverview.revenue,
+          totalOrders: allTimeAnalytics.financialOverview.transactionCount,
+          totalExpenses: allTimeAnalytics.financialOverview.operatingExpenses,
+          netProfit: allTimeAnalytics.financialOverview.estimatedNetProfit,
+          inventoryValuation: allTimeAnalytics.inventorySummary.totalValuation,
+          outstandingDebt: allTimeAnalytics.customerAnalytics.totalOutstandingDebt,
+        }
+      : undefined;
 
     return {
       version: '1.0',
@@ -1380,6 +1405,8 @@ export const AnalyticsService = {
         endDate: analytics.window.endDate,
         daysCount: timeHorizonDays,
       },
+      todayFacts,
+      allTimeFacts,
       financialSummary: {
         revenue: analytics.financialOverview.revenue,
         costOfGoodsSold: analytics.financialOverview.costOfGoodsSold,

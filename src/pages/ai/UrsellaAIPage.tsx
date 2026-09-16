@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext.tsx';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
 import { AIService } from '../../services/ai.service.ts';
+import { AnalyticsService } from '../../services/analytics.service.ts';
 import { generateUUID, isValidUUID } from '../../lib/uuid.ts';
 import {
   type AIChatMessage,
@@ -323,11 +324,21 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         content: m.content,
       }));
 
+      // Gather rich real-time operating system intelligence context from analytics service
+      let osContext: Record<string, unknown> | undefined = undefined;
+      try {
+        const fullContext = await AnalyticsService.getAIBusinessContext(activeBusiness.id, 30);
+        osContext = fullContext as unknown as Record<string, unknown>;
+      } catch (osErr) {
+        console.warn('[UrsellaAIPage] Failed to fetch enriched OS context, continuing with standard context:', osErr);
+      }
+
       const res = await AIService.sendChatMessage({
         businessId: activeBusiness.id,
         conversationId: convId,
         message: textToSend.trim(),
         history: historyPayload,
+        osContext,
         businessContext: {
           businessName: activeBusiness.name,
           businessType: activeBusiness.business_type || 'Retail & Trade',
@@ -852,7 +863,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                   <h1 className={`text-xs sm:text-sm font-bold truncate leading-tight tracking-tight ${
                     isDark ? 'text-zinc-100' : 'text-slate-900'
                   }`}>
-                    Ursella AI Advisor
+                    Ursella AI
                   </h1>
                 </div>
                 <p className={`text-[10px] sm:text-[11px] truncate mt-0.5 ${

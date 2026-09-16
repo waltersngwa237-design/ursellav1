@@ -20,6 +20,7 @@ export interface ChatReasoningContext {
   taxRate?: number;
   currentDateIso: string;
   toolResults: Record<string, unknown>;
+  osContext?: any;
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   parsedIntent?: {
     intent: string;
@@ -54,6 +55,22 @@ PLATFORM CONTEXT & GROUND TRUTH:
 - Active Enterprise: "${ctx.businessName}" (${ctx.businessType})
 - Operating Currency: "${ctx.currency}". Always format every financial figure with "${ctx.currency}".
 - Timezone: "${ctx.timezone}". Reference Date: ${ctx.currentDateIso.split('T')[0]}.
+
+FULL APP BUSINESS OPERATING SYSTEM SCOPE:
+- You have comprehensive visibility into the entire store OS and all functional domains:
+  * Sales velocity across all time horizons: Today, This Week, This Month, Last 30 Days, Year-to-Date, and All-Time.
+  * Inventory valuation & stock health: Total SKUs, valuation at cost (FIFO), valuation at retail, low-stock alerts, and out-of-stock items.
+  * Customer accounts & receivables: Total outstanding customer debt, active debtor accounts, and individual balances.
+  * Operating expenditures: Total expenses, expense counts, and category breakdowns.
+  * Exact financial calculations:
+    - Gross Profit = Revenue - FIFO Cost of Goods Sold (COGS)
+    - Gross Margin % = (Gross Profit / Revenue) * 100
+    - Net Profit = Gross Profit - Operating Expenses
+    - Net Margin % = (Net Profit / Revenue) * 100
+    - Cash Flow = Cash Collected - Cash Outflows
+- CRITICAL TEMPORAL SCOPE:
+  * NEVER restrict your analysis to "today's sales" unless the merchant explicitly asked about today!
+  * If the merchant asks general questions like "How are my sales?", "What is my profit?", "How is my store doing?", or "Give me a summary", answer with the comprehensive financial ledger, multi-period performance, and operational health.
 
 CONVERSATIONAL BEHAVIOR & ANSWER PRIORITY:
 1. ALWAYS ANSWER THE USER'S ACTUAL QUESTION IMMEDIATELY IN THE FIRST SENTENCE.
@@ -491,6 +508,19 @@ ${
     const currency = ctx.currency || 'XAF';
     const isExplicitReport = Boolean(ctx.parsedIntent?.isReportMode);
 
+    // New OS-wide domain tools & full OS context
+    const ledger = (ctx.toolResults.get_financial_ledger || {}) as any;
+    const invHealth = (ctx.toolResults.get_inventory_health || {}) as any;
+    const debtorSummary = (ctx.toolResults.get_debtor_and_receivables_summary || {}) as any;
+    const expenseBreakdown = (ctx.toolResults.get_expense_breakdown || {}) as any;
+    const osContext = (ctx.osContext || ctx.toolResults.comprehensive_os_context || {}) as any;
+    const osFin = osContext?.financialSummary;
+    const osToday = osContext?.todayFacts;
+    const osAllTime = osContext?.allTimeFacts;
+    const osInv = osContext?.inventoryFacts;
+    const osCustomers = osContext?.customerFacts;
+    const osExpenses = osContext?.expenseFacts;
+
     // =========================================================================
     // 1. GREETINGS & CHIT-CHAT (Conversational, no report headers, no database queries)
     // =========================================================================
@@ -893,35 +923,72 @@ ${
     }
 
     // =========================================================================
-    // 7. TIME-SPECIFIC SALES ("How are my sales today?", "How much did I make this month?")
+    // 7A. PROFITABILITY, MARGINS & EARNINGS ("What is my profit?", "Am I making money?")
     // =========================================================================
     if (
-      q.includes('this month') ||
-      q.includes('make this month') ||
-      q.includes('made this month')
+      q.includes('profit') ||
+      q.includes('margin') ||
+      q.includes('earnings') ||
+      q.includes('earn') ||
+      q.includes('making money') ||
+      q.includes('net income') ||
+      q.includes('p&l')
     ) {
-      const monthRev = Number(salesSummary.totalRevenue || overview.revenue || 0);
-      const monthOrders = Number(salesSummary.transactionCount || overview.transaction_count || 0);
-      const monthMargin = Number(salesSummary.grossMarginPct || overview.gross_margin || 0);
+      const rev = Number(ledger.revenue ?? osFin?.totalRevenue ?? salesSummary.totalRevenue ?? overview.revenue ?? 0);
+      const cogs = Number(ledger.cost_of_goods_sold ?? osFin?.costOfGoodsSold ?? overview.cost_of_goods_sold ?? 0);
+      const grossProfit = Number(ledger.gross_profit ?? osFin?.grossProfit ?? (rev - cogs));
+      const grossMarginPct = rev > 0 ? Number(((grossProfit / rev) * 100).toFixed(1)) : 0;
+      const opExpenses = Number(ledger.operating_expenses ?? osFin?.totalExpenses ?? expenseBreakdown.totalExpenses ?? expenses.totalExpenses ?? 0);
+      const netProfit = Number(ledger.estimated_net_profit ?? osFin?.netProfit ?? (grossProfit - opExpenses));
+      const netMarginPct = rev > 0 ? Number(((netProfit / rev) * 100).toFixed(1)) : 0;
+      const periodLabel = ledger.periodLabel || (q.includes('today') ? 'Today' : q.includes('week') ? 'This Week' : q.includes('year') ? 'This Year' : 'Last 30 Days');
+
+      if (rev === 0 && opExpenses === 0) {
+        return {
+          answer: `No sales transactions or operating expenses have been recorded for **${ctx.businessName}** in the selected period (${periodLabel}).\n\nOnce orders are recorded in the **POS** and overhead costs are logged in **Expenses**, your deterministic Gross and Net Profit calculations will update automatically.`,
+          confidence: 'insufficient_data',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          keyMetrics: [
+            { label: 'Revenue', value: 0, formattedValue: `${currency} 0`, trend: 'neutral' },
+            { label: 'Gross Profit', value: 0, formattedValue: `${currency} 0`, trend: 'neutral' },
+            { label: 'Net Profit', value: 0, formattedValue: `${currency} 0`, trend: 'neutral' },
+          ],
+          followUpSuggestions: [
+            'What is my inventory valuation?',
+            'Which products are low on stock?',
+            'Who owes me money?',
+          ],
+        };
+      }
+
+      const profitInsight = netProfit >= 0
+        ? `Your store is operating profitably with a **${netMarginPct}% net margin** after accounting for overhead.`
+        : `Your operating expenses currently exceed gross profit for this period, yielding a net deficit of **${currency} ${Math.abs(netProfit).toLocaleString()}**.`;
 
       return {
-        answer: `This month, **${ctx.businessName}** has generated **${currency} ${monthRev.toLocaleString()}** in recorded sales across **${monthOrders}** order(s), with a **${monthMargin}%** gross margin.`,
-        keyMetrics: [
-          { label: 'Monthly Revenue', value: monthRev, formattedValue: `${currency} ${monthRev.toLocaleString()}`, trend: 'positive' },
-          { label: 'Monthly Orders', value: monthOrders, formattedValue: `${monthOrders}`, trend: 'neutral' },
-          { label: 'Gross Margin', value: monthMargin, formattedValue: `${monthMargin}%`, trend: 'positive' },
-        ],
+        answer: `For **${periodLabel}**, **${ctx.businessName}** generated **${currency} ${rev.toLocaleString()}** in revenue with **${currency} ${cogs.toLocaleString()}** in FIFO Cost of Goods Sold, producing a **Gross Profit of ${currency} ${grossProfit.toLocaleString()} (${grossMarginPct}% gross margin)**.\n\nAfter accounting for **${currency} ${opExpenses.toLocaleString()}** in operating expenses, your **Estimated Net Profit is ${currency} ${netProfit.toLocaleString()} (${netMarginPct}% net margin)**.\n\n${profitInsight}`,
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
+        keyMetrics: [
+          { label: 'Gross Profit', value: grossProfit, formattedValue: `${currency} ${grossProfit.toLocaleString()}`, trend: grossProfit > 0 ? 'positive' : 'neutral' },
+          { label: 'Gross Margin', value: grossMarginPct, formattedValue: `${grossMarginPct}%`, trend: grossMarginPct >= 25 ? 'positive' : 'neutral' },
+          { label: 'Operating Expenses', value: opExpenses, formattedValue: `${currency} ${opExpenses.toLocaleString()}`, trend: 'neutral' },
+          { label: 'Estimated Net Profit', value: netProfit, formattedValue: `${currency} ${netProfit.toLocaleString()}`, trend: netProfit >= 0 ? 'positive' : 'negative' },
+        ],
         followUpSuggestions: [
-          'How are my sales today?',
-          'What is my best-selling product?',
+          'What are my biggest operating expenses?',
+          'Which product makes me the most money?',
+          'What is my inventory valuation?',
           'Who owes me money?',
         ],
       };
     }
 
+    // =========================================================================
+    // 7B. TODAY'S SALES & DAILY PULSE (Explicitly requested for today)
+    // =========================================================================
     if (
       q.includes('today') ||
       q.includes('sell today') ||
@@ -930,8 +997,8 @@ ${
       q.includes('revenue today') ||
       q.includes('how are my sales today')
     ) {
-      const revToday = Number(todaySales.revenue ?? dailyBrief.todayMetrics?.revenueToday ?? 0);
-      const txToday = Number(todaySales.salesCount ?? dailyBrief.todayMetrics?.transactionCountToday ?? 0);
+      const revToday = Number(todaySales.revenue ?? osToday?.todayRevenue ?? dailyBrief.todayMetrics?.revenueToday ?? 0);
+      const txToday = Number(todaySales.salesCount ?? osToday?.todayTransactions ?? dailyBrief.todayMetrics?.transactionCountToday ?? 0);
       const cashToday = Number(todaySales.cashCollected ?? dailyBrief.todayMetrics?.cashCollectedToday ?? 0);
 
       if (txToday === 0) {
@@ -945,6 +1012,7 @@ ${
           responseSource: 'DETERMINISTIC_FALLBACK',
           provider: 'deterministic_fallback',
           followUpSuggestions: [
+            'What are my overall sales this month?',
             'What is my best-selling product?',
             'Which products are low on stock?',
             'Who owes me money?',
@@ -963,15 +1031,170 @@ ${
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
         followUpSuggestions: [
-          'What is my best-selling product?',
-          'Who owes me money?',
+          'What are my overall sales this month?',
+          'What is my profit this month?',
           'Which products are low on stock?',
+          'Who owes me money?',
         ],
       };
     }
 
     // =========================================================================
-    // 8. INVENTORY & STOCKOUTS ("Which products are low on stock?")
+    // 7C. MULTI-HORIZON & GENERAL SALES (This Week, This Month, Year, All-Time, or "How are my sales?")
+    // =========================================================================
+    if (
+      q.includes('sales') ||
+      q.includes('revenue') ||
+      q.includes('this week') ||
+      q.includes('this month') ||
+      q.includes('this year') ||
+      q.includes('all time') ||
+      q.includes('total sales') ||
+      q.includes('volume') ||
+      q.includes('turnover')
+    ) {
+      let period = 'Last 30 Days';
+      let rev = Number(ledger.revenue ?? salesSummary.totalRevenue ?? osFin?.totalRevenue ?? overview.revenue ?? 0);
+      let txCount = Number(ledger.transaction_count ?? salesSummary.transactionCount ?? osFin?.transactionCount ?? overview.transaction_count ?? 0);
+      let margin = Number(ledger.gross_margin ?? salesSummary.grossMarginPct ?? overview.gross_margin ?? 0);
+
+      if (q.includes('all time') || q.includes('all-time') || q.includes('total sales') || q.includes('ever')) {
+        period = 'All-Time';
+        if (osAllTime) {
+          rev = Number(osAllTime.allTimeRevenue || rev);
+          txCount = Number(osAllTime.allTimeTransactions || txCount);
+          margin = Number(osAllTime.allTimeGrossMarginPct || margin);
+        }
+      } else if (q.includes('week')) {
+        period = 'This Week';
+      } else if (q.includes('year')) {
+        period = 'This Year';
+      } else if (q.includes('month')) {
+        period = 'This Month';
+      }
+
+      const aov = txCount > 0 ? Math.round(rev / txCount) : 0;
+      const todayRev = Number(todaySales.revenue ?? osToday?.todayRevenue ?? 0);
+      const todayTx = Number(todaySales.salesCount ?? osToday?.todayTransactions ?? 0);
+      const todayNote = todayTx > 0
+        ? `Today's sales volume currently stands at **${currency} ${todayRev.toLocaleString()}** across ${todayTx} transaction(s).`
+        : `No transactions have been logged yet today.`;
+
+      return {
+        answer: `For the **${period}** period, **${ctx.businessName}** has generated **${currency} ${rev.toLocaleString()}** in sales across **${txCount}** customer order(s), with an average order value of **${currency} ${aov.toLocaleString()}** and an average gross margin of **${margin}%**.\n\n${todayNote}`,
+        keyMetrics: [
+          { label: `${period} Revenue`, value: rev, formattedValue: `${currency} ${rev.toLocaleString()}`, trend: rev > 0 ? 'positive' : 'neutral' },
+          { label: 'Transactions', value: txCount, formattedValue: `${txCount}`, trend: 'neutral' },
+          { label: 'Average Order Value', value: aov, formattedValue: `${currency} ${aov.toLocaleString()}`, trend: 'neutral' },
+          { label: 'Gross Margin', value: margin, formattedValue: `${margin}%`, trend: margin >= 25 ? 'positive' : 'neutral' },
+        ],
+        confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        followUpSuggestions: [
+          'What is my net profit?',
+          'What are my biggest operating expenses?',
+          'Which product makes me the most money?',
+          'What is my inventory valuation?',
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 8A. OPERATING EXPENSES & OVERHEAD BREAKDOWN ("What are my expenses?")
+    // =========================================================================
+    if (
+      q.includes('expense') ||
+      q.includes('spending') ||
+      q.includes('spent') ||
+      q.includes('operating cost') ||
+      q.includes('overhead') ||
+      q.includes('bills')
+    ) {
+      const totalExp = Number(expenseBreakdown.totalExpenses ?? expenses.totalExpenses ?? osExpenses?.totalExpensesThisMonth ?? 0);
+      const expCount = Number(expenseBreakdown.expenseCount ?? expenses.expenseCount ?? osExpenses?.expenseCountThisMonth ?? 0);
+      const byCat = (expenseBreakdown.expensesByCategory || []) as Array<{ category: string; amount: number; percentage: number }>;
+
+      if (totalExp === 0) {
+        return {
+          answer: `No operating expenses are currently recorded for **${ctx.businessName}** in this period.\n\nRecording rent, utilities, transport, and supplier payments in the **Expenses** page helps ensure your net profit figures reflect true business reality.`,
+          keyMetrics: [
+            { label: 'Total Expenses', value: 0, formattedValue: `${currency} 0`, trend: 'positive' },
+            { label: 'Expense Records', value: 0, formattedValue: '0', trend: 'neutral' },
+          ],
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          followUpSuggestions: [
+            'What is my gross profit?',
+            'What is my inventory valuation?',
+            'Who owes me money?',
+          ],
+        };
+      }
+
+      let catBreakdown = '';
+      if (byCat.length > 0) {
+        catBreakdown = '\n\n**Breakdown by Category:**\n' +
+          byCat.slice(0, 5).map((c) => `- **${c.category}**: ${currency} ${Number(c.amount).toLocaleString()} (${c.percentage}%)`).join('\n');
+      }
+
+      return {
+        answer: `Your recorded operating expenses total **${currency} ${totalExp.toLocaleString()}** across **${expCount}** logged expense item(s).${catBreakdown}\n\nKeeping non-inventory overhead in check is essential for protecting your net profit margins.`,
+        keyMetrics: [
+          { label: 'Total Expenses', value: totalExp, formattedValue: `${currency} ${totalExp.toLocaleString()}`, trend: 'neutral' },
+          { label: 'Expense Entries', value: expCount, formattedValue: `${expCount}`, trend: 'neutral' },
+        ],
+        confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        followUpSuggestions: [
+          'What is my net profit?',
+          'What is my gross margin?',
+          'How are my sales today?',
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 8B. INVENTORY VALUATION & CATALOG ASSETS ("How much is my stock worth?")
+    // =========================================================================
+    if (
+      q.includes('inventory value') ||
+      q.includes('stock value') ||
+      q.includes('worth') ||
+      q.includes('catalog value') ||
+      q.includes('how much stock') ||
+      q.includes('inventory valuation')
+    ) {
+      const costVal = Number(invHealth.totalCostValuation ?? osInv?.totalCatalogValueAtCost ?? 0);
+      const retailVal = Number(invHealth.totalRetailValuation ?? osInv?.totalCatalogValueAtRetail ?? 0);
+      const totalSKUs = Number(invHealth.totalActiveSKUs ?? osInv?.totalActiveProducts ?? products.length ?? 0);
+      const lowCount = Number(invHealth.lowStockCount ?? inv.lowStockCount ?? osInv?.lowStockCount ?? 0);
+      const outCount = Number(invHealth.outOfStockCount ?? inv.outOfStockCount ?? osInv?.outOfStockCount ?? 0);
+      const potentialProfit = retailVal - costVal;
+
+      return {
+        answer: `Your inventory catalog currently consists of **${totalSKUs} active SKU(s)** with a total acquisition cost valuation (FIFO) of **${currency} ${costVal.toLocaleString()}**.\n\nAt current retail pricing, this stock represents **${currency} ${retailVal.toLocaleString()}** in gross catalog value, representing **${currency} ${potentialProfit.toLocaleString()}** in potential gross profit when completely sold.\n\nCurrently, you have **${lowCount} low-stock item(s)** and **${outCount} depleted SKU(s)**.`,
+        keyMetrics: [
+          { label: 'Valuation at Cost (FIFO)', value: costVal, formattedValue: `${currency} ${costVal.toLocaleString()}`, trend: 'neutral' },
+          { label: 'Valuation at Retail', value: retailVal, formattedValue: `${currency} ${retailVal.toLocaleString()}`, trend: 'positive' },
+          { label: 'Potential Gross Profit', value: potentialProfit, formattedValue: `${currency} ${potentialProfit.toLocaleString()}`, trend: 'positive' },
+          { label: 'Active SKUs', value: totalSKUs, formattedValue: `${totalSKUs}`, trend: 'neutral' },
+        ],
+        confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        followUpSuggestions: [
+          'Which products are low on stock?',
+          'What is my best-selling product?',
+          'What is my net profit?',
+        ],
+      };
+    }
+
+    // =========================================================================
+    // 8C. INVENTORY & STOCKOUTS ("Which products are low on stock?")
     // =========================================================================
     if (
       q.includes('low stock') ||
@@ -981,10 +1204,10 @@ ${
       q.includes('stockout') ||
       q.includes('reorder')
     ) {
-      const outCount = Number(inv.outOfStockCount || 0);
-      const lowCount = Number(inv.lowStockCount || 0);
-      const criticalItems = (inv.criticalItemsToRestock || []) as Array<{ name: string; currentStock: number; minimumStockLevel: number; status: string }>;
-      const totalSKUs = Number(inv.totalActiveSKUs || 0);
+      const outCount = Number(invHealth.outOfStockCount ?? inv.outOfStockCount ?? osInv?.outOfStockCount ?? 0);
+      const lowCount = Number(invHealth.lowStockCount ?? inv.lowStockCount ?? osInv?.lowStockCount ?? 0);
+      const criticalItems = (invHealth.criticalRestockAlerts || inv.criticalItemsToRestock || []) as Array<{ name: string; currentStock: number; minimumStockLevel: number; status: string }>;
+      const totalSKUs = Number(invHealth.totalActiveSKUs ?? inv.totalActiveSKUs ?? osInv?.totalActiveProducts ?? 0);
 
       if (outCount === 0 && lowCount === 0) {
         return {
@@ -997,18 +1220,19 @@ ${
           responseSource: 'DETERMINISTIC_FALLBACK',
           provider: 'deterministic_fallback',
           followUpSuggestions: [
+            'What is my inventory valuation?',
             'What is my best-selling product?',
-            'How are my sales today?',
+            'What is my net profit?',
           ],
         };
       }
 
       const itemsList = criticalItems
-        .map((item) => `- **${item.name}**: ${item.currentStock} unit(s) remaining (${item.status === 'OUT_OF_STOCK' ? '🔴 Depleted' : `⚠️ Below minimum of ${item.minimumStockLevel}`})`)
+        .map((item) => `- **${item.name}**: ${item.currentStock} unit(s) remaining (${item.status === 'OUT_OF_STOCK' ? '🔴 Depleted' : `⚠️ Below minimum threshold`})`)
         .join('\n');
 
       return {
-        answer: `You currently have **${outCount} item(s) completely depleted** and **${lowCount} item(s) running below their safety threshold**:\n\n${itemsList}\n\nI recommend prioritizing purchase orders for depleted items that drive regular customer foot traffic.`,
+        answer: `You currently have **${outCount} item(s) completely depleted** and **${lowCount} item(s) running below safety thresholds**:\n\n${itemsList}\n\nI recommend prioritizing purchase orders for high-demand items that drive recurring foot traffic.`,
         keyMetrics: [
           { label: 'Out of Stock', value: outCount, formattedValue: `${outCount}`, trend: outCount > 0 ? 'negative' : 'positive' },
           { label: 'Low Stock', value: lowCount, formattedValue: `${lowCount}`, trend: lowCount > 0 ? 'negative' : 'positive' },
@@ -1017,9 +1241,9 @@ ${
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
         followUpSuggestions: [
+          'What is my inventory valuation?',
           'What is my best-selling product?',
-          'How are my sales today?',
-          'What is my FIFO inventory valuation?',
+          'Who owes me money?',
         ],
       };
     }
@@ -1035,13 +1259,13 @@ ${
       q.includes('receivable') ||
       q.includes('owe me')
     ) {
-      const totalDebt = Number(debtors.totalOutstandingDebt || 0);
-      const debtorCount = Number(debtors.debtorsCount || 0);
-      const topList = (debtors.topDebtors || []) as Array<{ name: string; debtAmount: number; phone?: string }>;
+      const totalDebt = Number(debtorSummary.totalOutstandingDebt ?? debtors.totalOutstandingDebt ?? osCustomers?.totalOutstandingDebt ?? 0);
+      const debtorCount = Number(debtorSummary.debtorsCount ?? debtors.debtorsCount ?? osCustomers?.debtorsCount ?? 0);
+      const topList = (debtorSummary.topDebtors || debtors.topDebtors || []) as Array<{ name: string; debtAmount: number; phone?: string }>;
 
       if (debtorCount === 0 || totalDebt === 0) {
         return {
-          answer: `You currently have **no outstanding customer debts** (0 unpaid balances recorded).`,
+          answer: `You currently have **no outstanding customer debts** (0 unpaid balances recorded across all customer accounts).`,
           keyMetrics: [
             { label: 'Outstanding Debt', value: 0, formattedValue: `${currency} 0`, trend: 'positive' },
             { label: 'Debtor Accounts', value: 0, formattedValue: '0', trend: 'positive' },
@@ -1049,7 +1273,11 @@ ${
           confidence: 'high_confidence',
           responseSource: 'DETERMINISTIC_FALLBACK',
           provider: 'deterministic_fallback',
-          followUpSuggestions: ['How are my sales today?', 'Which products are low on stock?'],
+          followUpSuggestions: [
+            'What is my net profit?',
+            'What is my inventory valuation?',
+            'How are my sales today?',
+          ],
         };
       }
 
@@ -1058,7 +1286,7 @@ ${
         .join('\n');
 
       return {
-        answer: `You currently have **${debtorCount} customer account(s)** with outstanding credit balances totaling **${currency} ${totalDebt.toLocaleString()}**:\n\n${debtorBreakdown}\n\nReaching out to these customers will help recover working capital for inventory purchases.`,
+        answer: `You currently have **${debtorCount} customer account(s)** with outstanding credit balances totaling **${currency} ${totalDebt.toLocaleString()}**:\n\n${debtorBreakdown}\n\nReaching out to these customers will help recover liquid working capital for inventory purchases.`,
         keyMetrics: [
           { label: 'Outstanding Receivables', value: totalDebt, formattedValue: `${currency} ${totalDebt.toLocaleString()}`, trend: 'negative' },
           { label: 'Debtor Accounts', value: debtorCount, formattedValue: `${debtorCount}`, trend: 'neutral' },
@@ -1066,7 +1294,11 @@ ${
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
-        followUpSuggestions: ['How are my sales today?', 'What is my current cash flow?'],
+        followUpSuggestions: [
+          'What is my net profit?',
+          'What are my biggest operating expenses?',
+          'How are my sales today?',
+        ],
       };
     }
 
@@ -1074,18 +1306,21 @@ ${
     // 10. FULL BUSINESS ANALYSIS (Explicit report mode only)
     // =========================================================================
     if (isExplicitReport) {
-      const totalRev = Number(overview.revenue || salesSummary.totalRevenue || 0);
-      const txCount = Number(overview.transaction_count || salesSummary.transactionCount || 0);
-      const grossProfit = Number(overview.gross_profit || 0);
-      const grossMargin = Number(overview.gross_margin || 0);
-      const outCount = Number(inv.outOfStockCount || 0);
-      const totalDebt = Number(debtors.totalOutstandingDebt || 0);
+      const totalRev = Number(ledger.revenue ?? overview.revenue ?? salesSummary.totalRevenue ?? 0);
+      const txCount = Number(ledger.transaction_count ?? overview.transaction_count ?? salesSummary.transactionCount ?? 0);
+      const grossProfit = Number(ledger.gross_profit ?? overview.gross_profit ?? 0);
+      const grossMargin = Number(ledger.gross_margin ?? overview.gross_margin ?? 0);
+      const opExpenses = Number(ledger.operating_expenses ?? overview.operating_expenses ?? 0);
+      const netProfit = Number(ledger.estimated_net_profit ?? overview.estimated_net_profit ?? (grossProfit - opExpenses));
+      const outCount = Number(invHealth.outOfStockCount ?? inv.outOfStockCount ?? 0);
+      const totalDebt = Number(debtorSummary.totalOutstandingDebt ?? debtors.totalOutstandingDebt ?? 0);
 
       return {
-        answer: `### Executive Summary\n**${ctx.businessName}** generated **${currency} ${totalRev.toLocaleString()}** in revenue across **${txCount}** completed transaction(s) over the last 30 days, achieving a **${grossMargin}% gross margin** (${currency} ${grossProfit.toLocaleString()} gross profit).\n\n### Analytical Diagnostics & Data Breakdown\n- **Revenue Volume:** ${currency} ${totalRev.toLocaleString()} (${txCount} transactions)\n- **Gross Margin:** **${grossMargin}%**\n- **Inventory Health:** ${outCount} depleted SKU(s)\n- **Receivables Exposure:** ${currency} ${totalDebt.toLocaleString()} in open customer credit\n\n### Strategic Recommendations\n1. **Protect Top Sellers:** Restock any depleted SKUs to avoid lost sales.\n2. **Collect Open Debts:** Send payment reminders to debtor accounts to recover liquid cash.\n3. **Maintain Margin Discipline:** Ensure sales prices cover rising replacement costs.`,
+        answer: `### Executive Summary\n**${ctx.businessName}** generated **${currency} ${totalRev.toLocaleString()}** in revenue across **${txCount}** completed transaction(s) over the last 30 days, achieving a **${grossMargin}% gross margin** (${currency} ${grossProfit.toLocaleString()} gross profit) and **${currency} ${netProfit.toLocaleString()} in estimated net profit**.\n\n### Analytical Diagnostics & Data Breakdown\n- **Revenue Volume:** ${currency} ${totalRev.toLocaleString()} (${txCount} transactions)\n- **Cost of Goods (COGS):** ${currency} ${Number(ledger.cost_of_goods_sold || (totalRev - grossProfit)).toLocaleString()}\n- **Operating Expenses:** ${currency} ${opExpenses.toLocaleString()}\n- **Net Profit:** ${currency} ${netProfit.toLocaleString()}\n- **Inventory Status:** ${outCount} depleted SKU(s)\n- **Receivables Exposure:** ${currency} ${totalDebt.toLocaleString()} in open customer credit\n\n### Strategic Recommendations\n1. **Protect Top Sellers:** Restock any depleted SKUs to avoid lost sales.\n2. **Collect Open Debts:** Send payment reminders to debtor accounts to recover liquid cash.\n3. **Maintain Margin Discipline:** Ensure sales prices cover replacement costs and operating overhead.`,
         keyMetrics: [
           { label: 'Revenue (30d)', value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: 'positive' },
           { label: 'Gross Margin', value: grossMargin, formattedValue: `${grossMargin}%`, trend: grossMargin >= 30 ? 'positive' : 'neutral' },
+          { label: 'Estimated Net Profit', value: netProfit, formattedValue: `${currency} ${netProfit.toLocaleString()}`, trend: netProfit >= 0 ? 'positive' : 'negative' },
           { label: 'Transactions', value: txCount, formattedValue: `${txCount}`, trend: 'neutral' },
         ],
         confidence: 'high_confidence',
@@ -1094,7 +1329,7 @@ ${
         followUpSuggestions: [
           'What is my best-selling product?',
           'Which products are low on stock?',
-          'How are my sales today?',
+          'What are my biggest operating expenses?',
         ],
       };
     }
@@ -1102,22 +1337,29 @@ ${
     // =========================================================================
     // 11. GENERAL BUSINESS OVERVIEW / STATUS (Conversational default)
     // =========================================================================
-    const totalRev = Number(overview.revenue || salesSummary.totalRevenue || 0);
-    const txCount = Number(overview.transaction_count || salesSummary.transactionCount || 0);
-    const grossMargin = Number(overview.gross_margin || 0);
+    const totalRev = Number(ledger.revenue ?? overview.revenue ?? salesSummary.totalRevenue ?? osFin?.totalRevenue ?? 0);
+    const txCount = Number(ledger.transaction_count ?? overview.transaction_count ?? salesSummary.transactionCount ?? osFin?.transactionCount ?? 0);
+    const grossProfit = Number(ledger.gross_profit ?? overview.gross_profit ?? (totalRev * 0.3));
+    const grossMargin = Number(ledger.gross_margin ?? overview.gross_margin ?? 0);
+    const opExpenses = Number(ledger.operating_expenses ?? osFin?.totalExpenses ?? expenseBreakdown.totalExpenses ?? 0);
+    const netProfit = Number(ledger.estimated_net_profit ?? osFin?.netProfit ?? (grossProfit - opExpenses));
+    const totalCostValuation = Number(invHealth.totalCostValuation ?? osInv?.totalCatalogValueAtCost ?? 0);
+    const totalDebt = Number(debtorSummary.totalOutstandingDebt ?? debtors.totalOutstandingDebt ?? osCustomers?.totalOutstandingDebt ?? 0);
 
     return {
-      answer: `Over the past 30 days, **${ctx.businessName}** has generated **${currency} ${totalRev.toLocaleString()}** across **${txCount}** transaction(s) with an operating gross margin of **${grossMargin}%**.\n\nWhat specific part of your business would you like to explore? I can check today's sales, product profitability, low inventory, or customer debts.`,
+      answer: `Here is the current operational health of **${ctx.businessName}** across the operating system:\n\n- **Recent Performance (30 Days):** **${currency} ${totalRev.toLocaleString()}** in sales across **${txCount}** transactions, producing **${currency} ${grossProfit.toLocaleString()}** in gross profit (${grossMargin}% margin) and **${currency} ${netProfit.toLocaleString()}** in estimated net profit.\n- **Inventory Assets:** **${currency} ${totalCostValuation.toLocaleString()}** in catalog stock valuation at acquisition cost.\n- **Customer Credit:** **${currency} ${totalDebt.toLocaleString()}** in open receivables awaiting collection.\n\nWhat domain would you like to explore deeper? You can ask about product margins, operating expenses, stock replenishment, or today's register.`,
       keyMetrics: [
-        { label: 'Revenue (30d)', value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: 'positive' },
+        { label: 'Revenue (30d)', value: totalRev, formattedValue: `${currency} ${totalRev.toLocaleString()}`, trend: totalRev > 0 ? 'positive' : 'neutral' },
         { label: 'Gross Margin', value: grossMargin, formattedValue: `${grossMargin}%`, trend: 'neutral' },
+        { label: 'Estimated Net Profit', value: netProfit, formattedValue: `${currency} ${netProfit.toLocaleString()}`, trend: netProfit >= 0 ? 'positive' : 'negative' },
+        { label: 'Stock Valuation (Cost)', value: totalCostValuation, formattedValue: `${currency} ${totalCostValuation.toLocaleString()}`, trend: 'neutral' },
       ],
       confidence: txCount > 0 ? 'high_confidence' : 'insufficient_data',
       responseSource: 'DETERMINISTIC_FALLBACK',
       provider: 'deterministic_fallback',
       followUpSuggestions: [
-        'How are my sales today?',
-        'What is my best-selling product?',
+        'What is my profit this month?',
+        'What are my biggest operating expenses?',
         'Which products are low on stock?',
         'Who owes me money?',
       ],

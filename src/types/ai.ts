@@ -148,6 +148,7 @@ export interface AIChatRequestPayload {
   }>;
   preferredTimeHorizonDays?: number;
   businessContext?: AIChatBusinessContext;
+  osContext?: Record<string, unknown>;
 }
 
 export interface AIChatResponsePayload {

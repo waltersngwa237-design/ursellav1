@@ -447,25 +447,78 @@ export function classifyBusinessQuery(
     };
   }
 
-  // 8C. "How much did I make this month?" / "This month revenue"
+  // 8C. Profitability & Earnings ("What is my profit?", "Net profit", "Gross margin")
+  if (
+    q.includes('what is my profit') ||
+    q.includes('how much profit') ||
+    q.includes('net profit') ||
+    q.includes('gross profit') ||
+    q.includes('profitability') ||
+    q.includes('am i profitable') ||
+    q.includes('am i making profit') ||
+    q.includes('make a profit') ||
+    q.includes('earnings') ||
+    q.includes('how much did i earn')
+  ) {
+    const isToday = q.includes('today');
+    const isThisMonth = q.includes('month');
+    const isAllTime = q.includes('all time') || q.includes('total') || q.includes('ever');
+    const period = isToday ? 'today' : isThisMonth ? 'this_month' : isAllTime ? 'all_time' : 'last_30_days';
+
+    return {
+      intent: 'calculation',
+      domain: 'profitability',
+      timePeriod: period,
+      requiredTools: ['get_financial_ledger', 'get_business_overview', 'get_expense_summary'],
+      suggestedTimeHorizonDays: isToday ? 1 : 30,
+      confidence: 0.98,
+      primaryGoal: 'Calculate exact gross profit, FIFO COGS, operating expenses, and net profit with deterministic arithmetic.',
+    };
+  }
+
+  // 8D. Specific Time-Bound Sales & Revenue ("This month", "This week", "This year", "All time", "Total sales")
   if (
     q.includes('this month') ||
     q.includes('make this month') ||
     q.includes('made this month') ||
-    q.includes('monthly sales')
+    q.includes('monthly sales') ||
+    q.includes('this week') ||
+    q.includes('weekly sales') ||
+    q.includes('this year') ||
+    q.includes('annual sales') ||
+    q.includes('total sales') ||
+    q.includes('all time sales') ||
+    q.includes('how much did i sell') ||
+    q.includes('how much have i sold')
   ) {
+    let period = 'last_30_days';
+    let days = 30;
+    if (q.includes('this week') || q.includes('weekly')) {
+      period = 'this_week';
+      days = 7;
+    } else if (q.includes('this year') || q.includes('annual')) {
+      period = 'this_year';
+      days = 365;
+    } else if (q.includes('all time') || q.includes('total')) {
+      period = 'all_time';
+      days = 365;
+    } else if (q.includes('this month') || q.includes('monthly')) {
+      period = 'this_month';
+      days = 30;
+    }
+
     return {
       intent: 'fact_retrieval',
       domain: 'sales',
-      timePeriod: 'this_month',
-      requiredTools: ['get_sales_summary'], // Sales summary only!
-      suggestedTimeHorizonDays: 30,
-      confidence: 0.95,
-      primaryGoal: 'Retrieve recorded sales and revenue for this month.',
+      timePeriod: period,
+      requiredTools: ['get_financial_ledger', 'get_sales_summary'],
+      suggestedTimeHorizonDays: days,
+      confidence: 0.96,
+      primaryGoal: `Retrieve recorded sales and financial ledger for ${period.replace(/_/g, ' ')}.`,
     };
   }
 
-  // 8D. "Sales have been slow lately" / "Why did my sales drop?" / "How are my sales doing?"
+  // 8E. General Sales Queries ("How are my sales?", "Sales slowdown", "Sales performance")
   if (
     q.includes('sales have been slow') ||
     q.includes('sales are slow') ||
@@ -473,22 +526,27 @@ export function classifyBusinessQuery(
     q.includes('how are my sales doing') ||
     q.includes('how are sales doing') ||
     q.includes('how are my sales') ||
+    q.includes('how are sales') ||
+    q.includes('what are my sales') ||
     q.includes('sales drop') ||
     q.includes('drop in sales') ||
-    q.includes('sales down')
+    q.includes('sales down') ||
+    q.includes('sales report') ||
+    q.includes('sales summary') ||
+    q.includes('sales overview')
   ) {
     return {
-      intent: 'diagnosis',
+      intent: 'analysis',
       domain: 'sales',
       timePeriod: 'comparison_period',
-      requiredTools: ['get_sales_summary', 'get_period_comparison'], // Relevant sales history & comparison only!
+      requiredTools: ['get_financial_ledger', 'get_sales_summary', 'get_today_sales_summary', 'get_period_comparison'],
       suggestedTimeHorizonDays: 30,
-      confidence: 0.95,
-      primaryGoal: 'Analyze sales trajectory against previous period to answer sales performance and slowdown concerns.',
+      confidence: 0.96,
+      primaryGoal: 'Analyze sales performance across today and the broader period with comparison metrics.',
     };
   }
 
-  // 8E. "Why did my profit drop?"
+  // 8F. "Why did my profit drop?"
   if (
     q.includes('why did my profit drop') ||
     q.includes('why did profit drop') ||
@@ -499,7 +557,7 @@ export function classifyBusinessQuery(
       intent: 'diagnosis',
       domain: 'profitability',
       timePeriod: 'comparison_period',
-      requiredTools: ['get_business_overview', 'get_period_comparison', 'get_expense_summary'], // Relevant revenue, COGS, expenses and comparison only!
+      requiredTools: ['get_financial_ledger', 'get_business_overview', 'get_period_comparison', 'get_expense_summary'],
       suggestedTimeHorizonDays: 30,
       confidence: 0.95,
       primaryGoal: 'Diagnose profit change by comparing revenue, COGS, and operating expenses against previous period.',
@@ -507,8 +565,7 @@ export function classifyBusinessQuery(
   }
 
   // =========================================================================
-  // 9. INVENTORY & STOCKOUTS ("Which products are low on stock?")
-  // Retrieve inventory/product data only.
+  // 9. INVENTORY & STOCKOUTS ("Which products are low on stock?", "Stock value")
   // =========================================================================
   if (
     q.includes('low stock') ||
@@ -519,16 +576,19 @@ export function classifyBusinessQuery(
     q.includes('items in stock') ||
     q.includes('how much stock') ||
     q.includes('depleted') ||
-    q.includes('stockout')
+    q.includes('stockout') ||
+    q.includes('inventory value') ||
+    q.includes('stock value') ||
+    q.includes('inventory health')
   ) {
     return {
       intent: 'fact_retrieval',
       domain: 'inventory',
       timePeriod: 'all_time',
-      requiredTools: ['get_inventory_alerts'], // Inventory alerts only!
+      requiredTools: ['get_inventory_health', 'get_inventory_alerts'],
       suggestedTimeHorizonDays: 30,
       confidence: 0.96,
-      primaryGoal: 'Identify low-stock and out-of-stock items needing replenishment.',
+      primaryGoal: 'Provide comprehensive inventory health, valuation, and stockout replenishment alerts.',
     };
   }
 
@@ -552,7 +612,7 @@ export function classifyBusinessQuery(
       intent: 'fact_retrieval',
       domain: 'debtors',
       timePeriod: 'all_time',
-      requiredTools: ['get_customer_balances'], // Customer balances only!
+      requiredTools: ['get_debtor_and_receivables_summary', 'get_customer_balances'],
       suggestedTimeHorizonDays: 30,
       confidence: 0.96,
       primaryGoal: 'Retrieve outstanding customer receivables and debtor balances.',
@@ -574,10 +634,10 @@ export function classifyBusinessQuery(
       intent: 'analysis',
       domain: 'expenses',
       timePeriod: 'this_month',
-      requiredTools: ['get_expense_summary'], // Expense summary only!
+      requiredTools: ['get_expense_breakdown', 'get_expense_summary'],
       suggestedTimeHorizonDays: 30,
-      confidence: 0.94,
-      primaryGoal: 'Retrieve operating expenditures and cost breakdowns.',
+      confidence: 0.95,
+      primaryGoal: 'Retrieve operating expenditures and cost category breakdowns.',
     };
   }
 
@@ -616,7 +676,7 @@ export function classifyBusinessQuery(
       intent: 'fifo_audit',
       domain: 'fifo_costing',
       timePeriod: 'all_time',
-      requiredTools: ['get_fifo_inventory_valuation'],
+      requiredTools: ['get_fifo_inventory_valuation', 'get_inventory_health'],
       suggestedTimeHorizonDays: 30,
       confidence: 0.97,
       primaryGoal: 'Run FIFO inventory valuation and layer inspection.',
@@ -646,17 +706,44 @@ export function classifyBusinessQuery(
   }
 
   // =========================================================================
-  // 15. DEFAULT CONVERSATIONAL BUSINESS FALLBACK
-  // For general queries that don't match above, fetch a light daily pulse
-  // instead of a massive multi-domain dump.
+  // 15. BUSINESS HEALTH & HOLISTIC OVERVIEW
+  // =========================================================================
+  if (
+    q.includes('how is my business') ||
+    q.includes('how is the business') ||
+    q.includes('business doing') ||
+    q.includes('store doing') ||
+    q.includes('business health') ||
+    q.includes('store health') ||
+    q.includes('business status') ||
+    q.includes('give me an update') ||
+    q.includes('business update') ||
+    q.includes('store overview') ||
+    q.includes('business overview')
+  ) {
+    return {
+      intent: 'analysis',
+      domain: 'multi_domain',
+      timePeriod: 'last_30_days',
+      requiredTools: ['get_financial_ledger', 'get_today_sales_summary', 'get_business_health', 'get_inventory_health'],
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.96,
+      primaryGoal: 'Synthesize holistic business health spanning sales, profit, inventory, and operations.',
+    };
+  }
+
+  // =========================================================================
+  // 16. DEFAULT CONVERSATIONAL BUSINESS FALLBACK
+  // For open-ended queries, provide both today's pulse and the 30-day financial ledger
+  // so Ursella understands both the immediate daily activity and the broader business operating system.
   // =========================================================================
   return {
     intent: 'conversational',
     domain: 'multi_domain',
-    timePeriod: 'today',
-    requiredTools: ['get_today_sales_summary'], // Minimal pulse only!
-    suggestedTimeHorizonDays: 1,
-    confidence: 0.85,
-    primaryGoal: 'Respond naturally to the merchant using immediate daily sales pulse.',
+    timePeriod: 'multi_period',
+    requiredTools: ['get_today_sales_summary', 'get_financial_ledger'],
+    suggestedTimeHorizonDays: 30,
+    confidence: 0.90,
+    primaryGoal: 'Respond naturally with complete awareness of today activity and the broader business financial state.',
   };
 }

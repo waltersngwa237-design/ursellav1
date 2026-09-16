@@ -89,6 +89,77 @@ export function getTimezoneDateRange(timezone = 'Africa/Douala', days = 1): {
 }
 
 /**
+ * Calculates start and end ISO timestamps for named business accounting periods in a specific timezone.
+ */
+export function getTimezonePeriodRange(timezone = 'Africa/Douala', period = 'last_30_days') {
+  const now = new Date();
+  try {
+    const dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = dtf.formatToParts(now);
+    const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '01';
+    const year = Number(getPart('year'));
+    const month = Number(getPart('month'));
+    const day = Number(getPart('day'));
+
+    const targetTzDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+    const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const offsetMs = targetTzDate.getTime() - utcDate.getTime();
+
+    let startDateUtc: Date;
+    let endDateUtc = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999) - offsetMs);
+
+    if (period === 'today') {
+      startDateUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0) - offsetMs);
+    } else if (period === 'yesterday') {
+      startDateUtc = new Date(Date.UTC(year, month - 1, day - 1, 0, 0, 0) - offsetMs);
+      endDateUtc = new Date(Date.UTC(year, month - 1, day - 1, 23, 59, 59, 999) - offsetMs);
+    } else if (period === 'this_week') {
+      const dayOfWeek = targetTzDate.getDay();
+      const diff = targetTzDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      startDateUtc = new Date(Date.UTC(year, month - 1, diff, 0, 0, 0) - offsetMs);
+    } else if (period === 'this_month') {
+      startDateUtc = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0) - offsetMs);
+    } else if (period === 'last_month') {
+      startDateUtc = new Date(Date.UTC(year, month - 2, 1, 0, 0, 0) - offsetMs);
+      const lastDayOfPrevMonth = new Date(Date.UTC(year, month - 1, 0, 23, 59, 59, 999));
+      endDateUtc = new Date(lastDayOfPrevMonth.getTime() - offsetMs);
+    } else if (period === 'this_year') {
+      startDateUtc = new Date(Date.UTC(year, 0, 1, 0, 0, 0) - offsetMs);
+    } else if (period === 'all_time') {
+      startDateUtc = new Date(Date.UTC(2020, 0, 1, 0, 0, 0));
+    } else if (period === 'last_7_days') {
+      startDateUtc = new Date(Date.UTC(year, month - 1, day - 6, 0, 0, 0) - offsetMs);
+    } else if (period === 'last_90_days') {
+      startDateUtc = new Date(Date.UTC(year, month - 1, day - 89, 0, 0, 0) - offsetMs);
+    } else {
+      startDateUtc = new Date(Date.UTC(year, month - 1, day - 29, 0, 0, 0) - offsetMs);
+    }
+
+    return {
+      startDateIso: startDateUtc.toISOString(),
+      endDateIso: endDateUtc.toISOString(),
+      periodLabel: period.replace(/_/g, ' ').toUpperCase(),
+    };
+  } catch {
+    const start = new Date();
+    start.setDate(start.getDate() - 29);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    return {
+      startDateIso: start.toISOString(),
+      endDateIso: end.toISOString(),
+      periodLabel: period.replace(/_/g, ' ').toUpperCase(),
+    };
+  }
+}
+
+/**
  * Server-side business tools executor.
  * Strictly verifies tenant authorization and executes predefined business queries.
  * Grounded in authoritative Supabase PostgreSQL database records and pure FIFO costing.
@@ -625,6 +696,80 @@ export class BusinessToolsService {
       revenueGrowthPct,
       trend: revenueGrowthPct > 0 ? 'growth' : revenueGrowthPct < 0 ? 'contraction' : 'flat',
     };
+  }
+
+  /**
+   * 9B. Tool: get_financial_ledger
+   * Authoritative multi-period financial breakdown covering Revenue, FIFO COGS, Gross Profit, Operating Expenses, Net Profit, and Cash Flow.
+   */
+  public static async getFinancialLedger(businessId: string, period = 'last_30_days', timezone = 'Africa/Douala') {
+    const { startDateIso, endDateIso, periodLabel } = getTimezonePeriodRange(timezone, period);
+    const overview = await this.calculateOverviewWithFIFO(businessId, startDateIso, endDateIso, timezone);
+    return {
+      ...overview,
+      period,
+      periodLabel,
+      startDateIso,
+      endDateIso,
+    };
+  }
+
+  /**
+   * 9C. Tool: get_inventory_health
+   * Full inventory valuation, catalog stats, stock depletion alerts, and reorder priorities.
+   */
+  public static async getInventoryHealth(businessId: string) {
+    const [invAlerts, fifo] = await Promise.all([
+      this.getInventoryAlerts(businessId),
+      this.runFIFOLedger(businessId),
+    ]);
+
+    const products = fifo.productRows;
+    const totalSKUs = products.length;
+    let totalCostValuation = 0;
+    let totalRetailValuation = 0;
+
+    for (const p of products) {
+      const stock = Math.max(0, Number(p.stock_quantity || 0));
+      const cost = Number(p.cost_price || 0);
+      const sell = Number(p.selling_price || 0);
+      totalCostValuation += stock * cost;
+      totalRetailValuation += stock * sell;
+    }
+
+    const potentialGrossProfit = totalRetailValuation - totalCostValuation;
+    const potentialGrossMargin = totalRetailValuation > 0
+      ? Number(((potentialGrossProfit / totalRetailValuation) * 100).toFixed(1))
+      : 0;
+
+    return {
+      totalActiveSKUs: totalSKUs,
+      totalCostValuation,
+      totalRetailValuation,
+      potentialGrossProfit,
+      potentialGrossMargin,
+      fifoValuation: fifo.ledgerResult.totals.totalValuationAtCost,
+      lowStockCount: invAlerts.lowStockCount,
+      outOfStockCount: invAlerts.outOfStockCount,
+      criticalItemsToRestock: invAlerts.criticalItemsToRestock,
+      inventoryStatus: invAlerts.outOfStockCount > 0 ? 'CRITICAL_DEPLETION' : invAlerts.lowStockCount > 0 ? 'ATTENTION_NEEDED' : 'HEALTHY',
+    };
+  }
+
+  /**
+   * 9D. Tool: get_debtor_and_receivables_summary
+   * Receivables exposure, active debtors count, and top outstanding customer balances.
+   */
+  public static async getDebtorAndReceivablesSummary(businessId: string) {
+    return await this.getCustomerBalances(businessId);
+  }
+
+  /**
+   * 9E. Tool: get_expense_breakdown
+   * Operating expense totals, transaction count, and category breakdown.
+   */
+  public static async getExpenseBreakdown(businessId: string, timeHorizonDays = 30, timezone = 'Africa/Douala') {
+    return await this.getExpenseSummary(businessId, timeHorizonDays, timezone);
   }
 
   /**

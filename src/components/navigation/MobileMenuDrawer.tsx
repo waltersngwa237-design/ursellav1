@@ -89,7 +89,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
     {
       title: 'AI & Intelligence',
       items: [
-        { route: 'ai' as AppNavRoute, label: 'Ursella AI Advisor', icon: <UrsellaAIGlyph sizeClass="w-5 h-5" />, desc: 'Voice & text business strategist', badge: 'AI' },
+        { route: 'ai' as AppNavRoute, label: 'Ursella AI', icon: <UrsellaAIGlyph sizeClass="w-5 h-5" />, desc: 'Voice & text business strategist', badge: 'AI' },
         { route: 'insights' as AppNavRoute, label: 'Proactive Intelligence', icon: <Activity className="w-5 h-5 text-indigo-400" />, desc: 'Live alerts, dead-stock & margin audit', badge: 'Live' },
         { route: 'analytics' as AppNavRoute, label: 'Sales & Analytics', icon: <BarChart3 className="w-5 h-5 text-emerald-400" />, desc: 'Revenue velocity & margin trends' },
         { route: 'reports' as AppNavRoute, label: 'Financial & Tax Reports', icon: <FileText className="w-5 h-5 text-teal-400" />, desc: 'P&L, Cash Flow, and Tax estimates' },

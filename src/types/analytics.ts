@@ -229,6 +229,21 @@ export interface AIBusinessContextPayload {
     endDate: string;
     daysCount: number;
   };
+  todayFacts?: {
+    revenue: number;
+    transactions: number;
+    cashCollected: number;
+    grossProfit: number;
+    grossMarginPct: number;
+  };
+  allTimeFacts?: {
+    totalSales: number;
+    totalOrders: number;
+    totalExpenses: number;
+    netProfit: number;
+    inventoryValuation: number;
+    outstandingDebt: number;
+  };
   financialSummary: {
     revenue: number;
     costOfGoodsSold: number;
