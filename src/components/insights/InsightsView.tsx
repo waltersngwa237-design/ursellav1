@@ -403,10 +403,13 @@ export const InsightsView: React.FC = () => {
                         )}
                       </div>
                       <p className="text-slate-600 dark:text-slate-400">
-                        {log.changes?.result?.message || JSON.stringify(log.changes?.payload || {})}
+                        {log.changes?.summary ||
+                          log.changes?.result?.message ||
+                          log.changes?.message ||
+                          (log.changes?.payload ? JSON.stringify(log.changes.payload) : '')}
                       </p>
                       <div className="text-[10px] text-slate-400">
-                        Actor Role: <strong className="text-slate-600 dark:text-slate-300 capitalize">{log.actor_role}</strong>
+                        Actor: <strong className="text-slate-600 dark:text-slate-300 capitalize">{log.actor_id || 'System'}</strong> ({log.actor_role})
                       </div>
                     </div>
 

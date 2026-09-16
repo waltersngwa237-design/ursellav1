@@ -148,6 +148,11 @@ export class RegisterCloseoutService {
 
     updated.unshift(newShift);
     this.saveAllShifts(businessId, updated);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ursella_data_changed', { detail: { type: 'shift_opened', shift: newShift } }));
+    }
+
     return newShift;
   }
 
@@ -190,6 +195,11 @@ export class RegisterCloseoutService {
     const refreshed = await this.refreshShiftMetrics(businessId, updatedShift);
     shifts[shiftIndex] = refreshed;
     this.saveAllShifts(businessId, shifts);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ursella_data_changed', { detail: { type: 'cash_movement', shift: refreshed, movement } }));
+    }
+
     return refreshed;
   }
 
@@ -290,6 +300,46 @@ export class RegisterCloseoutService {
 
     shifts[index] = finalShift;
     this.saveAllShifts(businessId, shifts);
+
+    // Record Immutable Audit Log & sync immediately with activities
+    try {
+      await ProactiveService.recordAuditLog(businessId, {
+        id: `audit_shift_${finalShift.id}_${Date.now()}`,
+        business_id: businessId,
+        action_id: `close_shift_${finalShift.id}`,
+        action_type: 'close_register',
+        actor_id: closedBy || 'Cashier',
+        actor_role: managerName ? 'manager' : 'cashier',
+        is_ai_proposed: false,
+        target_entity_type: 'register_shift',
+        target_entity_id: finalShift.id,
+        status: 'success',
+        timestamp: new Date().toISOString(),
+        changes: {
+          summary: `Register shift #${finalShift.shift_number} (${finalShift.z_report_number}) closed by ${closedBy}. Counted: ${finalShift.actual_cash_counted}, Expected: ${finalShift.expected_cash}, Discrepancy: ${finalShift.discrepancy}`,
+          shift_number: finalShift.shift_number,
+          z_report_number: finalShift.z_report_number,
+          total_sales: finalShift.total_sales,
+          cash_sales: finalShift.cash_sales,
+          card_sales: finalShift.card_sales,
+          momo_sales: finalShift.momo_sales,
+          expected_cash: finalShift.expected_cash,
+          actual_cash_counted: finalShift.actual_cash_counted,
+          discrepancy: finalShift.discrepancy,
+          notes: finalShift.notes,
+          manager_name: finalShift.manager_name,
+          manager_signed_off: finalShift.manager_signed_off,
+        },
+      });
+    } catch (auditErr) {
+      console.warn('[RegisterCloseoutService] Failed to record closeout audit log:', auditErr);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ursella_shift_closed', { detail: finalShift }));
+      window.dispatchEvent(new CustomEvent('ursella_data_changed', { detail: { type: 'shift_closed', shift: finalShift } }));
+    }
+
     return finalShift;
   }
 

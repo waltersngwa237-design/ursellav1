@@ -110,7 +110,20 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
 
   useEffect(() => {
     loadReport();
-  }, [businessId, activeReport, selectedPeriod]);
+  }, [businessId, activeReport, selectedPeriod, effectiveRole]);
+
+  // Sync immediately when register closeouts, sales, or cash movements occur
+  useEffect(() => {
+    const handleDataSync = () => {
+      loadReport();
+    };
+    window.addEventListener('ursella_data_changed', handleDataSync);
+    window.addEventListener('ursella_shift_closed', handleDataSync);
+    return () => {
+      window.removeEventListener('ursella_data_changed', handleDataSync);
+      window.removeEventListener('ursella_shift_closed', handleDataSync);
+    };
+  }, [businessId, activeReport, selectedPeriod, effectiveRole]);
 
   const reportTabs: Array<{ id: ReportType; label: string; icon: React.FC<{ className?: string }>; requiresManager?: boolean }> = [
     { id: 'z_reports', label: 'Register Closeouts (Z-Reports)', icon: Receipt },
@@ -133,8 +146,11 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
   ];
 
   const handlePrint = () => {
-    if (activeReport === 'z_reports' && activeShift) {
-      HardwarePrinterService.printZReport(activeShift, activeBusiness, currencyConfig);
+    if (activeReport === 'z_reports') {
+      const shiftToPrint = selectedShiftForModal || activeShift || historicShifts[0];
+      if (shiftToPrint) {
+        HardwarePrinterService.printZReport(shiftToPrint, activeBusiness, currencyConfig);
+      }
       return;
     }
     if (!reportData) return;
@@ -154,9 +170,39 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
   };
 
   const handleExportCSV = () => {
+    if (activeReport === 'z_reports') {
+      if (historicShifts.length === 0) return;
+      const headers = ['Z_Report_Number', 'Shift_Number', 'Opened_At', 'Closed_At', 'Opened_By', 'Total_Sales', 'Expected_Cash', 'Actual_Cash', 'Discrepancy', 'Status'];
+      const csvContent = [
+        headers.join(','),
+        ...historicShifts.map((s) => [
+          `"${s.z_report_number}"`,
+          s.shift_number,
+          `"${s.opened_at}"`,
+          `"${s.closed_at || ''}"`,
+          `"${s.opened_by}"`,
+          s.total_sales,
+          s.expected_cash,
+          s.actual_cash_counted,
+          s.discrepancy,
+          `"${s.status}"`,
+        ].join(',')),
+      ].join('\n');
+
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${activeBusiness?.name || 'Business'}-Z-Reports-Audit.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
     if (!reportData || reportData.breakdownRows.length === 0) return;
     const rows = reportData.breakdownRows;
-    const headers = Object.keys(rows[0]);
+    const headers = Object.keys(rows[0]).filter((k) => k !== 'id' && k !== 'business_id');
     const csvContent = [
       headers.join(','),
       ...rows.map((r) =>
@@ -578,34 +624,95 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
               <div className="py-12 text-center text-zinc-500 text-sm">
                 No recorded entries found for this time period.
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-zinc-950/80 text-zinc-400 uppercase tracking-wider font-semibold border-b border-zinc-800">
-                    <tr>
-                      {Object.keys(reportData.breakdownRows[0]).map((col) => (
-                        <th key={col} className="px-4 py-3">
-                          {col.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800/60 font-mono text-zinc-300">
-                    {reportData.breakdownRows.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-zinc-800/40 transition-colors">
-                        {Object.values(row).map((val: any, colIdx) => (
-                          <td key={colIdx} className="px-4 py-3 whitespace-nowrap">
-                            {typeof val === 'number'
-                              ? val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-                              : String(val)}
-                          </td>
+            ) : (() => {
+              const visibleCols = Object.keys(reportData.breakdownRows[0]).filter(
+                (k) => k !== 'id' && k !== 'business_id'
+              );
+
+              const formatCellVal = (col: string, val: any) => {
+                if (val === null || val === undefined || val === '') return '—';
+                const lowerCol = col.toLowerCase();
+
+                if (typeof val === 'number') {
+                  if (lowerCol.includes('percent') || lowerCol.includes('rate') || lowerCol.includes('marginpercent')) {
+                    return `${val}%`;
+                  }
+                  if (
+                    lowerCol.includes('count') ||
+                    lowerCol.includes('quantity') ||
+                    lowerCol.includes('skus') ||
+                    lowerCol.includes('units') ||
+                    lowerCol.includes('minstock') ||
+                    lowerCol.includes('stock')
+                  ) {
+                    return val.toLocaleString();
+                  }
+                  // Currency by default for monetary fields
+                  return `${currencyConfig.symbol}${val.toLocaleString(undefined, {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2,
+                  })}`;
+                }
+
+                if (lowerCol.includes('status')) {
+                  const s = String(val).toUpperCase();
+                  const isGood = s === 'PAID' || s === 'HEALTHY' || s === 'SURPLUS' || s === 'BALANCED' || s === 'SHIELDED';
+                  const isWarn = s === 'LOW_STOCK' || s === 'PARTIAL' || s === 'PENDING' || s === 'ACCRUING' || s === 'DEDUCTIBLE';
+                  const isBad = s === 'OUT_OF_STOCK' || s === 'DEFICIT' || s === 'SHORT' || s === 'LIABLE' || s === 'OVERDUE';
+                  return (
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        isGood
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : isWarn
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          : isBad
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          : 'bg-zinc-800 text-zinc-300'
+                      }`}
+                    >
+                      {String(val)}
+                    </span>
+                  );
+                }
+
+                if (lowerCol.includes('date') || lowerCol === 'sold_at') {
+                  try {
+                    const d = new Date(val);
+                    if (!isNaN(d.getTime())) return d.toLocaleDateString();
+                  } catch {}
+                }
+
+                return String(val);
+              };
+
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-zinc-950/80 text-zinc-400 uppercase tracking-wider font-semibold border-b border-zinc-800">
+                      <tr>
+                        {visibleCols.map((col) => (
+                          <th key={col} className="px-4 py-3 whitespace-nowrap">
+                            {col.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60 font-mono text-zinc-300">
+                      {reportData.breakdownRows.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-zinc-800/40 transition-colors">
+                          {visibleCols.map((col) => (
+                            <td key={col} className="px-4 py-3 whitespace-nowrap">
+                              {formatCellVal(col, row[col])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         </div>
       ) : null}
@@ -615,9 +722,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
         isOpen={isCloseoutModalOpen}
         onClose={() => setIsCloseoutModalOpen(false)}
         shiftToView={selectedShiftForModal}
-        onShiftClosed={(closedShift) => {
+        onShiftClosed={() => {
           loadZReports();
           setIsCloseoutModalOpen(false);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('ursella_data_changed'));
+            window.dispatchEvent(new CustomEvent('ursella_shift_closed'));
+          }
         }}
       />
     </div>

@@ -39,7 +39,17 @@ export class ClientReportingService {
 
       const res = await fetch(`/api/reports/${type}?${params.toString()}`, { headers });
       if (res.ok) {
-        return await res.json();
+        const serverData: BusinessReportData = await res.json();
+        const hasServerMetrics =
+          serverData &&
+          (serverData.breakdownRows?.length > 0 ||
+            Object.values(serverData.summaryMetrics || {}).some(
+              (v) => typeof v === 'number' && Math.abs(v) > 0
+            ));
+
+        if (hasServerMetrics) {
+          return serverData;
+        }
       }
     } catch (networkErr) {
       console.warn(`[ClientReportingService] Server report endpoint unavailable, generating via client analytics:`, networkErr);
@@ -90,6 +100,18 @@ export class ClientReportingService {
     };
     const periodLabel = periodLabels[options?.period || '30d'] || 'Past 30 Days';
 
+    let currency = 'USD';
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const storedBiz = localStorage.getItem('ursella_active_business_v1') || localStorage.getItem('ursella_businesses_v1');
+        if (storedBiz) {
+          const parsed = JSON.parse(storedBiz);
+          if (parsed?.currency) currency = parsed.currency;
+          else if (Array.isArray(parsed) && parsed[0]?.currency) currency = parsed[0].currency;
+        }
+      }
+    } catch {}
+
     switch (type) {
       case 'sales': {
         // Fetch recent sales rows if Supabase available
@@ -102,10 +124,29 @@ export class ClientReportingService {
               .eq('business_id', businessId)
               .order('sold_at', { ascending: false })
               .limit(50);
-            if (data) salesRows = data;
+            if (data && data.length > 0) salesRows = data;
           } catch {
             salesRows = [];
           }
+        }
+
+        if (salesRows.length === 0 && typeof localStorage !== 'undefined') {
+          try {
+            const stored = localStorage.getItem(`ursella_sales_${businessId}`);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                salesRows = parsed.slice(0, 50).map((s: any) => ({
+                  receipt_number: s.receipt_number || s.id?.slice(0, 8),
+                  total: Number(s.total) || 0,
+                  amount_paid: Number(s.amount_paid ?? s.total) || 0,
+                  payment_status: s.payment_status || 'paid',
+                  payment_method: s.payment_method || 'cash',
+                  sold_at: s.sold_at || s.created_at || new Date().toISOString(),
+                }));
+              }
+            }
+          } catch {}
         }
 
         if (salesRows.length === 0 && analytics.timeSeries.length > 0) {
@@ -122,7 +163,7 @@ export class ClientReportingService {
           businessId,
           generatedAt: new Date().toISOString(),
           periodLabel,
-          currency: 'USD',
+          currency,
           summaryMetrics: {
             totalRevenue: analytics.financialOverview.revenue,
             transactionCount: analytics.financialOverview.transactionCount,
@@ -135,7 +176,7 @@ export class ClientReportingService {
       }
 
       case 'profitability': {
-        const prodRows = analytics.topProducts.map((p) => ({
+        let prodRows = analytics.topProducts.map((p) => ({
           productName: p.name,
           sellingPrice: p.sellingPrice,
           costPrice: p.costPrice,
@@ -146,12 +187,39 @@ export class ClientReportingService {
           totalProfit: p.grossProfit,
         }));
 
+        if (prodRows.length === 0 && typeof localStorage !== 'undefined') {
+          try {
+            const stored = localStorage.getItem(`ursella_products_${businessId}`);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (Array.isArray(parsed)) {
+                prodRows = parsed.slice(0, 50).map((p: any) => {
+                  const sp = Number(p.selling_price) || 0;
+                  const cp = Number(p.cost_price) || 0;
+                  const unitMargin = sp - cp;
+                  const marginPercent = sp > 0 ? Math.round((unitMargin / sp) * 1000) / 10 : 0;
+                  return {
+                    productName: p.name,
+                    sellingPrice: sp,
+                    costPrice: cp,
+                    unitMargin,
+                    marginPercent,
+                    unitsSold: 0,
+                    totalRevenue: 0,
+                    totalProfit: 0,
+                  };
+                });
+              }
+            }
+          } catch {}
+        }
+
         return {
           reportType: 'profitability',
           businessId,
           generatedAt: new Date().toISOString(),
           periodLabel,
-          currency: 'USD',
+          currency,
           summaryMetrics: {
             grossRevenue: analytics.financialOverview.revenue,
             costOfGoodsSold: analytics.financialOverview.costOfGoodsSold,
@@ -174,10 +242,20 @@ export class ClientReportingService {
               .select('name, sku, selling_price, cost_price, stock_quantity, minimum_stock_level, is_active')
               .eq('business_id', businessId)
               .order('name');
-            if (data) products = data;
+            if (data && data.length > 0) products = data;
           } catch {
             products = [];
           }
+        }
+
+        if (products.length === 0 && typeof localStorage !== 'undefined') {
+          try {
+            const stored = localStorage.getItem(`ursella_products_${businessId}`);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (Array.isArray(parsed)) products = parsed;
+            }
+          } catch {}
         }
 
         const totalValuationCost = products.reduce(
@@ -198,7 +276,7 @@ export class ClientReportingService {
           businessId,
           generatedAt: new Date().toISOString(),
           periodLabel: 'Current Stock Position',
-          currency: 'USD',
+          currency,
           summaryMetrics: {
             totalSKUs: products.length || analytics.inventorySummary.totalActiveSKUs,
             totalValuationCost: totalValuationCost || analytics.inventorySummary.totalValuation,
@@ -226,20 +304,49 @@ export class ClientReportingService {
       }
 
       case 'expenses': {
-        const topCat = analytics.expenseAnalytics.categories[0];
+        let expenseCategories = analytics.expenseAnalytics.categories;
+        if (expenseCategories.length === 0 && typeof localStorage !== 'undefined') {
+          try {
+            const stored = localStorage.getItem(`ursella_expenses_${businessId}`);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                const map = new Map<string, { count: number; total: number }>();
+                for (const exp of parsed) {
+                  const cat = exp.category || 'General';
+                  const amt = Number(exp.amount) || 0;
+                  const curr = map.get(cat) || { count: 0, total: 0 };
+                  map.set(cat, { count: curr.count + 1, total: curr.total + amt });
+                }
+                const totalAll = Array.from(map.values()).reduce((sum, v) => sum + v.total, 0);
+                const totalRev = Number(analytics.financialOverview.revenue) || 0;
+                expenseCategories = Array.from(map.entries()).map(([category, stats]) => ({
+                  category,
+                  count: stats.count,
+                  amount: stats.total,
+                  percentageOfTotalExpenses: totalAll > 0 ? Math.round((stats.total / totalAll) * 1000) / 10 : 0,
+                  percentageOfRevenue: totalRev > 0 ? Math.round((stats.total / totalRev) * 1000) / 10 : 0,
+                }));
+              }
+            }
+          } catch {}
+        }
+
+        const totalExpenses = expenseCategories.reduce((sum, c) => sum + c.amount, 0) || analytics.expenseAnalytics.totalExpenses;
+        const topCat = expenseCategories[0];
         return {
           reportType: 'expenses',
           businessId,
           generatedAt: new Date().toISOString(),
           periodLabel,
-          currency: 'USD',
+          currency,
           summaryMetrics: {
-            totalExpenses: analytics.expenseAnalytics.totalExpenses,
-            expenseCount: analytics.expenseAnalytics.categories.reduce((sum, c) => sum + c.count, 0),
+            totalExpenses,
+            expenseCount: expenseCategories.reduce((sum, c) => sum + c.count, 0),
             topCategory: topCat?.category || 'None',
             topCategoryAmount: topCat?.amount || 0,
           },
-          breakdownRows: analytics.expenseAnalytics.categories.map((c) => ({
+          breakdownRows: expenseCategories.map((c) => ({
             category: c.category,
             totalAmount: c.amount,
             percentOfTotal: c.percentageOfTotalExpenses,
@@ -257,10 +364,22 @@ export class ClientReportingService {
               .eq('business_id', businessId)
               .gt('current_debt', 0)
               .order('current_debt', { ascending: false });
-            if (data) debtorsList = data;
+            if (data && data.length > 0) debtorsList = data;
           } catch {
             debtorsList = [];
           }
+        }
+
+        if (debtorsList.length === 0 && typeof localStorage !== 'undefined') {
+          try {
+            const stored = localStorage.getItem(`ursella_customers_${businessId}`);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (Array.isArray(parsed)) {
+                debtorsList = parsed.filter((c: any) => (Number(c.current_debt) || 0) > 0);
+              }
+            }
+          } catch {}
         }
 
         return {
@@ -268,10 +387,10 @@ export class ClientReportingService {
           businessId,
           generatedAt: new Date().toISOString(),
           periodLabel: 'Active Outstanding Receivables',
-          currency: 'USD',
+          currency,
           summaryMetrics: {
             totalReceivables: analytics.customerAnalytics.totalOutstandingDebt,
-            activeDebtorsCount: analytics.customerAnalytics.debtorCustomers,
+            activeDebtorsCount: debtorsList.length || analytics.customerAnalytics.debtorCustomers,
             totalCustomers: analytics.customerAnalytics.totalCustomers,
           },
           breakdownRows: debtorsList.map((d) => ({
@@ -289,7 +408,7 @@ export class ClientReportingService {
           businessId,
           generatedAt: new Date().toISOString(),
           periodLabel,
-          currency: 'USD',
+          currency,
           summaryMetrics: {
             totalCashIn: analytics.cashFlow.cashInflows,
             totalCashOut: analytics.cashFlow.cashOutflows,
@@ -311,7 +430,8 @@ export class ClientReportingService {
       case 'tax': {
         const revenue = Number(analytics.financialOverview.revenue || 0);
         const totalExpenses = Number(analytics.financialOverview.operatingExpenses || 0);
-        const taxableIncome = Math.max(0, revenue - totalExpenses);
+        const cogs = Number(analytics.financialOverview.costOfGoodsSold || 0);
+        const taxableIncome = Math.max(0, revenue - totalExpenses - cogs);
         const estimatedSalesTax = Math.round(revenue * 0.05 * 100) / 100;
         const estimatedIncomeTax = Math.round(taxableIncome * 0.15 * 100) / 100;
         const totalTaxLiability = Math.round((estimatedSalesTax + estimatedIncomeTax) * 100) / 100;
@@ -321,10 +441,10 @@ export class ClientReportingService {
           businessId,
           generatedAt: new Date().toISOString(),
           periodLabel,
-          currency: 'USD',
+          currency,
           summaryMetrics: {
             taxableGrossRevenue: revenue,
-            allowableDeductions: totalExpenses,
+            allowableDeductions: totalExpenses + cogs,
             netTaxableIncome: taxableIncome,
             estimatedSalesTax,
             estimatedCorporateTax: estimatedIncomeTax,
@@ -344,6 +464,13 @@ export class ClientReportingService {
               rateApplied: '15.0%',
               estimatedTax: estimatedIncomeTax,
               status: taxableIncome > 0 ? 'LIABLE' : 'NIL',
+            },
+            {
+              taxCategory: 'Cost of Goods Sold (COGS)',
+              applicableBase: cogs,
+              rateApplied: '100.0%',
+              estimatedTax: -cogs,
+              status: 'DEDUCTIBLE',
             },
             {
               taxCategory: 'Allowable Expense Deductions',

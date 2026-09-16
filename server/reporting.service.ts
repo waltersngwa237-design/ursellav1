@@ -269,20 +269,31 @@ export class ReportingService {
 
     const revenue = Number(overview.revenue || 0);
     const totalExpenses = Number(expenses.totalExpenses || 0);
-    const taxableIncome = Math.max(0, revenue - totalExpenses);
+    const cogs = Number(overview.cost_of_goods_sold || 0);
+    const taxableIncome = Math.max(0, revenue - totalExpenses - cogs);
     const estimatedSalesTax = Math.round(revenue * 0.05 * 100) / 100;
     const estimatedIncomeTax = Math.round(taxableIncome * 0.15 * 100) / 100;
     const totalTaxLiability = Math.round((estimatedSalesTax + estimatedIncomeTax) * 100) / 100;
+
+    let currency = 'USD';
+    try {
+      const { data: b } = await serverSupabase
+        .from('businesses')
+        .select('currency')
+        .eq('id', businessId)
+        .single();
+      if (b?.currency) currency = b.currency;
+    } catch {}
 
     return {
       reportType: 'tax' as any,
       businessId,
       generatedAt: new Date().toISOString(),
       periodLabel,
-      currency: 'USD',
+      currency,
       summaryMetrics: {
         taxableGrossRevenue: revenue,
-        allowableDeductions: totalExpenses,
+        allowableDeductions: totalExpenses + cogs,
         netTaxableIncome: taxableIncome,
         estimatedSalesTax,
         estimatedCorporateTax: estimatedIncomeTax,
@@ -304,7 +315,14 @@ export class ReportingService {
           status: taxableIncome > 0 ? 'LIABLE' : 'NIL',
         },
         {
-          taxCategory: 'Allowable Expense Deductions',
+          taxCategory: 'Cost of Goods Sold (COGS)',
+          applicableBase: cogs,
+          rateApplied: '100.0%',
+          estimatedTax: -cogs,
+          status: 'DEDUCTIBLE',
+        },
+        {
+          taxCategory: 'Operating Expense Deductions',
           applicableBase: totalExpenses,
           rateApplied: '100.0%',
           estimatedTax: -totalExpenses,
