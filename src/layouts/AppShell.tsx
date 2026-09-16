@@ -280,7 +280,9 @@ export const AppShell: React.FC<AppShellProps> = ({
 
   return (
     <div
-      className="bg-zinc-950 text-zinc-100 flex flex-col md:flex-row h-screen overflow-hidden"
+      className={`bg-zinc-950 text-zinc-100 flex flex-col md:flex-row ${
+        currentRoute === 'ai' ? 'h-screen md:h-screen overflow-hidden' : 'min-h-screen'
+      }`}
       style={{
         paddingTop: currentRoute === 'ai' ? '0px' : 'var(--offline-banner-height, 0px)',
         transition: 'padding-top 0.2s ease-out',
@@ -376,10 +378,10 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* MAIN CONTENT AREA & TOPBAR                                                */}
       {/* ========================================================================= */}
       <div 
-        className={`flex-1 overflow-hidden flex flex-col min-w-0 min-h-0 ${
+        className={`flex-1 flex flex-col min-w-0 min-h-0 ${
           currentRoute === 'ai' 
-            ? 'fixed inset-0 z-20 md:relative md:inset-auto md:z-auto md:h-screen' 
-            : 'relative h-full'
+            ? 'fixed inset-0 z-20 md:relative md:inset-auto md:z-auto md:h-screen overflow-hidden' 
+            : 'pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8'
         }`}
         style={{
           height: currentRoute === 'ai' && viewportHeight ? `${viewportHeight}px` : undefined,
@@ -509,10 +511,10 @@ export const AppShell: React.FC<AppShellProps> = ({
         )}
 
         {/* Page Body */}
-        <main className={`flex-1 w-full min-h-0 overflow-y-auto ${
+        <main className={`flex-1 w-full min-h-0 ${
           currentRoute === 'ai' 
             ? 'p-0 max-w-none flex flex-col overflow-hidden' 
-            : 'p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-8'
+            : 'p-3.5 sm:p-6 lg:p-8 max-w-7xl mx-auto'
         }`}>
           {React.Children.map(children, (child) => {
             if (React.isValidElement(child)) {
