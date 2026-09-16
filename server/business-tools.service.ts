@@ -748,7 +748,7 @@ export class BusinessToolsService {
       totalRetailValuation,
       potentialGrossProfit,
       potentialGrossMargin,
-      fifoValuation: fifo.ledgerResult.totals.totalValuationAtCost,
+      fifoValuation: fifo.ledgerResult.totals.inventoryValue,
       lowStockCount: invAlerts.lowStockCount,
       outOfStockCount: invAlerts.outOfStockCount,
       criticalItemsToRestock: invAlerts.criticalItemsToRestock,

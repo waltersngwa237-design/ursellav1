@@ -38,9 +38,11 @@ export type AITimePeriod =
   | 'last_week'
   | 'this_month'
   | 'last_month'
+  | 'this_year'
   | 'last_30_days'
   | 'last_90_days'
   | 'all_time'
+  | 'multi_period'
   | 'comparison_period';
 
 export interface IntentClassificationResult {
@@ -491,7 +493,7 @@ export function classifyBusinessQuery(
     q.includes('how much did i sell') ||
     q.includes('how much have i sold')
   ) {
-    let period = 'last_30_days';
+    let period: AITimePeriod = 'last_30_days';
     let days = 30;
     if (q.includes('this week') || q.includes('weekly')) {
       period = 'this_week';
