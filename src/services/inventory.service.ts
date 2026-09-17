@@ -33,6 +33,32 @@ export interface InventoryLedgerItem extends InventoryTransaction {
  */
 export const InventoryService = {
   /**
+   * Record an inventory transaction (compatibility alias for recordMovement).
+   */
+  async recordTransaction(params: {
+    business_id: string;
+    product_id: string;
+    transaction_type: string;
+    quantity: number;
+    reason?: string;
+    notes?: string;
+    unit_cost?: number | null;
+    reference_type?: string;
+    reference_id?: string | null;
+  }): Promise<string> {
+    return this.recordMovement({
+      business_id: params.business_id,
+      product_id: params.product_id,
+      type: params.transaction_type as InventoryTransactionType,
+      quantity: params.quantity,
+      notes: params.notes || params.reason || null,
+      unit_cost: params.unit_cost,
+      reference_type: params.reference_type,
+      reference_id: params.reference_id,
+    });
+  },
+
+  /**
    * Record an atomic inventory movement.
    * Decrements or increments stock, or resets stock for adjustments.
    */

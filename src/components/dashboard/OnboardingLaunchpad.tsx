@@ -2,15 +2,14 @@ import React from 'react';
 import { Card } from '../common/Card.tsx';
 import { Button } from '../common/Button.tsx';
 import { Badge } from '../common/Badge.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import {
-  PackagePlus,
   ShoppingCart,
   Sparkles,
   ArrowRight,
   CheckCircle2,
   Boxes,
   Zap,
-  TrendingUp,
   X,
 } from 'lucide-react';
 import type { AppNavRoute } from '../../types/index.ts';
@@ -32,37 +31,58 @@ export const OnboardingLaunchpad: React.FC<OnboardingLaunchpadProps> = ({
   onNavigate,
   onDismiss,
 }) => {
+  const { language } = useLanguage();
+  const isFr = language === 'fr';
+
   const steps = [
     {
       id: 'products',
-      title: 'Add Initial Inventory Catalog',
-      description: 'Create products with cost price (FIFO tracking), selling price, and stock alerts.',
+      title: isFr ? 'Ajouter Votre Catalogue Initial' : 'Add Initial Inventory Catalog',
+      description: isFr
+        ? 'Créez vos articles avec prix d’achat (suivi PEPS), prix de vente et alertes de stock.'
+        : 'Create products with cost price (FIFO tracking), selling price, and stock alerts.',
       icon: <Boxes className="w-5 h-5" />,
       completed: hasProducts,
-      actionText: hasProducts ? 'Manage Stock' : 'Add Products',
+      actionText: hasProducts
+        ? isFr ? 'Gérer le Stock' : 'Manage Stock'
+        : isFr ? 'Ajouter des Produits' : 'Add Products',
       route: 'business' as AppNavRoute,
-      badge: hasProducts ? 'Completed' : 'Step 1',
+      badge: hasProducts
+        ? isFr ? 'Terminé' : 'Completed'
+        : isFr ? 'Étape 1' : 'Step 1',
     },
     {
       id: 'sell',
-      title: 'Record First Point of Sale',
-      description: 'Test the rapid POS counter with cash, Mobile Money, or credit invoicing.',
+      title: isFr ? 'Enregistrer une Première Vente' : 'Record First Point of Sale',
+      description: isFr
+        ? 'Testez la caisse enregistreuse ultra-rapide avec espèces, Mobile Money ou vente à crédit.'
+        : 'Test the rapid POS counter with cash, Mobile Money, or credit invoicing.',
       icon: <ShoppingCart className="w-5 h-5" />,
       completed: hasSales,
-      actionText: hasSales ? 'Open POS' : 'Start Sale',
+      actionText: hasSales
+        ? isFr ? 'Ouvrir la Caisse' : 'Open POS'
+        : isFr ? 'Faire une Vente' : 'Start Sale',
       route: 'sell' as AppNavRoute,
-      badge: hasSales ? 'Completed' : 'Step 2',
+      badge: hasSales
+        ? isFr ? 'Terminé' : 'Completed'
+        : isFr ? 'Étape 2' : 'Step 2',
     },
     {
       id: 'ai',
-      title: 'Get Instant Financial Intelligence',
-      description: 'Ask Ursella AI for real-time ledger metrics, gross profit, and restock guidance.',
+      title: isFr ? 'Activer le Co-pilote Financier IA' : 'Get Instant Financial Intelligence',
+      description: isFr
+        ? 'Interrogez Ursella IA pour connaître vos marges réelles, votre bénéfice et vos alertes de stock.'
+        : 'Ask Ursella AI for real-time ledger metrics, gross profit, and restock guidance.',
       icon: <Sparkles className="w-5 h-5" />,
       completed: hasAIInteraction,
-      actionText: 'Ask AI Advisor',
+      actionText: isFr ? 'Conseiller IA' : 'Ask AI Advisor',
       route: 'ai' as AppNavRoute,
-      prompt: 'Give me an executive summary of our initial setup and first operational priorities.',
-      badge: hasAIInteraction ? 'Active' : 'Step 3',
+      prompt: isFr
+        ? 'Fais-moi un résumé de notre configuration initiale et des priorités du commerce.'
+        : 'Give me an executive summary of our initial setup and first operational priorities.',
+      badge: hasAIInteraction
+        ? isFr ? 'Actif' : 'Active'
+        : isFr ? 'Étape 3' : 'Step 3',
     },
   ];
 
@@ -84,14 +104,16 @@ export const OnboardingLaunchpad: React.FC<OnboardingLaunchpadProps> = ({
               <Zap className="w-4 h-4" />
             </span>
             <h2 className="text-base sm:text-lg font-bold text-white">
-              Welcome to {businessName}
+              {isFr ? 'Bienvenue dans' : 'Welcome to'} {businessName}
             </h2>
             <Badge variant="emerald" size="sm">
-              Setup Guide
+              {isFr ? 'Guide de Démarrage' : 'Setup Guide'}
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-xl">
-            Follow these 3 quick milestones to get your store operational and unlock automated real-time financial reporting.
+            {isFr
+              ? 'Suivez ces 3 étapes simples pour rendre votre commerce opérationnel et débloquer les rapports financiers en direct.'
+              : 'Follow these 3 quick milestones to get your store operational and unlock automated real-time financial reporting.'}
           </p>
         </div>
 
@@ -99,8 +121,12 @@ export const OnboardingLaunchpad: React.FC<OnboardingLaunchpadProps> = ({
         <div className="flex items-center gap-3 self-start sm:self-auto">
           <div className="flex items-center gap-3 bg-zinc-950/80 border border-zinc-800/80 px-3.5 py-2 rounded-xl">
             <div className="text-right">
-              <div className="text-xs font-bold text-white">{completedCount} of 3 Complete</div>
-              <div className="text-[10px] text-zinc-400">{progressPercent}% Ready</div>
+              <div className="text-xs font-bold text-white">
+                {isFr ? `${completedCount} sur 3 terminées` : `${completedCount} of 3 Complete`}
+              </div>
+              <div className="text-[10px] text-zinc-400">
+                {progressPercent}% {isFr ? 'Prêt' : 'Ready'}
+              </div>
             </div>
             <div className="w-12 h-2 bg-zinc-800 rounded-full overflow-hidden">
               <div
@@ -113,9 +139,9 @@ export const OnboardingLaunchpad: React.FC<OnboardingLaunchpadProps> = ({
           {onDismiss && (
             <button
               onClick={onDismiss}
-              className="p-2 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 rounded-xl border border-zinc-800/80 transition-colors"
-              title="Dismiss Setup Guide"
-              aria-label="Dismiss Setup Guide"
+              className="p-2 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 rounded-xl border border-zinc-800/80 transition-colors cursor-pointer"
+              title={isFr ? 'Masquer le guide' : 'Dismiss Setup Guide'}
+              aria-label={isFr ? 'Masquer le guide' : 'Dismiss Setup Guide'}
             >
               <X className="w-4 h-4" />
             </button>
@@ -148,29 +174,28 @@ export const OnboardingLaunchpad: React.FC<OnboardingLaunchpadProps> = ({
                 <Badge
                   variant={step.completed ? 'emerald' : 'zinc'}
                   size="sm"
-                  className="text-[10px]"
                 >
                   {step.badge}
                 </Badge>
               </div>
 
-              <h3 className="text-xs sm:text-sm font-bold text-zinc-100">{step.title}</h3>
-              <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
+              <h3 className="text-xs sm:text-sm font-bold text-white mb-1">
+                {step.title}
+              </h3>
+              <p className="text-[11px] text-zinc-400 leading-relaxed mb-4">
                 {step.description}
               </p>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-zinc-800/80">
-              <Button
-                variant={step.completed ? 'outline' : 'primary'}
-                size="sm"
-                className="w-full text-xs font-semibold"
-                onClick={() => onNavigate(step.route, step.prompt)}
-                rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-              >
-                {step.actionText}
-              </Button>
-            </div>
+            <Button
+              variant={step.completed ? 'outline' : 'primary'}
+              size="sm"
+              onClick={() => onNavigate(step.route, step.prompt)}
+              rightIcon={<ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-0.5" />}
+              className="w-full text-xs cursor-pointer group"
+            >
+              {step.actionText}
+            </Button>
           </div>
         ))}
       </div>

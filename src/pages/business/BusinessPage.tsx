@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { ProductService, type CreateProductInput, type ProductDetailResult } from '../../services/product.service.ts';
 import { InventoryService, type InventoryLedgerItem } from '../../services/inventory.service.ts';
 import { ExpenseService, type CreateExpenseInput } from '../../services/expense.service.ts';
@@ -7,7 +8,6 @@ import { Card } from '../../components/common/Card.tsx';
 import { Badge } from '../../components/common/Badge.tsx';
 import { Button } from '../../components/common/Button.tsx';
 import { Input } from '../../components/common/Input.tsx';
-import { Select } from '../../components/common/Select.tsx';
 import { Modal } from '../../components/common/Modal.tsx';
 import { TeamManagementSection } from '../../components/team/TeamManagementSection.tsx';
 import {
@@ -26,29 +26,17 @@ import {
   Receipt,
   Plus,
   Search,
-  Filter,
-  ArrowUpDown,
   Edit2,
   Trash2,
   AlertTriangle,
-  CheckCircle2,
-  TrendingUp,
-  DollarSign,
-  Calendar,
-  CreditCard,
-  Building2,
-  Clock,
   Archive,
-  RefreshCw,
-  X,
   History,
   Tag,
   Boxes,
-  Truck,
   Users,
 } from 'lucide-react';
 
-export const UNIT_OF_MEASURE_GROUPS = [
+export const UNIT_OF_MEASURE_GROUPS_EN = [
   {
     group: 'Count & Packaging',
     units: [
@@ -99,13 +87,68 @@ export const UNIT_OF_MEASURE_GROUPS = [
   },
 ];
 
+export const UNIT_OF_MEASURE_GROUPS_FR = [
+  {
+    group: 'Unités & Conditionnement',
+    units: [
+      { value: 'piece', label: 'Pièce / Article (pcs)' },
+      { value: 'pack', label: 'Paquet (pk)' },
+      { value: 'box', label: 'Carton / Boîte (box)' },
+      { value: 'bottle', label: 'Bouteille (btl)' },
+      { value: 'can', label: 'Canette / Boîte' },
+      { value: 'bag', label: 'Sac / Sachet' },
+      { value: 'pair', label: 'Paire (pr)' },
+      { value: 'dozen', label: 'Douzaine (dz)' },
+      { value: 'roll', label: 'Rouleau' },
+      { value: 'set', label: 'Ensemble / Lot' },
+    ],
+  },
+  {
+    group: 'Poids',
+    units: [
+      { value: 'kg', label: 'Kilogramme (kg)' },
+      { value: 'g', label: 'Gramme (g)' },
+      { value: 'lb', label: 'Livre (lb)' },
+      { value: 'oz', label: 'Once (oz)' },
+    ],
+  },
+  {
+    group: 'Volume & Liquides',
+    units: [
+      { value: 'L', label: 'Litre (L)' },
+      { value: 'ml', label: 'Millilitre (ml)' },
+      { value: 'gal', label: 'Gallon (gal)' },
+      { value: 'cup', label: 'Tasse' },
+    ],
+  },
+  {
+    group: 'Longueur & Dimensions',
+    units: [
+      { value: 'm', label: 'Mètre (m)' },
+      { value: 'cm', label: 'Centimètre (cm)' },
+      { value: 'yard', label: 'Yard (yd)' },
+      { value: 'ft', label: 'Pied (ft)' },
+    ],
+  },
+  {
+    group: 'Autre',
+    units: [
+      { value: 'custom', label: 'Autre unité personnalisée...' },
+    ],
+  },
+];
+
 export interface BusinessPageProps {
   initialTab?: 'catalog' | 'inventory' | 'categories' | 'expenses' | 'team';
 }
 
 export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalog' }) => {
   const { activeBusiness, currency } = useBusiness();
+  const { language, t } = useLanguage();
+  const isFr = language === 'fr';
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
+
+  const unitGroups = isFr ? UNIT_OF_MEASURE_GROUPS_FR : UNIT_OF_MEASURE_GROUPS_EN;
 
   const [activeTab, setActiveTab] = useState<'catalog' | 'inventory' | 'categories' | 'expenses' | 'team'>(() => {
     if (typeof window !== 'undefined') {
@@ -248,7 +291,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
       const ledger = await InventoryService.getInventoryLedger(activeBusiness.id);
       setInventoryLedger(ledger);
     } catch (err) {
-      console.error('Error loading inventory:', err);
+      console.error('Error loading inventory ledger:', err);
     } finally {
       setLoadingInventory(false);
     }
@@ -271,32 +314,22 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
   };
 
   useEffect(() => {
-    if (activeTab === 'catalog') {
-      loadProducts();
-    } else if (activeTab === 'inventory') {
+    loadProducts();
+  }, [activeBusiness?.id, categoryFilter, stockStatusFilter, showArchivedProducts, productSearch]);
+
+  useEffect(() => {
+    if (activeTab === 'inventory') {
       loadInventory();
-      loadProducts();
-    } else if (activeTab === 'categories') {
-      loadProducts();
     } else if (activeTab === 'expenses') {
       loadExpenses();
     }
-  }, [
-    activeTab,
-    activeBusiness?.id,
-    showArchivedProducts,
-    categoryFilter,
-    stockStatusFilter,
-    productSearch,
-    expenseCatFilter,
-    expenseSearch,
-  ]);
+  }, [activeBusiness?.id, activeTab, expenseCatFilter, expenseSearch]);
 
-  // Open Product Detail
+  // View Product Detail Modal
   const handleViewProductDetail = async (productId: string) => {
     if (!activeBusiness?.id) return;
-    setLoadingDetail(true);
     setIsDetailModalOpen(true);
+    setLoadingDetail(true);
     try {
       const detail = await ProductService.getProductDetail(activeBusiness.id, productId);
       setSelectedProductDetail(detail);
@@ -322,10 +355,10 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
       const minStock = Number(prodFormMinStock);
 
       if (isNaN(sellingPrice) || sellingPrice < 0) {
-        throw new Error('Selling price must be a non-negative number.');
+        throw new Error(isFr ? 'Le prix de vente doit être un nombre positif.' : 'Selling price must be a non-negative number.');
       }
       if (isNaN(costPrice) || costPrice < 0) {
-        throw new Error('Cost price must be a non-negative number.');
+        throw new Error(isFr ? 'Le prix d’achat doit être un nombre positif.' : 'Cost price must be a non-negative number.');
       }
 
       const resolvedUnit = prodFormUnit === 'custom'
@@ -364,7 +397,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
       resetProductForm();
       loadProducts();
     } catch (err: any) {
-      setProductFormError(err?.message || 'Failed to save product.');
+      setProductFormError(err?.message || (isFr ? 'Erreur lors de l’enregistrement du produit.' : 'Failed to save product.'));
     } finally {
       setSavingProduct(false);
     }
@@ -396,7 +429,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
     setProdFormStock(String(prod.stock_quantity));
     setProdFormMinStock(String(prod.minimum_stock_level));
     
-    const allKnownUnits = UNIT_OF_MEASURE_GROUPS.flatMap((g) => g.units.map((u) => u.value)).filter((v) => v !== 'custom');
+    const allKnownUnits = UNIT_OF_MEASURE_GROUPS_EN.flatMap((g) => g.units.map((u) => u.value)).filter((v) => v !== 'custom');
     const existingUnit = prod.unit_of_measure?.trim() || 'piece';
     if (allKnownUnits.includes(existingUnit)) {
       setProdFormUnit(existingUnit);
@@ -420,7 +453,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
         setIsDetailModalOpen(false);
       }
     } catch (err: any) {
-      alert(err?.message || 'Failed to update product status');
+      alert(err?.message || (isFr ? 'Échec de mise à jour' : 'Failed to update product status'));
     }
   };
 
@@ -442,7 +475,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
       }
       loadProducts();
     } catch (err: any) {
-      alert(err?.message || 'Failed to delete product');
+      alert(err?.message || (isFr ? 'Échec de suppression' : 'Failed to delete product'));
     } finally {
       setDeletingProduct(false);
     }
@@ -459,31 +492,26 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
     try {
       const qty = Number(adjustQuantity);
       if (isNaN(qty) || qty <= 0) {
-        throw new Error('Quantity must be greater than zero.');
+        throw new Error(isFr ? 'La quantité doit être supérieure à zéro.' : 'Quantity must be greater than zero.');
       }
 
-      const effectiveReason = adjustReason.trim() || (adjustType === 'restock' ? 'Supplier replenishment restock' : 'Stock level adjustment');
-      if (adjustType === 'adjustment' && !adjustReason.trim()) {
-        throw new Error('A reason is mandatory for stock audit adjustments.');
-      }
-
-      await InventoryService.recordMovement({
+      await InventoryService.recordTransaction({
         business_id: activeBusiness.id,
         product_id: adjustProductId,
-        type: adjustType,
+        transaction_type: adjustType,
         quantity: qty,
-        reference_type: 'manual_adjustment',
-        notes: `Reason: ${effectiveReason}${adjustNotes ? ` | Notes: ${adjustNotes.trim()}` : ''}`,
+        reason: adjustReason.trim() || undefined,
+        notes: adjustNotes.trim() || undefined,
       });
 
       setIsAdjustStockModalOpen(false);
+      setAdjustProductId('');
       setAdjustReason('');
       setAdjustNotes('');
-      setAdjustQuantity('1');
-      loadInventory();
       loadProducts();
+      if (activeTab === 'inventory') loadInventory();
     } catch (err: any) {
-      setAdjustError(err?.message || 'Failed to adjust stock.');
+      setAdjustError(err?.message || (isFr ? 'Erreur lors de l’ajustement de stock.' : 'Failed to record stock movement.'));
     } finally {
       setSavingAdjustment(false);
     }
@@ -510,7 +538,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
       setEditingCatId(null);
       loadProducts();
     } catch (err: any) {
-      setCatError(err?.message || 'Failed to save category.');
+      setCatError(err?.message || (isFr ? 'Erreur lors de l’enregistrement de la catégorie.' : 'Failed to save category.'));
     } finally {
       setSavingCategory(false);
     }
@@ -518,13 +546,13 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
 
   const handleDeleteCategory = async (catId: string) => {
     if (!activeBusiness?.id) return;
-    if (!confirm('Are you sure you want to remove this category? Products in this category will not be deleted.')) return;
+    if (!confirm(isFr ? 'Voulez-vous vraiment supprimer cette catégorie ? Les produits associés ne seront pas supprimés.' : 'Are you sure you want to remove this category? Products in this category will not be deleted.')) return;
 
     try {
       await ProductService.deleteOrArchiveCategory(activeBusiness.id, catId);
       loadProducts();
     } catch (err: any) {
-      alert(err?.message || 'Failed to delete category');
+      alert(err?.message || (isFr ? 'Échec de suppression' : 'Failed to delete category'));
     }
   };
 
@@ -539,7 +567,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
     try {
       const amt = Number(expAmount);
       if (isNaN(amt) || amt <= 0) {
-        throw new Error('Expense amount must be greater than zero.');
+        throw new Error(isFr ? 'Le montant de la dépense doit être supérieur à zéro.' : 'Expense amount must be greater than zero.');
       }
 
       if (editingExpenseId) {
@@ -567,7 +595,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
       resetExpenseForm();
       loadExpenses();
     } catch (err: any) {
-      setExpenseError(err?.message || 'Failed to save expense.');
+      setExpenseError(err?.message || (isFr ? 'Erreur lors de l’enregistrement de la dépense.' : 'Failed to save expense.'));
     } finally {
       setSavingExpense(false);
     }
@@ -586,13 +614,13 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
 
   const handleDeleteExpense = async (expenseId: string) => {
     if (!activeBusiness?.id) return;
-    if (!confirm('Are you sure you want to delete this expense record?')) return;
+    if (!confirm(isFr ? 'Voulez-vous vraiment supprimer cette dépense ?' : 'Are you sure you want to delete this expense record?')) return;
 
     try {
       await ExpenseService.deleteExpense(activeBusiness.id, expenseId);
       loadExpenses();
     } catch (err: any) {
-      alert(err?.message || 'Failed to delete expense');
+      alert(err?.message || (isFr ? 'Échec de suppression' : 'Failed to delete expense'));
     }
   };
 
@@ -616,11 +644,13 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-              Business Operations
+              {isFr ? 'Opérations Commerciales' : 'Business Operations'}
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-            Catalog items, atomic stock ledger, categories, and overhead expenses for{' '}
+            {isFr
+              ? 'Catalogue d’articles, registre de stock, catégories et charges pour '
+              : 'Catalog items, atomic stock ledger, categories, and overhead expenses for '}
             <strong className="text-zinc-200">{activeBusiness?.name}</strong>
           </p>
         </div>
@@ -629,62 +659,62 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
         <div className="flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800 max-w-full overflow-x-auto self-start sm:self-auto scrollbar-none overscroll-x-contain touch-pan-x">
           <button
             onClick={() => setActiveTab('catalog')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'catalog'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             <Package className="w-3.5 h-3.5" />
-            <span>Products Catalog</span>
+            <span>{isFr ? 'Catalogue Produits' : 'Products'}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('inventory')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'inventory'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Stock Ledger</span>
+            <span>{isFr ? 'Registre de Stock' : 'Stock Ledger'}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('categories')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'categories'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             <Tag className="w-3.5 h-3.5" />
-            <span>Categories</span>
+            <span>{isFr ? 'Catégories' : 'Categories'}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('expenses')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'expenses'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             <Receipt className="w-3.5 h-3.5" />
-            <span>Expenses</span>
+            <span>{t.navigation.expenses}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('team')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'team'
                 ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Team & Staff</span>
+            <span>{isFr ? 'Équipe & Personnel' : 'Team & Staff'}</span>
           </button>
         </div>
       </div>
@@ -700,14 +730,16 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                   <Package className="w-4 h-4 text-blue-400" />
-                  <span>Product Catalog</span>
+                  <span>{isFr ? 'Catalogue Produits' : 'Products'}</span>
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-zinc-800 text-zinc-300 border border-zinc-700/60">
-                  {products.length} {products.length === 1 ? 'item' : 'items'}
+                  {products.length} {products.length === 1 ? (isFr ? 'article' : 'item') : (isFr ? 'articles' : 'items')}
                 </span>
               </div>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Manage inventory stock levels, prices, barcodes, and product profit margins
+                {isFr
+                  ? 'Gérez vos niveaux de stock, prix de vente, codes-barres et marges bénéficiaires'
+                  : 'Manage inventory stock levels, prices, barcodes, and product profit margins'}
               </p>
             </div>
 
@@ -718,10 +750,10 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                 resetProductForm();
                 setIsAddProductModalOpen(true);
               }}
-              className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-sm shrink-0 self-start sm:self-auto"
+              className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-sm shrink-0 self-start sm:self-auto cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Product</span>
+              <span>{t.inventory.addProduct}</span>
             </Button>
           </div>
 
@@ -731,7 +763,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Search products by name, SKU, or description..."
+                placeholder={isFr ? 'Rechercher par nom, SKU ou description...' : 'Search products by name, SKU, or description...'}
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
@@ -743,7 +775,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
             >
-              <option value="all">All Categories</option>
+              <option value="all">{isFr ? 'Toutes les catégories' : 'All Categories'}</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -756,10 +788,10 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               onChange={(e) => setStockStatusFilter(e.target.value as any)}
               className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
             >
-              <option value="all">All Stock Statuses</option>
-              <option value="in_stock">In Stock</option>
-              <option value="low_stock">Low Stock (≤ Alert level)</option>
-              <option value="out_of_stock">Out of Stock (0)</option>
+              <option value="all">{isFr ? 'Tous les états de stock' : 'All Stock Statuses'}</option>
+              <option value="in_stock">{isFr ? 'En stock' : 'In Stock'}</option>
+              <option value="low_stock">{isFr ? 'Stock faible (≤ Seuil)' : 'Low Stock (≤ Alert level)'}</option>
+              <option value="out_of_stock">{isFr ? 'Rupture de stock (0)' : 'Out of Stock (0)'}</option>
             </select>
 
             <button
@@ -769,9 +801,9 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                   ? 'bg-amber-950/30 text-amber-300 border-amber-500/40'
                   : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
               }`}
-              title="Toggle showing archived products in catalog"
+              title={isFr ? 'Afficher les produits archivés' : 'Toggle showing archived products in catalog'}
             >
-              {showArchivedProducts ? 'Archived Included' : 'Show Archived'}
+              {showArchivedProducts ? (isFr ? 'Archivés Inclus' : 'Archived Included') : (isFr ? 'Voir Archivés' : 'Show Archived')}
             </button>
           </div>
 
@@ -789,11 +821,11 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
             <Card className="text-center py-12 space-y-3">
               <Package className="w-10 h-10 text-zinc-600 mx-auto" />
               <div className="space-y-1">
-                <p className="text-sm font-semibold text-zinc-200">No products found</p>
+                <p className="text-sm font-semibold text-zinc-200">{isFr ? 'Aucun produit trouvé' : 'No products found'}</p>
                 <p className="text-xs text-zinc-400 max-w-sm mx-auto">
                   {productSearch || categoryFilter !== 'all' || stockStatusFilter !== 'all'
-                    ? 'No products match your active search or filter criteria. Try clearing filters.'
-                    : 'Get started by adding your first product to activate sales and stock management.'}
+                    ? (isFr ? 'Aucun produit ne correspond à vos critères de recherche ou filtre.' : 'No products match your active search or filter criteria. Try clearing filters.')
+                    : (isFr ? 'Commencez par ajouter votre premier produit pour activer les ventes et la gestion de stock.' : 'Get started by adding your first product to activate sales and stock management.')}
                 </p>
               </div>
               {productSearch || categoryFilter !== 'all' || stockStatusFilter !== 'all' ? (
@@ -805,7 +837,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                   }}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-colors cursor-pointer"
                 >
-                  Clear Filters
+                  {isFr ? 'Effacer les filtres' : 'Clear Filters'}
                 </button>
               ) : (
                 <Button
@@ -815,10 +847,10 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                     resetProductForm();
                     setIsAddProductModalOpen(true);
                   }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white inline-flex items-center gap-1.5 font-semibold"
+                  className="bg-blue-600 hover:bg-blue-500 text-white inline-flex items-center gap-1.5 font-semibold cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Add First Product</span>
+                  <span>{isFr ? 'Ajouter un Premier Produit' : 'Add First Product'}</span>
                 </Button>
               )}
             </Card>
@@ -848,9 +880,9 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                     <div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider truncate">
-                          {product.category?.name || 'General Product'}
+                          {product.category?.name || (isFr ? 'Général' : 'General Product')}
                         </span>
-                        {!product.is_active && <Badge variant="zinc">Archived</Badge>}
+                        {!product.is_active && <Badge variant="zinc">{isFr ? 'Archivé' : 'Archived'}</Badge>}
                       </div>
 
                       <h3
@@ -868,13 +900,13 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                     <div className="mt-4 pt-3 border-t border-zinc-800/80 space-y-2">
                       <div className="flex items-center justify-between text-xs">
                         <div>
-                          <p className="text-[10px] text-zinc-400">Selling Price</p>
+                          <p className="text-[10px] text-zinc-400">{isFr ? 'Prix de vente' : 'Selling Price'}</p>
                           <p className="font-extrabold text-sm text-emerald-400">
                             {currencyConfig.format(product.selling_price)}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-[10px] text-zinc-400">Cost / Margin</p>
+                          <p className="text-[10px] text-zinc-400">{isFr ? 'Achat / Marge' : 'Cost / Margin'}</p>
                           <p className="text-xs text-zinc-300 font-medium">
                             {currencyConfig.format(product.cost_price)}{' '}
                             <span className="text-emerald-400 text-[10px] font-bold">
@@ -887,9 +919,9 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                       <div className="flex items-center justify-between pt-1">
                         <div>
                           {isOutOfStock ? (
-                            <Badge variant="rose">0 {product.unit_of_measure || 'pcs'} in stock</Badge>
+                            <Badge variant="rose">0 {product.unit_of_measure || 'pcs'} {isFr ? 'en stock' : 'in stock'}</Badge>
                           ) : isLowStock ? (
-                            <Badge variant="amber">{product.stock_quantity} {product.unit_of_measure || 'pcs'} (Low)</Badge>
+                            <Badge variant="amber">{product.stock_quantity} {product.unit_of_measure || 'pcs'} ({isFr ? 'Faible' : 'Low'})</Badge>
                           ) : (
                             <Badge variant="emerald">{product.stock_quantity} {product.unit_of_measure || 'pcs'}</Badge>
                           )}
@@ -902,32 +934,32 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                               setAdjustType('restock');
                               const targetReplenish = Math.max(10, ((product.minimum_stock_level || 5) * 2) - Math.max(0, product.stock_quantity || 0));
                               setAdjustQuantity(String(targetReplenish));
-                              setAdjustReason('Supplier replenishment restock');
+                              setAdjustReason(isFr ? 'Réapprovisionnement fournisseur' : 'Supplier replenishment restock');
                               setIsAdjustStockModalOpen(true);
                             }}
-                            title="Restock Stock"
-                            className="p-1 rounded-lg text-zinc-400 hover:text-emerald-400 hover:bg-emerald-950/20"
+                            title={isFr ? 'Réapprovisionner le stock' : 'Restock Stock'}
+                            className="p-1 rounded-lg text-zinc-400 hover:text-emerald-400 hover:bg-emerald-950/20 cursor-pointer"
                           >
                             <Boxes className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => openEditProduct(product)}
-                            title="Edit Product"
-                            className="p-1 rounded-lg text-zinc-400 hover:text-blue-400 hover:bg-blue-950/20"
+                            title={isFr ? 'Modifier le produit' : 'Edit Product'}
+                            className="p-1 rounded-lg text-zinc-400 hover:text-blue-400 hover:bg-blue-950/20 cursor-pointer"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleToggleProductArchive(product)}
-                            title={product.is_active ? 'Archive Product' : 'Unarchive Product'}
-                            className="p-1 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-amber-950/20"
+                            title={product.is_active ? (isFr ? 'Archiver le produit' : 'Archive Product') : (isFr ? 'Désarchiver le produit' : 'Unarchive Product')}
+                            className="p-1 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-amber-950/20 cursor-pointer"
                           >
                             <Archive className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => confirmDeleteProduct(product)}
-                            title="Delete Product"
-                            className="p-1 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20 transition-colors"
+                            title={isFr ? 'Supprimer le produit' : 'Delete Product'}
+                            className="p-1 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -951,35 +983,35 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Card className="p-4 space-y-1">
               <span className="text-[10px] uppercase font-bold text-zinc-400">
-                Total Inventory Valuation
+                {isFr ? 'Valeur Totale du Stock' : 'Total Inventory Valuation'}
               </span>
               <p className="text-xl font-extrabold text-white">
                 {currencyConfig.format(totalInventoryValuation)}
               </p>
-              <span className="text-[11px] text-zinc-400">At historical cost basis</span>
+              <span className="text-[11px] text-zinc-400">{isFr ? 'Au coût d’achat historique' : 'At historical cost basis'}</span>
             </Card>
 
             <Card className="p-4 space-y-1">
               <span className="text-[10px] uppercase font-bold text-zinc-400">
-                Catalog SKUs Tracked
+                {isFr ? 'Références au Catalogue' : 'Catalog SKUs Tracked'}
               </span>
-              <p className="text-xl font-extrabold text-blue-400">{products.length} Products</p>
-              <span className="text-[11px] text-zinc-400">Active and managed</span>
+              <p className="text-xl font-extrabold text-blue-400">{products.length} {isFr ? 'Produits' : 'Products'}</p>
+              <span className="text-[11px] text-zinc-400">{isFr ? 'Actifs et suivis' : 'Active and managed'}</span>
             </Card>
 
             <Card className="p-4 space-y-1">
               <span className="text-[10px] uppercase font-bold text-zinc-400">
-                Low Stock Alerts
+                {isFr ? 'Alertes Stock Faible' : 'Low Stock Alerts'}
               </span>
-              <p className="text-xl font-extrabold text-amber-400">{lowStockCount} Items</p>
-              <span className="text-[11px] text-zinc-400">Below minimum threshold</span>
+              <p className="text-xl font-extrabold text-amber-400">{lowStockCount} {isFr ? 'Articles' : 'Items'}</p>
+              <span className="text-[11px] text-zinc-400">{isFr ? 'Sous le seuil minimum' : 'Below minimum threshold'}</span>
             </Card>
           </div>
 
           {/* Action Header */}
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <History className="w-4 h-4 text-blue-400" /> Stock Audit Ledger
+              <History className="w-4 h-4 text-blue-400" /> {isFr ? 'Journal d’Audit de Stock' : 'Stock Audit Ledger'}
             </h3>
 
             <Button
@@ -993,10 +1025,10 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                 setAdjustNotes('');
                 setIsAdjustStockModalOpen(true);
               }}
-              className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5 font-semibold"
+              className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5 font-semibold cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Record Stock Movement</span>
+              <span>{isFr ? 'Enregistrer un Mouvement' : 'Record Stock Movement'}</span>
             </Button>
           </div>
 
@@ -1013,9 +1045,9 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
           ) : inventoryLedger.length === 0 ? (
             <Card className="text-center py-12 space-y-2">
               <Layers className="w-8 h-8 text-zinc-600 mx-auto" />
-              <p className="text-sm font-semibold text-zinc-300">No inventory movements recorded</p>
+              <p className="text-sm font-semibold text-zinc-300">{isFr ? 'Aucun mouvement de stock enregistré' : 'No inventory movements recorded'}</p>
               <p className="text-xs text-zinc-500">
-                Initial stock, sales deductions, restocks, and audits will be logged here.
+                {isFr ? 'Le stock initial, les déductions des ventes, réapprovisionnements et audits apparaîtront ici.' : 'Initial stock, sales deductions, restocks, and audits will be logged here.'}
               </p>
             </Card>
           ) : (
@@ -1023,11 +1055,11 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               <table className="w-full text-left text-xs">
                 <thead className="bg-zinc-800/80 text-zinc-400 uppercase tracking-wider text-[10px]">
                   <tr>
-                    <th className="py-3 px-3">Date & Time</th>
-                    <th className="py-3 px-3">Product</th>
-                    <th className="py-3 px-2">Type</th>
-                    <th className="py-3 px-3 text-right">Quantity</th>
-                    <th className="py-3 px-3">Reference / Notes</th>
+                    <th className="py-3 px-3">{isFr ? 'Date & Heure' : 'Date & Time'}</th>
+                    <th className="py-3 px-3">{isFr ? 'Produit' : 'Product'}</th>
+                    <th className="py-3 px-2">{isFr ? 'Type' : 'Type'}</th>
+                    <th className="py-3 px-3 text-right">{isFr ? 'Quantité' : 'Quantity'}</th>
+                    <th className="py-3 px-3">{isFr ? 'Référence / Notes' : 'Reference / Notes'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
@@ -1038,7 +1070,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                     return (
                       <tr key={tx.id} className="hover:bg-zinc-800/30">
                         <td className="py-2.5 px-3 text-zinc-400 whitespace-nowrap">
-                          {new Date(tx.created_at).toLocaleString(undefined, {
+                          {new Date(tx.created_at).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US', {
                             month: 'short',
                             day: 'numeric',
                             hour: '2-digit',
@@ -1046,7 +1078,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                           })}
                         </td>
                         <td className="py-2.5 px-3 font-semibold text-zinc-200">
-                          {tx.product?.name || 'Catalog Product'}
+                          {tx.product?.name || (isFr ? 'Produit du catalogue' : 'Catalog Product')}
                           {tx.product?.sku && (
                             <span className="text-[10px] text-zinc-400 font-mono ml-2">
                               {tx.product.sku}
@@ -1096,10 +1128,10 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                Product Categories
+                {isFr ? 'Catégories de Produits' : 'Product Categories'}
               </h3>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Organize your catalog for fast filtering during sales
+                {isFr ? 'Organisez votre catalogue pour un filtrage rapide en caisse' : 'Organize your catalog for fast filtering during sales'}
               </p>
             </div>
 
@@ -1112,19 +1144,19 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                 setCatDesc('');
                 setIsCategoryModalOpen(true);
               }}
-              className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5"
+              className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Category</span>
+              <span>{isFr ? 'Ajouter une Catégorie' : 'Add Category'}</span>
             </Button>
           </div>
 
           {categories.length === 0 ? (
             <Card className="text-center py-12 space-y-2">
               <Tag className="w-8 h-8 text-zinc-600 mx-auto" />
-              <p className="text-sm font-semibold text-zinc-300">No categories created</p>
+              <p className="text-sm font-semibold text-zinc-300">{isFr ? 'Aucune catégorie créée' : 'No categories created'}</p>
               <p className="text-xs text-zinc-500">
-                Click "+ Add Category" to create product groupings (e.g. Beverages, Bakery).
+                {isFr ? 'Cliquez sur "+ Ajouter une Catégorie" pour créer des groupes de produits (ex. Boissons, Boulangerie).' : 'Click "+ Add Category" to create product groupings (e.g. Beverages, Bakery).'}
               </p>
             </Card>
           ) : (
@@ -1139,7 +1171,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                     <div>
                       <h4 className="text-sm font-bold text-zinc-100">{cat.name}</h4>
                       <p className="text-xs text-zinc-400 mt-0.5">
-                        {assignedProds.length} products assigned
+                        {assignedProds.length} {isFr ? (assignedProds.length === 1 ? 'produit associé' : 'produits associés') : (assignedProds.length === 1 ? 'product assigned' : 'products assigned')}
                       </p>
                       {cat.description && (
                         <p className="text-[11px] text-zinc-500 mt-1 line-clamp-1">
@@ -1156,13 +1188,15 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                           setCatDesc(cat.description || '');
                           setIsCategoryModalOpen(true);
                         }}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-blue-400 hover:bg-blue-950/20"
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-blue-400 hover:bg-blue-950/20 cursor-pointer"
+                        title={isFr ? 'Modifier' : 'Edit'}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDeleteCategory(cat.id)}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20"
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20 cursor-pointer"
+                        title={isFr ? 'Supprimer' : 'Delete'}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1184,13 +1218,13 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-amber-950/20 border border-amber-500/20">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
-                Operating Expenses
+                {isFr ? 'Dépenses & Charges d’Exploitation' : 'Operating Expenses'}
               </span>
               <h3 className="text-2xl font-black text-white mt-0.5">
                 {currencyConfig.format(totalExpensesThisMonth)}
               </h3>
               <p className="text-xs text-zinc-400 mt-0.5">
-                {expenses.length} expense entries recorded in ledger
+                {expenses.length} {isFr ? 'dépenses enregistrées dans le journal' : 'expense entries recorded in ledger'}
               </p>
             </div>
 
@@ -1201,10 +1235,10 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                 resetExpenseForm();
                 setIsAddExpenseModalOpen(true);
               }}
-              className="bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 self-start sm:self-auto font-semibold"
+              className="bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 self-start sm:self-auto font-semibold cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Record Expense</span>
+              <span>{t.finance.addExpense}</span>
             </Button>
           </div>
 
@@ -1214,7 +1248,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Search expense description or category..."
+                placeholder={isFr ? 'Rechercher une dépense ou catégorie...' : 'Search expense description or category...'}
                 value={expenseSearch}
                 onChange={(e) => setExpenseSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-amber-500"
@@ -1226,7 +1260,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               onChange={(e) => setExpenseCatFilter(e.target.value)}
               className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-amber-500"
             >
-              <option value="all">All Expense Categories</option>
+              <option value="all">{isFr ? 'Toutes les catégories de dépense' : 'All Expense Categories'}</option>
               {EXPENSE_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -1248,9 +1282,9 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
           ) : expenses.length === 0 ? (
             <Card className="text-center py-12 space-y-2">
               <Receipt className="w-8 h-8 text-zinc-600 mx-auto" />
-              <p className="text-sm font-semibold text-zinc-300">No expenses recorded</p>
+              <p className="text-sm font-semibold text-zinc-300">{isFr ? 'Aucune dépense enregistrée' : 'No expenses recorded'}</p>
               <p className="text-xs text-zinc-500">
-                Log rent, utilities, salaries, and operating supplies to compute net business profit.
+                {isFr ? 'Enregistrez le loyer, l’électricité, les salaires et fournitures pour calculer le bénéfice net.' : 'Log rent, utilities, salaries, and operating supplies to compute net business profit.'}
               </p>
             </Card>
           ) : (
@@ -1266,7 +1300,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                       <span className="text-[10px] uppercase font-bold text-zinc-400">
                         {exp.payment_method.replace('_', ' ')}
                       </span>
-                      {exp.is_recurring && <Badge variant="blue">Recurring</Badge>}
+                      {exp.is_recurring && <Badge variant="blue">{isFr ? 'Récurrent' : 'Recurring'}</Badge>}
                     </div>
 
                     <p className="text-xs font-semibold text-zinc-200">
@@ -1274,7 +1308,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                     </p>
 
                     <p className="text-[10px] text-zinc-400">
-                      {new Date(exp.expense_date).toLocaleDateString(undefined, {
+                      {new Date(exp.expense_date).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
@@ -1299,13 +1333,15 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                           setExpRecurring(exp.is_recurring);
                           setIsAddExpenseModalOpen(true);
                         }}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-amber-950/20"
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-amber-950/20 cursor-pointer"
+                        title={isFr ? 'Modifier la dépense' : 'Edit Expense'}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDeleteExpense(exp.id)}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20"
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20 cursor-pointer"
+                        title={isFr ? 'Supprimer la dépense' : 'Delete Expense'}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1333,21 +1369,21 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
       <Modal
         isOpen={isAddProductModalOpen}
         onClose={() => setIsAddProductModalOpen(false)}
-        title={editingProductId ? 'Edit Product' : 'Add New Product'}
-        description="Catalog details, cost pricing, and stock alerts"
+        title={editingProductId ? (isFr ? 'Modifier le Produit' : 'Edit Product') : (isFr ? 'Ajouter un Nouveau Produit' : 'Add New Product')}
+        description={isFr ? 'Détails du catalogue, prix de revient et alertes de stock' : 'Catalog details, cost pricing, and stock alerts'}
         maxWidth="lg"
       >
         <form onSubmit={handleSaveProduct} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
-              label="Product Name *"
-              placeholder="e.g. Arabica Coffee Beans 500g"
+              label={`${isFr ? 'Nom du Produit' : 'Product Name'} *`}
+              placeholder={isFr ? 'ex. Café Arabica 500g' : 'e.g. Arabica Coffee Beans 500g'}
               value={prodFormName}
               onChange={(e) => setProdFormName(e.target.value)}
               required
             />
             <Input
-              label="SKU / Barcode"
+              label={isFr ? 'Code-barres / SKU' : 'SKU / Barcode'}
               placeholder="e.g. COF-001"
               value={prodFormSku}
               onChange={(e) => setProdFormSku(e.target.value)}
@@ -1356,13 +1392,13 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-300">Category</label>
+              <label className="text-xs font-semibold text-zinc-300">{isFr ? 'Catégorie' : 'Category'}</label>
               <select
                 value={prodFormCategory}
                 onChange={(e) => setProdFormCategory(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-blue-500"
               >
-                <option value="">No Category</option>
+                <option value="">{isFr ? 'Aucune catégorie' : 'No Category'}</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -1372,13 +1408,13 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-300">Supplier</label>
+              <label className="text-xs font-semibold text-zinc-300">{isFr ? 'Fournisseur' : 'Supplier'}</label>
               <select
                 value={prodFormSupplier}
                 onChange={(e) => setProdFormSupplier(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-blue-500"
               >
-                <option value="">No Supplier Selected</option>
+                <option value="">{isFr ? 'Aucun fournisseur sélectionné' : 'No Supplier Selected'}</option>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -1390,7 +1426,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
-              label="Selling Price *"
+              label={`${isFr ? 'Prix de Vente' : 'Selling Price'} *`}
               type="number"
               inputMode="decimal"
               min="0"
@@ -1401,7 +1437,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               required
             />
             <Input
-              label="Cost Price *"
+              label={`${isFr ? 'Prix d’Achat / Coût' : 'Cost Price'} *`}
               type="number"
               inputMode="decimal"
               min="0"
@@ -1416,7 +1452,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
           <div className={`grid ${!editingProductId ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'} gap-3`}>
             {!editingProductId && (
               <Input
-                label={`Initial Stock (${prodFormUnit === 'custom' ? (prodFormCustomUnit.trim() || 'units') : prodFormUnit}) *`}
+                label={`${isFr ? 'Stock Initial' : 'Initial Stock'} (${prodFormUnit === 'custom' ? (prodFormCustomUnit.trim() || 'unités') : prodFormUnit}) *`}
                 type="number"
                 inputMode="decimal"
                 min="0"
@@ -1428,13 +1464,13 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
             )}
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-300">Unit of Measure *</label>
+              <label className="text-xs font-semibold text-zinc-300">{isFr ? 'Unité de Mesure *' : 'Unit of Measure *'}</label>
               <select
                 value={prodFormUnit}
                 onChange={(e) => setProdFormUnit(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-blue-500"
               >
-                {UNIT_OF_MEASURE_GROUPS.map((grp) => (
+                {unitGroups.map((grp) => (
                   <optgroup key={grp.group} label={grp.group}>
                     {grp.units.map((u) => (
                       <option key={u.value} value={u.value}>
@@ -1447,7 +1483,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
             </div>
 
             <Input
-              label={`Min Stock Alert (${prodFormUnit === 'custom' ? (prodFormCustomUnit.trim() || 'units') : prodFormUnit}) *`}
+              label={`${isFr ? 'Alerte Stock Min.' : 'Min Stock Alert'} (${prodFormUnit === 'custom' ? (prodFormCustomUnit.trim() || 'unités') : prodFormUnit}) *`}
               type="number"
               inputMode="decimal"
               min="0"
@@ -1460,8 +1496,8 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
 
           {prodFormUnit === 'custom' && (
             <Input
-              label="Custom Unit Name *"
-              placeholder="e.g. crate, bundle, bucket, portion, drum"
+              label={`${isFr ? 'Nom de l’Unité Personnalisée' : 'Custom Unit Name'} *`}
+              placeholder={isFr ? 'ex. caisse, lot, seau, portion, fût' : 'e.g. crate, bundle, bucket, portion, drum'}
               value={prodFormCustomUnit}
               onChange={(e) => setProdFormCustomUnit(e.target.value)}
               required
@@ -1469,8 +1505,8 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
           )}
 
           <Input
-            label="Description"
-            placeholder="Product details, packaging size, notes..."
+            label={isFr ? 'Description' : 'Description'}
+            placeholder={isFr ? 'Détails du produit, conditionnement, notes...' : 'Product details, packaging size, notes...'}
             value={prodFormDesc}
             onChange={(e) => setProdFormDesc(e.target.value)}
           />
@@ -1485,7 +1521,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               variant="outline"
               onClick={() => setIsAddProductModalOpen(false)}
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               type="submit"
@@ -1494,7 +1530,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               isLoading={savingProduct}
               className="bg-blue-600 hover:bg-blue-500 text-white"
             >
-              {editingProductId ? 'Update Product' : 'Create Product'}
+              {editingProductId ? (isFr ? 'Mettre à Jour' : 'Update Product') : (isFr ? 'Créer le Produit' : 'Create Product')}
             </Button>
           </div>
         </form>
@@ -1507,29 +1543,29 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         maxWidth="lg"
-        title={selectedProductDetail?.product.name || 'Product Details'}
-        description="Economic margins, sales history, and inventory ledger"
+        title={selectedProductDetail?.product.name || (isFr ? 'Détails du Produit' : 'Product Details')}
+        description={isFr ? 'Marges économiques, historique des ventes et mouvements de stock' : 'Economic margins, sales history, and inventory ledger'}
       >
         {loadingDetail ? (
-          <div className="py-12 text-center text-zinc-400 animate-pulse">Loading product details...</div>
+          <div className="py-12 text-center text-zinc-400 animate-pulse">{isFr ? 'Chargement des détails...' : 'Loading product details...'}</div>
         ) : selectedProductDetail ? (
           <div className="space-y-6">
             {/* Economic Header Card */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-zinc-900 border border-zinc-800 text-xs">
               <div>
-                <span className="text-zinc-400">Selling Price:</span>
+                <span className="text-zinc-400">{isFr ? 'Prix de vente :' : 'Selling Price:'}</span>
                 <p className="font-extrabold text-base text-emerald-400">
                   {currencyConfig.format(selectedProductDetail.product.selling_price)}
                 </p>
               </div>
               <div>
-                <span className="text-zinc-400">Cost Price:</span>
+                <span className="text-zinc-400">{isFr ? 'Prix d’achat :' : 'Cost Price:'}</span>
                 <p className="font-semibold text-sm text-zinc-200">
                   {currencyConfig.format(selectedProductDetail.product.cost_price)}
                 </p>
               </div>
               <div>
-                <span className="text-zinc-400">Estimated Margin:</span>
+                <span className="text-zinc-400">{isFr ? 'Marge estimée :' : 'Estimated Margin:'}</span>
                 <p className="font-bold text-sm text-emerald-300">
                   +{currencyConfig.format(
                     Math.max(0, selectedProductDetail.product.selling_price - selectedProductDetail.product.cost_price)
@@ -1546,7 +1582,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                 </p>
               </div>
               <div>
-                <span className="text-zinc-400">Current Stock:</span>
+                <span className="text-zinc-400">{isFr ? 'Stock actuel :' : 'Current Stock:'}</span>
                 <p className="font-extrabold text-sm text-white">
                   {selectedProductDetail.product.stock_quantity} {selectedProductDetail.product.unit_of_measure || 'units'}
                 </p>
@@ -1556,16 +1592,16 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
             {/* Inventory Movements for this Product */}
             <div className="space-y-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                Recent Inventory Audit Logs
+                {isFr ? 'Historique Récent du Stock' : 'Recent Inventory Audit Logs'}
               </h4>
               <div className="rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900/40 max-h-48 overflow-y-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-zinc-800/80 text-zinc-400 uppercase tracking-wider text-[10px]">
                     <tr>
-                      <th className="py-2 px-3">Date</th>
-                      <th className="py-2 px-2">Type</th>
-                      <th className="py-2 px-3 text-right">Quantity</th>
-                      <th className="py-2 px-3">Notes</th>
+                      <th className="py-2 px-3">{isFr ? 'Date' : 'Date'}</th>
+                      <th className="py-2 px-2">{isFr ? 'Type' : 'Type'}</th>
+                      <th className="py-2 px-3 text-right">{isFr ? 'Quantité' : 'Quantity'}</th>
+                      <th className="py-2 px-3">{isFr ? 'Notes' : 'Notes'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800">
@@ -1592,16 +1628,16 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
             {selectedProductDetail.salesHistory.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  Recent Sales Snapshots
+                  {isFr ? 'Historique des Ventes' : 'Recent Sales Snapshots'}
                 </h4>
                 <div className="rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900/40 max-h-48 overflow-y-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-zinc-800/80 text-zinc-400 uppercase tracking-wider text-[10px]">
                       <tr>
-                        <th className="py-2 px-3">Date</th>
-                        <th className="py-2 px-3">Customer</th>
-                        <th className="py-2 px-2 text-center">Qty</th>
-                        <th className="py-2 px-3 text-right">Sold At</th>
+                        <th className="py-2 px-3">{isFr ? 'Date' : 'Date'}</th>
+                        <th className="py-2 px-3">{isFr ? 'Client' : 'Customer'}</th>
+                        <th className="py-2 px-2 text-center">{isFr ? 'Qté' : 'Qty'}</th>
+                        <th className="py-2 px-3 text-right">{isFr ? 'Total Vente' : 'Sold At'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800">
@@ -1611,7 +1647,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                             {new Date(sh.sold_at).toLocaleDateString()}
                           </td>
                           <td className="py-2 px-3 font-semibold text-zinc-200">
-                            {sh.customer_name || 'Walk-in'}
+                            {sh.customer_name || (isFr ? 'Comptoir / Anonyme' : 'Walk-in')}
                           </td>
                           <td className="py-2 px-2 text-center text-zinc-300">{sh.quantity}</td>
                           <td className="py-2 px-3 text-right font-bold text-emerald-400">
@@ -1633,38 +1669,38 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                 size="sm"
                 onClick={() => setIsDetailModalOpen(false)}
               >
-                Close
+                {t.common.close}
               </Button>
-                <Button
-                  type="button"
-                  variant="danger"
-                  size="sm"
-                  onClick={() => {
-                    const prod = selectedProductDetail.product;
-                    confirmDeleteProduct(prod);
-                  }}
-                  className="flex items-center gap-1.5 text-xs"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete Product</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  onClick={() => {
-                    const prod = selectedProductDetail.product;
-                    setIsDetailModalOpen(false);
-                    openEditProduct(prod as any);
-                  }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5 font-semibold"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  <span>Edit Product</span>
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  const prod = selectedProductDetail.product;
+                  confirmDeleteProduct(prod);
+                }}
+                className="flex items-center gap-1.5 text-xs cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isFr ? 'Supprimer' : 'Delete Product'}</span>
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  const prod = selectedProductDetail.product;
+                  setIsDetailModalOpen(false);
+                  openEditProduct(prod as any);
+                }}
+                className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5 font-semibold cursor-pointer"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>{isFr ? 'Modifier le Produit' : 'Edit Product'}</span>
+              </Button>
             </div>
-          ) : null}
+          </div>
+        ) : null}
       </Modal>
 
       {/* ========================================================================= */}
@@ -1678,7 +1714,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
             setProductToDelete(null);
           }
         }}
-        title="Delete Product"
+        title={isFr ? 'Supprimer le Produit' : 'Delete Product'}
       >
         <div className="space-y-4">
           <div className="flex items-start gap-3 p-3 rounded-xl bg-rose-950/30 border border-rose-900/50">
@@ -1686,10 +1722,11 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div className="space-y-1 text-xs">
-              <p className="font-semibold text-rose-200">Permanent Product Removal</p>
+              <p className="font-semibold text-rose-200">{isFr ? 'Suppression Définitive' : 'Permanent Product Removal'}</p>
               <p className="text-zinc-300 leading-relaxed">
-                Are you sure you want to delete <strong className="text-white font-bold">{productToDelete?.name}</strong>?
-                This will permanently remove the product from your active catalog.
+                {isFr
+                  ? `Voulez-vous vraiment supprimer définitivement "${productToDelete?.name}" ? Il sera retiré de votre catalogue.`
+                  : `Are you sure you want to delete "${productToDelete?.name}"? This will permanently remove the product from your active catalog.`}
               </p>
             </div>
           </div>
@@ -1705,7 +1742,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                 setProductToDelete(null);
               }}
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               type="button"
@@ -1714,10 +1751,10 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               isLoading={deletingProduct}
               disabled={deletingProduct}
               onClick={handleDeleteProduct}
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 cursor-pointer"
             >
               <Trash2 className="w-4 h-4" />
-              <span>Yes, Delete Product</span>
+              <span>{isFr ? 'Confirmer la Suppression' : 'Yes, Delete Product'}</span>
             </Button>
           </div>
         </div>
@@ -1729,22 +1766,22 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
       <Modal
         isOpen={isAdjustStockModalOpen}
         onClose={() => setIsAdjustStockModalOpen(false)}
-        title="Record Stock Movement"
-        description="Replenish stock, log customer returns, or perform manual inventory audit"
+        title={isFr ? 'Enregistrer un Mouvement de Stock' : 'Record Stock Movement'}
+        description={isFr ? 'Réapprovisionnement, retour client ou inventaire d’audit' : 'Replenish stock, log customer returns, or perform manual inventory audit'}
       >
         <form onSubmit={handleSaveAdjustment} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-zinc-300">Select Product *</label>
+            <label className="text-xs font-semibold text-zinc-300">{isFr ? 'Sélectionner le Produit *' : 'Select Product *'}</label>
             <select
               value={adjustProductId}
               onChange={(e) => setAdjustProductId(e.target.value)}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-blue-500"
               required
             >
-              <option value="">Select product to adjust...</option>
+              <option value="">{isFr ? 'Choisir un produit à ajuster...' : 'Select product to adjust...'}</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} (Current: {p.stock_quantity} {p.unit_of_measure || 'units'})
+                  {p.name} ({isFr ? 'Actuel :' : 'Current:'} {p.stock_quantity} {p.unit_of_measure || 'units'})
                 </option>
               ))}
             </select>
@@ -1752,21 +1789,21 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-300">Movement Type *</label>
+              <label className="text-xs font-semibold text-zinc-300">{isFr ? 'Type de Mouvement *' : 'Movement Type *'}</label>
               <select
                 value={adjustType}
                 onChange={(e) => setAdjustType(e.target.value as InventoryTransactionType)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-blue-500"
               >
-                <option value="restock">Restock / Purchase (Adds stock)</option>
-                <option value="return">Customer Return (Adds stock)</option>
-                <option value="adjustment">Stock Count Audit (Sets target)</option>
-                <option value="damage">Damage / Loss (Deducts stock)</option>
+                <option value="restock">{isFr ? 'Réapprovisionnement / Achat (+ Stock)' : 'Restock / Purchase (Adds stock)'}</option>
+                <option value="return">{isFr ? 'Retour Client (+ Stock)' : 'Customer Return (Adds stock)'}</option>
+                <option value="adjustment">{isFr ? 'Audit d’Inventaire (Fixe la cible)' : 'Stock Count Audit (Sets target)'}</option>
+                <option value="damage">{isFr ? 'Perte / Casse / Avarie (- Stock)' : 'Damage / Loss (Deducts stock)'}</option>
               </select>
             </div>
 
             <Input
-              label={`Quantity (${products.find((p) => p.id === adjustProductId)?.unit_of_measure || 'units'}) *`}
+              label={`${isFr ? 'Quantité' : 'Quantity'} (${products.find((p) => p.id === adjustProductId)?.unit_of_measure || 'units'}) *`}
               type="number"
               inputMode="decimal"
               min="1"
@@ -1777,16 +1814,16 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
           </div>
 
           <Input
-            label="Reason / Movement Explanation *"
-            placeholder="e.g., Weekly supplier restock, shelf audit recount"
+            label={`${isFr ? 'Motif / Explication du Mouvement' : 'Reason / Movement Explanation'} *`}
+            placeholder={isFr ? 'ex. Réapprovisionnement hebdomadaire, comptage rayon' : 'e.g., Weekly supplier restock, shelf audit recount'}
             value={adjustReason}
             onChange={(e) => setAdjustReason(e.target.value)}
             required
           />
 
           <Input
-            label="Additional Notes / Supplier Memo"
-            placeholder="Optional invoice # or notes..."
+            label={isFr ? 'Notes Complémentaires / N° Facture' : 'Additional Notes / Supplier Memo'}
+            placeholder={isFr ? 'Optionnel : n° facture ou détails...' : 'Optional invoice # or notes...'}
             value={adjustNotes}
             onChange={(e) => setAdjustNotes(e.target.value)}
           />
@@ -1799,7 +1836,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               variant="outline"
               onClick={() => setIsAdjustStockModalOpen(false)}
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               type="submit"
@@ -1808,7 +1845,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               isLoading={savingAdjustment}
               className="bg-blue-600 hover:bg-blue-500 text-white"
             >
-              Save Movement
+              {isFr ? 'Enregistrer le Mouvement' : 'Save Movement'}
             </Button>
           </div>
         </form>
@@ -1820,20 +1857,20 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
       <Modal
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
-        title={editingCatId ? 'Edit Category' : 'Create Category'}
-        description="Organize products for POS and reporting"
+        title={editingCatId ? (isFr ? 'Modifier la Catégorie' : 'Edit Category') : (isFr ? 'Créer une Catégorie' : 'Create Category')}
+        description={isFr ? 'Organisez vos produits pour la caisse et les rapports' : 'Organize products for POS and reporting'}
       >
         <form onSubmit={handleSaveCategory} className="space-y-4">
           <Input
-            label="Category Name *"
-            placeholder="e.g. Hot Drinks, Bakery, Apparel"
+            label={`${isFr ? 'Nom de la Catégorie' : 'Category Name'} *`}
+            placeholder={isFr ? 'ex. Boissons Chaudes, Boulangerie, Vêtements' : 'e.g. Hot Drinks, Bakery, Apparel'}
             value={catName}
             onChange={(e) => setCatName(e.target.value)}
             required
           />
           <Input
-            label="Description"
-            placeholder="Optional category description..."
+            label={isFr ? 'Description' : 'Description'}
+            placeholder={isFr ? 'Description optionnelle...' : 'Optional category description...'}
             value={catDesc}
             onChange={(e) => setCatDesc(e.target.value)}
           />
@@ -1846,7 +1883,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               variant="outline"
               onClick={() => setIsCategoryModalOpen(false)}
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               type="submit"
@@ -1855,7 +1892,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               isLoading={savingCategory}
               className="bg-blue-600 hover:bg-blue-500 text-white"
             >
-              Save Category
+              {isFr ? 'Enregistrer la Catégorie' : 'Save Category'}
             </Button>
           </div>
         </form>
@@ -1867,12 +1904,12 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
       <Modal
         isOpen={isAddExpenseModalOpen}
         onClose={() => setIsAddExpenseModalOpen(false)}
-        title={editingExpenseId ? 'Edit Expense Record' : 'Record Business Expense'}
-        description="Track operating overhead, supplies, and rent"
+        title={editingExpenseId ? (isFr ? 'Modifier la Dépense' : 'Edit Expense Record') : (isFr ? 'Enregistrer une Dépense' : 'Record Business Expense')}
+        description={isFr ? 'Suivez les charges opérationnelles, fournitures et loyers' : 'Track operating overhead, supplies, and rent'}
       >
         <form onSubmit={handleSaveExpense} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-zinc-300">Expense Category *</label>
+            <label className="text-xs font-semibold text-zinc-300">{isFr ? 'Catégorie de Dépense *' : 'Expense Category *'}</label>
             <select
               value={expCategory}
               onChange={(e) => setExpCategory(e.target.value)}
@@ -1888,7 +1925,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
 
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Amount Paid *"
+              label={`${isFr ? 'Montant Payé' : 'Amount Paid'} *`}
               type="number"
               min="0.01"
               step="any"
@@ -1898,23 +1935,23 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               required
             />
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-300">Payment Method *</label>
+              <label className="text-xs font-semibold text-zinc-300">{isFr ? 'Mode de Règlement *' : 'Payment Method *'}</label>
               <select
                 value={expPaymentMethod}
                 onChange={(e) => setExpPaymentMethod(e.target.value as PaymentMethodType)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-amber-500"
               >
-                <option value="cash">Cash</option>
-                <option value="mobile_money">Mobile Money</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="card">Card</option>
-                <option value="other">Other</option>
+                <option value="cash">{isFr ? 'Espèces' : 'Cash'}</option>
+                <option value="mobile_money">{isFr ? 'Mobile Money (MTN / Orange / Wave)' : 'Mobile Money'}</option>
+                <option value="bank_transfer">{isFr ? 'Virement Bancaire' : 'Bank Transfer'}</option>
+                <option value="card">{isFr ? 'Carte Bancaire' : 'Card / POS'}</option>
+                <option value="other">{isFr ? 'Autre' : 'Other'}</option>
               </select>
             </div>
           </div>
 
           <Input
-            label="Expense Date *"
+            label={`${isFr ? 'Date de la Dépense' : 'Expense Date'} *`}
             type="date"
             value={expDate}
             onChange={(e) => setExpDate(e.target.value)}
@@ -1922,8 +1959,8 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
           />
 
           <Input
-            label="Description / Vendor"
-            placeholder="e.g. Office generator fuel, Shop electricity bill"
+            label={isFr ? 'Description / Bénéficiaire' : 'Description / Vendor'}
+            placeholder={isFr ? 'ex. Carburant groupe électrogène, Facture électricité' : 'e.g. Office generator fuel, Shop electricity bill'}
             value={expDesc}
             onChange={(e) => setExpDesc(e.target.value)}
           />
@@ -1935,7 +1972,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               onChange={(e) => setExpRecurring(e.target.checked)}
               className="rounded border-zinc-800 bg-zinc-950 text-amber-500 focus:ring-amber-500/20"
             />
-            <span className="text-xs text-zinc-300">Recurring monthly expense</span>
+            <span className="text-xs text-zinc-300">{isFr ? 'Dépense mensuelle récurrente' : 'Recurring monthly expense'}</span>
           </label>
 
           {expenseError && <p className="text-xs text-rose-400 font-medium">{expenseError}</p>}
@@ -1946,7 +1983,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               variant="outline"
               onClick={() => setIsAddExpenseModalOpen(false)}
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               type="submit"
@@ -1955,7 +1992,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
               isLoading={savingExpense}
               className="bg-amber-600 hover:bg-amber-500 text-white"
             >
-              Save Expense
+              {isFr ? 'Enregistrer la Dépense' : 'Save Expense'}
             </Button>
           </div>
         </form>

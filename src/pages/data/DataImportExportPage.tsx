@@ -12,6 +12,7 @@ import {
   Info,
 } from 'lucide-react';
 import { ClientDataIOService } from '../../services/data-io.service.ts';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import type { ImportPreviewResponse } from '../../types/index.ts';
 
 interface DataImportExportPageProps {
@@ -21,6 +22,9 @@ interface DataImportExportPageProps {
 type EntityType = 'products' | 'customers' | 'expenses';
 
 export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ businessId }) => {
+  const { language } = useLanguage();
+  const isFr = language === 'fr';
+
   const [activeTab, setActiveTab] = useState<'import' | 'export'>('import');
   const [importEntity, setImportEntity] = useState<EntityType>('products');
   const [csvRawText, setCsvRawText] = useState<string>('');
@@ -62,7 +66,7 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
       const res = await ClientDataIOService.previewCSV(content, entity);
       setPreview(res);
     } catch (err: any) {
-      alert(err.message || 'CSV validation failed');
+      alert(err.message || (isFr ? 'Échec de validation du fichier CSV' : 'CSV validation failed'));
     } finally {
       setIsValidating(false);
     }
@@ -102,18 +106,40 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
       setImportResult({
         success: false,
         count: 0,
-        errors: [err.message || 'Import failed'],
+        errors: [err.message || (isFr ? 'Échec de l’importation' : 'Import failed')],
       });
     } finally {
       setIsImporting(false);
     }
   };
 
+  const entityLabels: Record<EntityType, { en: string; fr: string }> = {
+    products: { en: 'Products', fr: 'Articles / Produits' },
+    customers: { en: 'Customers', fr: 'Clients & Dettes' },
+    expenses: { en: 'Expenses', fr: 'Dépenses & Charges' },
+  };
+
   const exportEntities: Array<{ id: 'products' | 'customers' | 'sales' | 'expenses'; label: string; desc: string }> = [
-    { id: 'products', label: 'Products & Inventory', desc: 'Catalog, pricing, cost of goods, current stock levels, and SKUs.' },
-    { id: 'customers', label: 'Customers & Debts', desc: 'Contact book, phone numbers, addresses, and balance ledgers.' },
-    { id: 'sales', label: 'Sales & Receipts Ledger', desc: 'All historic POS transactions, discounts, and payment methods.' },
-    { id: 'expenses', label: 'Operational Expenses', desc: 'Categorized business expense records, notes, and dates.' },
+    { 
+      id: 'products', 
+      label: isFr ? 'Produits & Inventaire' : 'Products & Inventory', 
+      desc: isFr ? 'Catalogue, prix de vente, coût d’achat (FIFO), niveaux de stock et codes-barres.' : 'Catalog, pricing, cost of goods, current stock levels, and SKUs.' 
+    },
+    { 
+      id: 'customers', 
+      label: isFr ? 'Clients & Crédits' : 'Customers & Debts', 
+      desc: isFr ? 'Répertoire des contacts, téléphones, adresses et soldes des créances.' : 'Contact book, phone numbers, addresses, and balance ledgers.' 
+    },
+    { 
+      id: 'sales', 
+      label: isFr ? 'Historique des Ventes' : 'Sales & Receipts Ledger', 
+      desc: isFr ? 'Toutes les transactions de caisse, remises appliquées et modes de paiement.' : 'All historic POS transactions, discounts, and payment methods.' 
+    },
+    { 
+      id: 'expenses', 
+      label: isFr ? 'Dépenses Opérationnelles' : 'Operational Expenses', 
+      desc: isFr ? 'Enregistrements des charges catégorisées, montants et dates.' : 'Categorized business expense records, notes, and dates.' 
+    },
   ];
 
   return (
@@ -122,11 +148,15 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
       <div className="border-b border-zinc-800 pb-4">
         <div className="flex items-center gap-2 text-emerald-400 mb-1">
           <Database className="w-5 h-5" />
-          <span className="text-xs font-bold uppercase tracking-wider">Data Hub</span>
+          <span className="text-xs font-bold uppercase tracking-wider">{isFr ? 'Centre de Données' : 'Data Hub'}</span>
         </div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Data Migration & Export</h1>
+        <h1 className="text-2xl font-bold text-white tracking-tight">
+          {isFr ? 'Migration & Exportation des Données' : 'Data Migration & Export'}
+        </h1>
         <p className="text-xs text-zinc-400 mt-1">
-          Seamlessly import existing spreadsheet records or export complete business archives with 1-click.
+          {isFr
+            ? 'Importez facilement vos fichiers Excel/CSV existants ou exportez des archives complètes en 1 clic.'
+            : 'Seamlessly import existing spreadsheet records or export complete business archives with 1-click.'}
         </p>
       </div>
 
@@ -134,25 +164,25 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
       <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
         <button
           onClick={() => setActiveTab('import')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'import'
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
           }`}
         >
           <UploadCloud className="w-4 h-4" />
-          <span>CSV Bulk Import</span>
+          <span>{isFr ? 'Importation Massive CSV' : 'CSV Bulk Import'}</span>
         </button>
         <button
           onClick={() => setActiveTab('export')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'export'
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
           }`}
         >
           <Download className="w-4 h-4" />
-          <span>Full Data Export</span>
+          <span>{isFr ? 'Exportation Complète' : 'Full Data Export'}</span>
         </button>
       </div>
 
@@ -161,7 +191,9 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
         <div className="space-y-6">
           {/* Entity Selector */}
           <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-zinc-400">Target Record Type:</span>
+            <span className="text-xs font-semibold text-zinc-400">
+              {isFr ? 'Type d’enregistrement cible :' : 'Target Record Type:'}
+            </span>
             {(['products', 'customers', 'expenses'] as EntityType[]).map((e) => (
               <button
                 key={e}
@@ -170,13 +202,13 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
                   setPreview(null);
                   setImportResult(null);
                 }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize transition-all ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${
                   importEntity === e
                     ? 'bg-zinc-800 text-emerald-400 border border-emerald-500/30'
                     : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200'
                 }`}
               >
-                {e}
+                {isFr ? entityLabels[e].fr : entityLabels[e].en}
               </button>
             ))}
           </div>
@@ -186,9 +218,11 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
             <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center gap-3 text-emerald-300">
               <CheckCircle2 className="w-5 h-5 shrink-0" />
               <div>
-                <h4 className="text-sm font-bold text-white">Import Successfully Completed!</h4>
+                <h4 className="text-sm font-bold text-white">
+                  {isFr ? 'Importation réussie avec succès !' : 'Import Successfully Completed!'}
+                </h4>
                 <p className="text-xs text-emerald-300">
-                  {importResult.count} {importEntity} have been safely written to your database ledger.
+                  {importResult.count} {isFr ? 'éléments ont été enregistrés dans votre base de données.' : `${importEntity} have been safely written to your database ledger.`}
                 </p>
               </div>
             </div>
@@ -205,15 +239,17 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
                 <FileSpreadsheet className="w-8 h-8" />
               </div>
               <h3 className="text-sm font-bold text-white mb-1">
-                {fileName ? fileName : `Upload ${importEntity} CSV File`}
+                {fileName ? fileName : (isFr ? `Téléverser le fichier CSV (${entityLabels[importEntity].fr})` : `Upload ${importEntity} CSV File`)}
               </h3>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-                Drag and drop your spreadsheet file here, or browse from your computer. Header columns will be auto-matched.
+                {isFr
+                  ? 'Glissez-déposez votre fichier tableur ici, ou parcourez vos dossiers. Les colonnes d’en-tête seront associées automatiquement.'
+                  : 'Drag and drop your spreadsheet file here, or browse from your computer. Header columns will be auto-matched.'}
               </p>
 
               <div className="flex items-center gap-2">
                 <label className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold cursor-pointer shadow-sm">
-                  <span>Browse CSV</span>
+                  <span>{isFr ? 'Parcourir CSV' : 'Browse CSV'}</span>
                   <input
                     type="file"
                     accept=".csv,text/csv"
@@ -228,10 +264,10 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
                 <button
                   type="button"
                   onClick={handlePasteSample}
-                  className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-medium flex items-center gap-1.5"
+                  className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-medium flex items-center gap-1.5 cursor-pointer"
                 >
                   <Info className="w-3.5 h-3.5" />
-                  <span>Load Sample Template</span>
+                  <span>{isFr ? 'Exemple de Modèle' : 'Load Sample Template'}</span>
                 </button>
               </div>
             </div>
@@ -241,7 +277,7 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
           {isValidating && (
             <div className="py-8 text-center flex items-center justify-center gap-2 text-zinc-400 text-xs">
               <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
-              <span>Validating schema, datatypes, and pricing bounds...</span>
+              <span>{isFr ? 'Validation du schéma, types de données et intégrité des prix...' : 'Validating schema, datatypes, and pricing bounds...'}</span>
             </div>
           )}
 
@@ -249,17 +285,19 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl space-y-4 p-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
                 <div>
-                  <h3 className="text-sm font-bold text-white">Import Preview & Validation</h3>
+                  <h3 className="text-sm font-bold text-white">
+                    {isFr ? 'Aperçu & Validation de l’Import' : 'Import Preview & Validation'}
+                  </h3>
                   <div className="flex items-center gap-3 text-xs mt-1">
-                    <span className="text-zinc-400">Total Rows: <strong>{preview.totalRows}</strong></span>
+                    <span className="text-zinc-400">{isFr ? 'Total Lignes :' : 'Total Rows:'} <strong>{preview.totalRows}</strong></span>
                     <span className="text-emerald-400 flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <strong>{preview.validRowsCount} Valid</strong>
+                      <strong>{preview.validRowsCount} {isFr ? 'Valides' : 'Valid'}</strong>
                     </span>
                     {preview.invalidRowsCount > 0 && (
                       <span className="text-rose-400 flex items-center gap-1">
                         <XCircle className="w-3.5 h-3.5" />
-                        <strong>{preview.invalidRowsCount} Errors</strong>
+                        <strong>{preview.invalidRowsCount} {isFr ? 'Erreurs' : 'Errors'}</strong>
                       </span>
                     )}
                   </div>
@@ -268,16 +306,16 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
                 <button
                   onClick={handleExecuteImport}
                   disabled={isImporting || preview.validRowsCount === 0}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm cursor-pointer"
                 >
                   {isImporting ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Writing to Database...</span>
+                      <span>{isFr ? 'Écriture en base...' : 'Writing to Database...'}</span>
                     </>
                   ) : (
                     <>
-                      <span>Confirm Import ({preview.validRowsCount} Records)</span>
+                      <span>{isFr ? `Confirmer l’Import (${preview.validRowsCount} entrées)` : `Confirm Import (${preview.validRowsCount} Records)`}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </>
                   )}
@@ -297,15 +335,15 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
                   >
                     <div className="flex items-center gap-2.5">
                       <span className="px-2 py-0.5 rounded-md bg-zinc-800 font-mono text-[11px] text-zinc-400">
-                        Row {row.rowNumber}
+                        {isFr ? 'Ligne' : 'Row'} {row.rowNumber}
                       </span>
                       {row.isValid ? (
                         <span className="font-medium text-zinc-200">
-                          {row.parsed?.name || row.parsed?.title || 'Valid Record'}
+                          {row.parsed?.name || row.parsed?.title || (isFr ? 'Entrée Valide' : 'Valid Record')}
                         </span>
                       ) : (
                         <div className="space-y-0.5">
-                          <span className="font-semibold text-rose-400">Validation Errors:</span>
+                          <span className="font-semibold text-rose-400">{isFr ? 'Erreurs de Validation :' : 'Validation Errors:'}</span>
                           <ul className="list-disc list-inside text-rose-300 text-[11px]">
                             {row.errors.map((err, i) => (
                               <li key={i}>{err}</li>
@@ -340,14 +378,14 @@ export const DataImportExportPage: React.FC<DataImportExportPageProps> = ({ busi
               </div>
 
               <div className="mt-4 pt-4 border-t border-zinc-800/80 flex items-center justify-between">
-                <span className="text-[11px] text-zinc-500 font-mono">Format: .CSV (Sanitized)</span>
+                <span className="text-[11px] text-zinc-500 font-mono">{isFr ? 'Format : .CSV (Sécurisé)' : 'Format: .CSV (Sanitized)'}</span>
                 <a
                   href={ClientDataIOService.getExportUrl(businessId, ent.id)}
                   download
-                  className="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-emerald-400 hover:text-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+                  className="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-emerald-400 hover:text-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Export CSV</span>
+                  <span>{isFr ? 'Télécharger CSV' : 'Export CSV'}</span>
                 </a>
               </div>
             </div>

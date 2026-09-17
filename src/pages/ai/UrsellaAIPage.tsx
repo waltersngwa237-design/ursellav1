@@ -4,17 +4,15 @@ import { useBusiness } from '../../contexts/BusinessContext.tsx';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
 import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { AIService } from '../../services/ai.service.ts';
-import { AnalyticsService } from '../../services/analytics.service.ts';
-import { generateUUID, isValidUUID } from '../../lib/uuid.ts';
+import { generateUUID } from '../../lib/uuid.ts';
 import {
   type AIChatMessage,
   type AIConversationSummary,
 } from '../../types/ai.ts';
 import { AIMessageCard } from '../../components/ai/AIMessageCard.tsx';
 import { SuggestedPromptChips } from '../../components/ai/SuggestedPromptChips.tsx';
-import { UrsellaSymbolMark, UrsellaAIGlyph } from '../../components/common/UrsellaLogo.tsx';
+import { UrsellaAIGlyph } from '../../components/common/UrsellaLogo.tsx';
 import {
-  Sparkles,
   Send,
   Plus,
   Trash2,
@@ -51,7 +49,8 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   const { user } = useAuth();
   const { activeBusiness, currency } = useBusiness();
   const { isDark } = useTheme();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
+  const isFr = language === 'fr';
 
   // Conversations & Messages State
   const [conversations, setConversations] = useState<AIConversationSummary[]>([]);
@@ -189,7 +188,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         const newConv = await AIService.createConversation(
           activeBusiness.id,
           user?.id || 'demo-user',
-          'Business Advisory'
+          isFr ? 'Conseils & Stratégie' : 'Business Advisory'
         );
         setConversations([newConv]);
         setActiveConversationId(newConv.id);
@@ -197,7 +196,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     } catch (err) {
       console.warn('Failed to load conversations:', err);
     }
-  }, [activeBusiness?.id, user?.id]);
+  }, [activeBusiness?.id, user?.id, isFr]);
 
   useEffect(() => {
     loadConversations();
@@ -255,147 +254,86 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     });
   };
 
-  // Handle Initial Prompt (Single-use consumption across entire session)
-  const processedPromptRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (initialPrompt && initialPrompt.trim().length > 0 && activeBusiness?.id) {
-      const promptToRun = initialPrompt.trim();
-      // Ensure parent state is immediately cleared so it never sits in parent memory
-      onPromptConsumed?.();
+  // Execute sending a message
+  const handleSendMessage = async (customPrompt?: string) => {
+    const textToSend = (customPrompt || inputText).trim();
+    if (!textToSend || !activeBusiness?.id || loading) return;
 
-      if (processedPromptRef.current === promptToRun || executedPromptTokens.has(promptToRun)) {
+    // Clear input immediately for responsive feel
+    if (!customPrompt) {
+      setInputText('');
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+    }
+
+    let convId = activeConversationId;
+
+    // Create a new conversation if none is active or if current is empty
+    if (!convId) {
+      try {
+        const titleSnippet = textToSend.length > 32 ? `${textToSend.substring(0, 32)}...` : textToSend;
+        const newConv = await AIService.createConversation(
+          activeBusiness.id,
+          user?.id || 'demo-user',
+          titleSnippet
+        );
+        convId = newConv.id;
+        setActiveConversationId(newConv.id);
+        setConversations((prev) => [newConv, ...prev.filter((c) => c.id !== newConv.id)]);
+      } catch (err) {
+        console.error('Failed to create new conversation:', err);
         return;
       }
-      processedPromptRef.current = promptToRun;
-      executedPromptTokens.add(promptToRun);
-      handleSendMessage(promptToRun);
-    }
-  }, [initialPrompt, activeBusiness?.id, onPromptConsumed]);
-
-  // Send message
-  const handleSendMessage = async (customText?: string) => {
-    const textToSend = customText || inputText;
-    if (!textToSend || !textToSend.trim() || !activeBusiness?.id || loading) return;
-
-    setError(null);
-    setInputText('');
-
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
     }
 
-    // Ensure we have an active conversation
-    let convId = activeConversationId;
-    if (!convId) {
-      const newConv = await AIService.createConversation(
-        activeBusiness.id,
-        user?.id || 'demo-user',
-        AIService.generateTitleFromMessage(textToSend)
-      );
-      setConversations((prev) => [newConv, ...prev]);
-      setActiveConversationId(newConv.id);
-      convId = newConv.id;
-    }
-
-    const userMessageId = generateUUID();
-    const userMsg: AIChatMessage = {
-      id: userMessageId,
+    // Append User Message to UI
+    const userMsgId = generateUUID();
+    const userMessage: AIChatMessage = {
+      id: userMsgId,
       conversation_id: convId,
       business_id: activeBusiness.id,
       role: 'user',
-      content: textToSend.trim(),
+      content: textToSend,
       created_at: new Date().toISOString(),
     };
+    appendUniqueMessage(userMessage);
 
-    // Optimistically update message state
-    appendUniqueMessage(userMsg);
-    await AIService.saveMessage(userMsg);
+    // Scroll to user message instantly
+    setTimeout(() => {
+      scrollToMessageTop(userMsgId);
+    }, 50);
 
     setLoading(true);
-
-    // Scroll to show user message and the loading typing indicator
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 60);
+    setError(null);
 
     try {
-      // Build conversation history window (last 6 turns)
-      const historyPayload = messages.slice(-6).map((m) => ({
-        role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
-        content: m.content,
-      }));
+      // Stream or generate AI response
+      const aiResponse = await AIService.generateResponse(
+        activeBusiness.id,
+        convId,
+        textToSend,
+        language
+      );
 
-      // Gather rich real-time operating system intelligence context from analytics service
-      let osContext: Record<string, unknown> | undefined = undefined;
-      try {
-        const fullContext = await AnalyticsService.getAIBusinessContext(activeBusiness.id, 30);
-        osContext = fullContext as unknown as Record<string, unknown>;
-      } catch (osErr) {
-        console.warn('[UrsellaAIPage] Failed to fetch enriched OS context, continuing with standard context:', osErr);
-      }
-
-      const res = await AIService.sendChatMessage({
-        businessId: activeBusiness.id,
-        conversationId: convId,
-        message: textToSend.trim(),
-        language: language === 'fr' ? 'fr' : 'en',
-        history: historyPayload,
-        osContext,
-        businessContext: {
-          businessName: activeBusiness.name,
-          businessType: activeBusiness.business_type || 'Retail & Trade',
-          currency: activeBusiness.currency || currency || 'USD',
-          currencySymbol: currency || activeBusiness.currency || '$',
-          timezone: activeBusiness.timezone || 'UTC',
-          ownerName: user?.user_metadata?.full_name || user?.email || 'Store Owner',
-          address: (activeBusiness as any).address || '',
-          taxRate: (activeBusiness as any).tax_rate || 0,
-        },
-      });
-
-      const assistantMsgId = (res.messageId && isValidUUID(res.messageId)) ? res.messageId : generateUUID();
-      const assistantMsg: AIChatMessage = {
+      const assistantMsgId = generateUUID();
+      const assistantMessage: AIChatMessage = {
         id: assistantMsgId,
         conversation_id: convId,
         business_id: activeBusiness.id,
         role: 'assistant',
-        content: res.response.answer,
-        metadata: {
-          intent: res.intent,
-          structured: res.response,
-          toolsUsed: res.toolsUsed,
-          latencyMs: res.latencyMs,
-        },
+        content: aiResponse.content,
+        metadata: aiResponse.metadata,
         created_at: new Date().toISOString(),
       };
+      appendUniqueMessage(assistantMessage);
 
-      appendUniqueMessage(assistantMsg);
-      await AIService.saveMessage(assistantMsg);
-
-      // Dynamically assign unique intent-based title to conversation
-      const currentConv = conversations.find((c) => c.id === convId);
-      const isPlaceholder = !currentConv ||
-        currentConv.title === 'New Conversation' ||
-        currentConv.title === 'New Chat' ||
-        currentConv.title === 'Business Advisory' ||
-        currentConv.title === 'Business Consultation' ||
-        !currentConv.title.trim();
-
-      if (isPlaceholder || messages.length <= 1) {
-        const uniqueIntentTitle = AIService.generateTitleFromMessage(textToSend, res.intent);
-        AIService.renameConversation(activeBusiness.id, convId, uniqueIntentTitle);
-        setConversations((prev) =>
-          prev.map((c) => (c.id === convId ? { ...c, title: uniqueIntentTitle } : c))
-        );
-      }
-
-      // AI advisor messages should start reading from the top after AI responds
+      // Scroll so assistant response is in view
       setTimeout(() => {
         scrollToMessageTop(assistantMsgId);
       }, 75);
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Failed to obtain AI response.';
+      const errMsg = err instanceof Error ? err.message : isFr ? 'Erreur lors de la génération de réponse' : 'Failed to generate response.';
       setError(errMsg);
 
       const errorMsgId = generateUUID();
@@ -404,7 +342,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         conversation_id: convId,
         business_id: activeBusiness.id,
         role: 'assistant',
-        content: 'I encountered an issue retrieving your store records. Please try again.',
+        content: isFr ? 'Un problème est survenu lors de l’analyse de vos données. Veuillez réessayer.' : 'I encountered an issue retrieving your store records. Please try again.',
         metadata: {
           error: errMsg,
         },
@@ -420,7 +358,19 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     }
   };
 
-  // Create new conversation - resets active conversation so first prompt names it with user's intent
+  // Consume incoming external prompts
+  useEffect(() => {
+    if (initialPrompt && initialPrompt.trim() && activeBusiness?.id) {
+      const token = `${activeBusiness.id}::${initialPrompt.trim()}`;
+      if (!executedPromptTokens.has(token)) {
+        executedPromptTokens.add(token);
+        handleSendMessage(initialPrompt.trim());
+        if (onPromptConsumed) onPromptConsumed();
+      }
+    }
+  }, [initialPrompt, activeBusiness?.id]);
+
+  // Create new conversation
   const handleNewConversation = () => {
     setActiveConversationId(null);
     setMessages([]);
@@ -434,15 +384,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
 
   // Listen for global AI actions dispatched from mobile top nav bar
   useEffect(() => {
-    const handleNewChatEvent = () => {
-      handleNewConversation();
-    };
-    const handleToggleHistoryEvent = () => {
-      setIsSidebarOpen((prev) => !prev);
-    };
-    const handleToggleOptionsEvent = () => {
-      setShowOptionsMenu((prev) => !prev);
-    };
+    const handleNewChatEvent = () => handleNewConversation();
+    const handleToggleHistoryEvent = () => setIsSidebarOpen((prev) => !prev);
+    const handleToggleOptionsEvent = () => setShowOptionsMenu((prev) => !prev);
 
     window.addEventListener('ursella_ai_new_chat', handleNewChatEvent);
     window.addEventListener('ursella_ai_toggle_history', handleToggleHistoryEvent);
@@ -459,7 +403,6 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   const executeDeleteConversation = async (convId: string) => {
     if (!activeBusiness?.id) return;
 
-    // Remove from database and storage
     await AIService.deleteConversation(activeBusiness.id, convId);
 
     const remaining = conversations.filter((c) => c.id !== convId);
@@ -471,11 +414,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       if (remaining.length > 0) {
         setActiveConversationId(remaining[0].id);
       } else {
-        // Create a fresh new chat session
         const newConv = await AIService.createConversation(
           activeBusiness.id,
           user?.id || 'demo-user',
-          'Business Advisory'
+          isFr ? 'Conseils & Stratégie' : 'Business Advisory'
         );
         setConversations([newConv]);
         setActiveConversationId(newConv.id);
@@ -528,11 +470,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     setShowClearAllConfirm(false);
     setShowOptionsMenu(false);
     
-    // Start fresh
     const newConv = await AIService.createConversation(
       activeBusiness.id,
       user?.id || 'demo-user',
-      'Business Advisory'
+      isFr ? 'Conseils & Stratégie' : 'Business Advisory'
     );
     setConversations([newConv]);
     setActiveConversationId(newConv.id);
@@ -545,7 +486,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     const transcript = messages
       .map(
         (m) =>
-          `[${m.role === 'user' ? 'Merchant' : 'Ursella AI'}] (${new Date(
+          `[${m.role === 'user' ? (isFr ? 'Commerçant' : 'Merchant') : 'Ursella AI'}] (${new Date(
             m.created_at
           ).toLocaleTimeString()}):\n${m.content}\n`
       )
@@ -581,7 +522,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   if (!activeBusiness) {
     return (
       <div className="p-8 text-center text-zinc-400">
-        Please select a business to start chat.
+        {isFr ? 'Veuillez sélectionner un commerce pour démarrer le chat.' : 'Please select a business to start chat.'}
       </div>
     );
   }
@@ -614,28 +555,28 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           <div className="flex items-center gap-2">
             <History className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
             <span className={`text-xs font-semibold ${isDark ? 'text-zinc-200' : 'text-slate-800'}`}>
-              Chat History
+              {isFr ? 'Historique' : 'Chat History'}
             </span>
           </div>
 
           <div className="flex items-center gap-1">
             <button
               onClick={handleNewConversation}
-              className={`p-1.5 rounded-lg transition-colors ${
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                 isDark 
                   ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200' 
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
               }`}
-              title="New Chat"
+              title={isFr ? 'Nouvelle discussion' : 'New Chat'}
             >
               <Plus className="w-4 h-4" />
             </button>
             <button
               onClick={() => setIsSidebarOpen(false)}
-              className={`md:hidden p-1.5 rounded-lg ${
+              className={`md:hidden p-1.5 rounded-lg cursor-pointer ${
                 isDark ? 'text-zinc-400 hover:text-zinc-200' : 'text-slate-500 hover:text-slate-800'
               }`}
-              title="Close sidebar"
+              title={isFr ? 'Fermer l’historique' : 'Close sidebar'}
             >
               <X className="w-4 h-4" />
             </button>
@@ -651,7 +592,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
               <Search className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-zinc-500' : 'text-slate-400'}`} />
               <input
                 type="text"
-                placeholder="Search history..."
+                placeholder={isFr ? 'Rechercher un échange...' : 'Search history...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={`w-full bg-transparent border-0 focus:outline-hidden text-xs ${
@@ -674,7 +615,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
           {filteredConversations.length === 0 ? (
             <div className={`py-8 text-center text-xs ${isDark ? 'text-zinc-500' : 'text-slate-400'}`}>
-              No chats found.
+              {isFr ? 'Aucun échange trouvé.' : 'No chats found.'}
             </div>
           ) : (
             filteredConversations.map((conv) => {
@@ -722,19 +663,19 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                       />
                       <button
                         onClick={(e) => handleSaveRename(conv.id, e)}
-                        className={`p-1 rounded ${
+                        className={`p-1 rounded cursor-pointer ${
                           isDark ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-emerald-600 hover:bg-emerald-50'
                         }`}
-                        title="Save title"
+                        title={isFr ? 'Enregistrer le titre' : 'Save title'}
                       >
                         <Check className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => setEditingConvId(null)}
-                        className={`p-1 rounded ${
+                        className={`p-1 rounded cursor-pointer ${
                           isDark ? 'text-zinc-400 hover:bg-zinc-800' : 'text-slate-400 hover:bg-slate-200'
                         }`}
-                        title="Cancel"
+                        title={t.common.cancel}
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -749,10 +690,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <button
                           onClick={(e) => handleStartRename(conv, e)}
-                          className={`p-1 rounded transition-colors ${
+                          className={`p-1 rounded transition-colors cursor-pointer ${
                             isDark ? 'hover:text-zinc-200' : 'hover:text-slate-900'
                           }`}
-                          title="Rename"
+                          title={isFr ? 'Renommer' : 'Rename'}
                         >
                           <Edit2 className="w-3 h-3" />
                         </button>
@@ -761,8 +702,8 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                             e.stopPropagation();
                             setDeleteConfirmConv(conv);
                           }}
-                          className="p-1 rounded hover:text-rose-500 transition-colors"
-                          title="Delete chat"
+                          className="p-1 rounded hover:text-rose-500 transition-colors cursor-pointer"
+                          title={isFr ? 'Supprimer' : 'Delete chat'}
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -780,14 +721,14 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           <div className={`p-2 border-t shrink-0 ${isDark ? 'border-zinc-800' : 'border-slate-200'}`}>
             <button
               onClick={() => setShowClearAllConfirm(true)}
-              className={`w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
+              className={`w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
                 isDark 
                   ? 'text-zinc-500 hover:text-rose-400 hover:bg-zinc-800/60' 
                   : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
               }`}
             >
               <Trash2 className="w-3 h-3" />
-              <span>Clear All Chats</span>
+              <span>{isFr ? 'Effacer tout l’historique' : 'Clear All'}</span>
             </button>
           </div>
         )}
@@ -807,45 +748,20 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       <div className={`flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden relative ${
         isDark ? 'bg-zinc-950' : 'bg-slate-50'
       }`}>
-        {/* Top Header - Desktop Workspace Navigation (On mobile, AppShell provides the fixed top nav bar) */}
+        {/* Top Header - Desktop Workspace Navigation */}
         <header 
           className={`hidden md:flex shrink-0 w-full select-none px-6 py-3 border-b items-center justify-between z-20 transition-colors ${
             isDark ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            {/* Mobile App Menu Trigger */}
-            {onOpenMobileMenu && (
-              <button
-                onClick={onOpenMobileMenu}
-                className={`md:hidden p-2 rounded-lg transition-colors shrink-0 ${
-                  isDark ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-                title="Open Navigation"
-                aria-label="Open Navigation"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-            )}
-
-            {/* Mobile Sidebar Toggle */}
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className={`md:hidden p-2 rounded-lg transition-colors shrink-0 ${
-                isDark ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-              title="Chat History"
-            >
-              <History className="w-4 h-4" />
-            </button>
-
             {/* Desktop Sidebar Toggle */}
             <button
               onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
-              className={`hidden md:flex p-2 rounded-lg transition-colors shrink-0 ${
+              className={`hidden md:flex p-2 rounded-lg transition-colors shrink-0 cursor-pointer ${
                 isDark ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
-              title={isDesktopSidebarCollapsed ? 'Show History' : 'Hide History'}
+              title={isDesktopSidebarCollapsed ? (isFr ? 'Afficher l’historique' : 'Show History') : (isFr ? 'Masquer l’historique' : 'Hide History')}
             >
               {isDesktopSidebarCollapsed ? (
                 <PanelLeftOpen className="w-4 h-4" />
@@ -882,20 +798,20 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={handleNewConversation}
-              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors shadow-xs shadow-emerald-500/20 active:scale-95"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors shadow-xs shadow-emerald-500/20 active:scale-95 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">New Chat</span>
+              <span className="hidden sm:inline">{isFr ? 'Nouveau' : 'New Chat'}</span>
             </button>
 
             {/* Chat Options Dropdown */}
             <div className="relative" ref={optionsMenuRef}>
               <button
                 onClick={() => setShowOptionsMenu(!showOptionsMenu)}
-                className={`p-2 rounded-lg transition-colors ${
+                className={`p-2 rounded-lg transition-colors cursor-pointer ${
                   isDark ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
-                title="Chat Options"
+                title={isFr ? 'Options de discussion' : 'Chat Options'}
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
@@ -907,7 +823,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                   {messages.length > 0 && (
                     <button
                       onClick={handleCopyTranscript}
-                      className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2.5 transition-colors ${
+                      className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2.5 transition-colors cursor-pointer ${
                         isDark ? 'text-zinc-200 hover:text-white hover:bg-zinc-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                       }`}
                     >
@@ -916,19 +832,19 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                       ) : (
                         <Copy className={`w-4 h-4 shrink-0 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`} />
                       )}
-                      <span>{copiedTranscript ? 'Copied' : 'Copy Transcript'}</span>
+                      <span>{copiedTranscript ? (isFr ? 'Copié !' : 'Copied') : (isFr ? 'Copier la transcription' : 'Copy Transcript')}</span>
                     </button>
                   )}
 
                   {messages.length > 0 && (
                     <button
                       onClick={handleClearActiveConversation}
-                      className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2.5 transition-colors ${
+                      className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2.5 transition-colors cursor-pointer ${
                         isDark ? 'text-zinc-200 hover:text-white hover:bg-zinc-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                       }`}
                     >
                       <Trash2 className={`w-4 h-4 shrink-0 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`} />
-                      <span>Clear Messages</span>
+                      <span>{isFr ? 'Effacer les messages' : 'Clear Messages'}</span>
                     </button>
                   )}
 
@@ -938,10 +854,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                         setShowOptionsMenu(false);
                         setDeleteConfirmConv(activeConv);
                       }}
-                      className="w-full px-3 py-2 text-left text-xs text-rose-500 hover:bg-rose-500/10 flex items-center gap-2.5 transition-colors"
+                      className="w-full px-3 py-2 text-left text-xs text-rose-500 hover:bg-rose-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4 text-rose-500 shrink-0" />
-                      <span>Delete Chat</span>
+                      <span>{isFr ? 'Supprimer la discussion' : 'Delete Chat'}</span>
                     </button>
                   )}
                 </div>
@@ -950,61 +866,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           </div>
         </header>
 
-        {/* Mobile Options Dropdown Anchored Below Top Bar */}
-        {showOptionsMenu && isMobileScreen && (
-          <div 
-            ref={optionsMenuRef}
-            className={`md:hidden fixed right-3 z-50 w-52 rounded-xl border py-1.5 shadow-2xl animate-in fade-in-50 zoom-in-95 ${
-              isDark ? 'bg-zinc-900 border-zinc-700/80 ring-1 ring-black/50' : 'bg-white border-slate-200 shadow-xl'
-            }`}
-            style={{
-              top: 'calc(max(0.625rem, calc(0.375rem + env(safe-area-inset-top, 0px))) + 3.25rem)',
-            }}
-          >
-            {messages.length > 0 && (
-              <button
-                onClick={handleCopyTranscript}
-                className={`w-full px-3.5 py-2.5 text-left text-xs flex items-center gap-2.5 transition-colors ${
-                  isDark ? 'text-zinc-200 hover:text-white hover:bg-zinc-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                {copiedTranscript ? (
-                  <CheckCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-                ) : (
-                  <Copy className={`w-4 h-4 shrink-0 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`} />
-                )}
-                <span>{copiedTranscript ? 'Copied to Clipboard' : 'Copy Transcript'}</span>
-              </button>
-            )}
-
-            {messages.length > 0 && (
-              <button
-                onClick={handleClearActiveConversation}
-                className={`w-full px-3.5 py-2.5 text-left text-xs flex items-center gap-2.5 transition-colors ${
-                  isDark ? 'text-zinc-200 hover:text-white hover:bg-zinc-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <Trash2 className={`w-4 h-4 shrink-0 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`} />
-                <span>Clear Messages</span>
-              </button>
-            )}
-
-            {activeConv && (
-              <button
-                onClick={() => {
-                  setShowOptionsMenu(false);
-                  setDeleteConfirmConv(activeConv);
-                }}
-                className="w-full px-3.5 py-2.5 text-left text-xs text-rose-500 hover:bg-rose-500/10 flex items-center gap-2.5 transition-colors"
-              >
-                <Trash2 className="w-4 h-4 text-rose-500 shrink-0" />
-                <span>Delete Chat</span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Message Container Area - Smooth vertical scrolling */}
+        {/* Message Container Area */}
         <div 
           ref={scrollContainerRef}
           onScroll={handleScroll}
@@ -1028,12 +890,12 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                 <h2 className={`text-xl sm:text-2xl font-bold tracking-tight ${
                   isDark ? 'text-white' : 'text-slate-900'
                 }`}>
-                  How can I assist your business today?
+                  {isFr ? 'Bonjour ! Que souhaitez-vous analyser ?' : 'Good day! How can I assist your business?'}
                 </h2>
                 <p className={`text-xs sm:text-sm max-w-md mx-auto leading-relaxed ${
                   isDark ? 'text-zinc-400' : 'text-slate-600'
                 }`}>
-                  Ask questions across sales trends, inventory stockouts, unpaid customer debts, and financial performance.
+                  {isFr ? 'Interrogez vos ventes en temps réel, niveaux de stock, bénéfices et prévisions intelligentes.' : 'Ask real-time questions about your sales, stock valuation, margins, or business decisions.'}
                 </p>
               </div>
 
@@ -1085,7 +947,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-bounce" style={{ animationDelay: '150ms' }} />
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-bounce" style={{ animationDelay: '300ms' }} />
                   <span className={`text-xs ml-1 font-medium ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
-                    Ursella is thinking...
+                    {isFr ? 'Analyse en cours...' : 'Thinking & analyzing...'}
                   </span>
                 </div>
               </div>
@@ -1095,18 +957,18 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Floating Jump to Latest Button (when user scrolls up) */}
+        {/* Floating Jump to Latest Button */}
         {(!isAtBottom || hasNewUnseenMessage) && messages.length > 2 && (
           <div className="absolute bottom-20 sm:bottom-24 left-1/2 -translate-x-1/2 z-20 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200">
             <button
               onClick={() => scrollToBottom()}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-lg backdrop-blur-xs transition-all active:scale-95 group border ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-lg backdrop-blur-xs transition-all active:scale-95 group border cursor-pointer ${
                 isDark 
                   ? 'bg-zinc-900/95 hover:bg-zinc-800 text-zinc-200 border-emerald-500/40 shadow-black/40' 
                   : 'bg-white/95 hover:bg-slate-50 text-slate-800 border-emerald-500/50 shadow-slate-300/60'
               }`}
             >
-              <span>{hasNewUnseenMessage ? 'New response received' : 'Scroll to bottom'}</span>
+              <span>{hasNewUnseenMessage ? (isFr ? 'Nouvelle réponse reçue' : 'New response received') : (isFr ? 'Défiler vers le bas' : 'Scroll to bottom')}</span>
               <ChevronDown className="w-3.5 h-3.5 text-emerald-500 group-hover:translate-y-0.5 transition-transform" />
             </button>
           </div>
@@ -1136,7 +998,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                 value={inputText}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder={`Ask anything about ${activeBusiness.name}...`}
+                placeholder={isFr ? `Posez n’importe quelle question sur ${activeBusiness.name}...` : `Ask anything about ${activeBusiness.name}...`}
                 rows={1}
                 disabled={loading}
                 inputMode="text"
@@ -1149,9 +1011,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
               <button
                 onClick={() => handleSendMessage()}
                 disabled={!inputText.trim() || loading}
-                className="p-2.5 sm:p-2.5 min-w-[40px] min-h-[40px] rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-xs shadow-emerald-500/20 flex items-center justify-center active:scale-95"
-                title="Send query"
-                aria-label="Send query"
+                className="p-2.5 sm:p-2.5 min-w-[40px] min-h-[40px] rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-xs shadow-emerald-500/20 flex items-center justify-center active:scale-95 cursor-pointer"
+                title={isFr ? 'Envoyer le message' : 'Send message'}
+                aria-label={isFr ? 'Envoyer le message' : 'Send message'}
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -1171,7 +1033,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                 <Trash2 className="w-4 h-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className={`text-sm font-bold ${isDark ? 'text-zinc-100' : 'text-slate-900'}`}>Delete Conversation?</h3>
+                <h3 className={`text-sm font-bold ${isDark ? 'text-zinc-100' : 'text-slate-900'}`}>
+                  {isFr ? 'Supprimer la discussion ?' : 'Delete Conversation?'}
+                </h3>
                 <p className={`text-xs truncate mt-0.5 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
                   &quot;{deleteConfirmConv.title}&quot;
                 </p>
@@ -1179,23 +1043,25 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
             </div>
 
             <p className={`text-xs leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-              This will permanently delete this conversation and its messages from your history.
+              {isFr
+                ? 'Cette action supprimera définitivement cette discussion et tous ses messages.'
+                : 'This will permanently delete this conversation and its messages from your history.'}
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setDeleteConfirmConv(null)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                   isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                Cancel
+                {t.common.cancel}
               </button>
               <button
                 onClick={() => executeDeleteConversation(deleteConfirmConv.id)}
-                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors"
+                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors cursor-pointer"
               >
-                Delete Chat
+                {isFr ? 'Supprimer' : 'Delete Chat'}
               </button>
             </div>
           </div>
@@ -1213,31 +1079,35 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                 <AlertTriangle className="w-4 h-4" />
               </div>
               <div>
-                <h3 className={`text-sm font-bold ${isDark ? 'text-zinc-100' : 'text-slate-900'}`}>Clear All Chat History?</h3>
+                <h3 className={`text-sm font-bold ${isDark ? 'text-zinc-100' : 'text-slate-900'}`}>
+                  {isFr ? 'Effacer tout l’historique ?' : 'Clear All Chat History?'}
+                </h3>
                 <p className={`text-xs mt-0.5 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
-                  This action cannot be undone.
+                  {isFr ? 'Cette action est irréversible.' : 'This action cannot be undone.'}
                 </p>
               </div>
             </div>
 
             <p className={`text-xs leading-relaxed ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
-              All stored conversation transcripts and advisory sessions for <strong className={isDark ? 'text-zinc-100' : 'text-slate-900'}>{activeBusiness.name}</strong> will be permanently wiped.
+              {isFr
+                ? `Toutes les conversations et analyses stockées pour ${activeBusiness.name} seront supprimées.`
+                : `All stored conversation transcripts and advisory sessions for ${activeBusiness.name} will be permanently wiped.`}
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setShowClearAllConfirm(false)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                   isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                Cancel
+                {t.common.cancel}
               </button>
               <button
                 onClick={handleClearAllConversations}
-                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors"
+                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors cursor-pointer"
               >
-                Clear All
+                {isFr ? 'Tout Effacer' : 'Clear All'}
               </button>
             </div>
           </div>

@@ -65,6 +65,31 @@ export class AIService {
     }
   }
 
+  public static async generateResponse(
+    businessId: string,
+    conversationId: string,
+    message: string,
+    language: 'en' | 'fr' | string = 'en'
+  ): Promise<{ content: string; metadata?: any }> {
+    const validLang: 'en' | 'fr' = language === 'fr' ? 'fr' : 'en';
+    const result = await this.sendChatMessage({
+      businessId,
+      conversationId,
+      message,
+      language: validLang,
+    });
+    return {
+      content: result.response?.answer || (validLang === 'fr' ? 'Analyse indisponible pour le moment.' : 'Intelligence temporarily unavailable.'),
+      metadata: {
+        confidence: result.response?.confidence,
+        keyMetrics: result.response?.keyMetrics,
+        recommendations: result.response?.recommendations,
+        followUpSuggestions: result.response?.followUpSuggestions,
+        chartData: (result.response as any)?.chartData,
+      },
+    };
+  }
+
   /**
    * Fetches the generated Daily Business Brief from Edge Function or server.
    */

@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { AnalyticsService } from '../../services/analytics.service.ts';
 import {
   CURRENCY_MAP,
@@ -24,16 +25,10 @@ import { ErrorAlert } from '../../components/common/ErrorAlert.tsx';
 import {
   TrendingUp,
   DollarSign,
-  AlertTriangle,
-  Receipt,
   ShoppingCart,
-  Plus,
   RefreshCw,
   Sparkles,
-  ArrowUpRight,
-  Clock,
   Package,
-  CheckCircle2,
   Users,
   ShieldCheck,
   BarChart3,
@@ -51,6 +46,7 @@ interface HomePageProps {
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   const { profile, user } = useAuth();
   const { activeBusiness, activeRole, currency, loading: businessLoading } = useBusiness();
+  const { language, t } = useLanguage();
 
   const [preset, setPreset] = useState<DateRangePreset>('last_30_days');
   const [isGuideDismissed, setIsGuideDismissed] = useState<boolean>(() => {
@@ -94,14 +90,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
         setAnalytics(data);
         analyticsMemoryCache.set(`${activeBusiness.id}_${preset}`, data);
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to load dashboard metrics.';
+        const msg = err instanceof Error ? err.message : language === 'fr' ? 'Échec du chargement des statistiques.' : 'Failed to load dashboard metrics.';
         setError(msg);
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [activeBusiness?.id, preset, businessLoading, analytics]
+    [activeBusiness?.id, preset, businessLoading, analytics, language]
   );
 
   useEffect(() => {
@@ -144,9 +140,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       <div className="py-12 px-4 max-w-xl mx-auto text-center space-y-4">
         <EmptyState
           icon={<Package className="w-10 h-10 text-amber-400" />}
-          title="No Active Business Found"
-          description="Create your first business workspace or select an existing one to access the Ursella dashboard."
-          actionLabel="Create Business Workspace"
+          title={t.dashboard.noBusinessFound}
+          description={t.dashboard.noBusinessDesc}
+          actionLabel={t.dashboard.createBusinessBtn}
           onAction={() => onNavigate('business')}
         />
       </div>
@@ -156,8 +152,19 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   // Greeting based on time of day
   const hour = new Date().getHours();
   const greeting =
-    hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const displayName = profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Partner';
+    hour < 12
+      ? t.dashboard.greetingMorning
+      : hour < 17
+      ? t.dashboard.greetingAfternoon
+      : t.dashboard.greetingEvening;
+  const displayName = profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || t.dashboard.partner;
+
+  const timeframeLabels = {
+    today: t.dashboard.timeframes.today,
+    last_7_days: t.dashboard.timeframes.last7Days,
+    last_30_days: t.dashboard.timeframes.last30Days,
+    this_month: t.dashboard.timeframes.thisMonth,
+  };
 
   return (
     <div
@@ -173,7 +180,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           style={{ height: `${Math.max(pullMoveY, 36)}px` }}
         >
           <RefreshCw className={`w-4 h-4 ${refreshing || pullMoveY > 40 ? 'animate-spin text-emerald-400' : 'text-emerald-500'}`} />
-          <span>{refreshing ? 'Refreshing dashboard...' : pullMoveY > 40 ? 'Release to refresh' : 'Swipe down to refresh'}</span>
+          <span>{refreshing ? t.dashboard.refreshing : pullMoveY > 40 ? t.dashboard.releaseToRefresh : t.dashboard.swipeToRefresh}</span>
         </div>
       )}
 
@@ -188,7 +195,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
-            Operational and business intelligence overview for{' '}
+            {t.dashboard.overviewSubtitle}{' '}
             <span className="font-semibold text-zinc-200">{activeBusiness?.name}</span>
           </p>
         </div>
@@ -202,10 +209,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             variant="outline"
             size="sm"
             onClick={() => onNavigate('analytics')}
-            className="text-xs flex items-center gap-1.5"
+            className="text-xs flex items-center gap-1.5 cursor-pointer"
           >
             <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Full Analytics</span>
+            <span>{t.dashboard.fullAnalyticsBtn}</span>
           </Button>
         </div>
       </div>
@@ -237,34 +244,34 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Badge variant="zinc" className="text-zinc-300 border-zinc-700 bg-zinc-800/60">
-            {activeBusiness?.business_type || 'Retail'}
+            {activeBusiness?.business_type || (language === 'fr' ? 'Commerce' : 'Retail')}
           </Badge>
           <span className="text-zinc-500">•</span>
-          <span className="text-zinc-400 font-medium">Currency: {currencyConfig.code} ({currencyConfig.symbol})</span>
+          <span className="text-zinc-400 font-medium">{language === 'fr' ? 'Devise' : 'Currency'}: {currencyConfig.code} ({currencyConfig.symbol})</span>
           <span className="text-zinc-500">•</span>
-          <span className="text-zinc-400 font-medium">Role: {activeRole || 'Owner'}</span>
+          <span className="text-zinc-400 font-medium">{language === 'fr' ? 'Rôle' : 'Role'}: {activeRole || (language === 'fr' ? 'Propriétaire' : 'Owner')}</span>
         </div>
 
         {/* Timeframe Presets */}
         <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800 self-start sm:self-auto overflow-x-auto max-w-full">
           {(
             [
-              { id: 'today', label: 'Today' },
-              { id: 'last_7_days', label: '7 Days' },
-              { id: 'last_30_days', label: '30 Days' },
-              { id: 'this_month', label: 'This Month' },
+              { id: 'today', label: timeframeLabels.today },
+              { id: 'last_7_days', label: timeframeLabels.last_7_days },
+              { id: 'last_30_days', label: timeframeLabels.last_30_days },
+              { id: 'this_month', label: timeframeLabels.this_month },
             ] as const
-          ).map((t) => (
+          ).map((timePreset) => (
             <button
-              key={t.id}
-              onClick={() => setPreset(t.id)}
+              key={timePreset.id}
+              onClick={() => setPreset(timePreset.id)}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                preset === t.id
+                preset === timePreset.id
                   ? 'bg-emerald-500 text-zinc-950 font-bold shadow-xs'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              {t.label}
+              {timePreset.label}
             </button>
           ))}
         </div>
@@ -298,39 +305,39 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
           {/* Metric 1: Revenue */}
           <MetricTrendCard
-            title={`Sales Revenue (${analytics.window.label})`}
+            title={`${t.dashboard.salesRevenue} (${analytics.window.label})`}
             comparison={analytics.comparison.revenue}
             currencyConfig={currencyConfig}
             icon={<TrendingUp className="w-4 h-4 text-emerald-400" />}
-            tooltip="Total completed invoice revenue in this window"
+            tooltip={language === 'fr' ? 'Chiffre d’affaires total encaissé sur cette période' : 'Total completed invoice revenue in this window'}
           />
 
           {/* Metric 2: Gross Profit */}
           <MetricTrendCard
-            title={`Gross Profit (${(analytics.financialOverview.grossMargin ?? 0).toFixed(1)}% margin)`}
+            title={`${t.dashboard.grossProfit} (${(analytics.financialOverview.grossMargin ?? 0).toFixed(1)}% margin)`}
             comparison={analytics.comparison.grossProfit}
             currencyConfig={currencyConfig}
             icon={<DollarSign className="w-4 h-4 text-cyan-400" />}
-            tooltip="Revenue minus historical Cost of Goods Sold"
+            tooltip={language === 'fr' ? 'Chiffre d’affaires moins le coût réel d’achat PEPS (FIFO)' : 'Revenue minus historical Cost of Goods Sold'}
           />
 
           {/* Metric 3: Operating Expenses */}
           <MetricTrendCard
-            title="Operating Expenses"
+            title={t.dashboard.operatingExpenses}
             comparison={analytics.comparison.operatingExpenses}
             currencyConfig={currencyConfig}
             invertColors={true}
             icon={<PieChart className="w-4 h-4 text-rose-400" />}
-            tooltip="Total expenses in period"
+            tooltip={language === 'fr' ? 'Total des charges enregistrées sur la période' : 'Total expenses in period'}
           />
 
           {/* Metric 4: Estimated Net Profit */}
           <MetricTrendCard
-            title="Estimated Net Profit"
+            title={t.dashboard.estimatedNetProfit}
             comparison={analytics.comparison.estimatedNetProfit}
             currencyConfig={currencyConfig}
             icon={<ShieldCheck className="w-4 h-4 text-amber-400" />}
-            tooltip="Gross Profit minus Operating Expenses"
+            tooltip={language === 'fr' ? 'Marge brute diminuée des charges d’exploitation' : 'Gross Profit minus Operating Expenses'}
           />
         </div>
       )}
@@ -340,7 +347,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       {/* ========================================================================= */}
       <div>
         <h3 className="text-xs font-bold text-zinc-400 mb-3 uppercase tracking-wider">
-          Quick Shortcuts
+          {t.dashboard.quickShortcuts}
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <button
@@ -351,8 +358,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               <ShoppingCart className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-bold text-zinc-100 block">New Sale</span>
-              <span className="text-[10px] text-zinc-400">Launch POS terminal</span>
+              <span className="text-xs font-bold text-zinc-100 block">{t.dashboard.newSaleTitle}</span>
+              <span className="text-[10px] text-zinc-400">{t.dashboard.newSaleDesc}</span>
             </div>
           </button>
 
@@ -364,8 +371,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               <Package className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-bold text-zinc-100 block">Inventory</span>
-              <span className="text-[10px] text-zinc-400">Catalog & stock</span>
+              <span className="text-xs font-bold text-zinc-100 block">{t.dashboard.inventoryTitle}</span>
+              <span className="text-[10px] text-zinc-400">{t.dashboard.inventoryDesc}</span>
             </div>
           </button>
 
@@ -377,8 +384,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-bold text-zinc-100 block">Customers</span>
-              <span className="text-[10px] text-zinc-400">Ledgers & debt</span>
+              <span className="text-xs font-bold text-zinc-100 block">{t.dashboard.customersTitle}</span>
+              <span className="text-[10px] text-zinc-400">{t.dashboard.customersDesc}</span>
             </div>
           </button>
 
@@ -390,8 +397,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               <BarChart3 className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-bold text-zinc-100 block">Analytics Hub</span>
-              <span className="text-[10px] text-zinc-400">BI & Deep Insights</span>
+              <span className="text-xs font-bold text-zinc-100 block">{t.dashboard.analyticsTitle}</span>
+              <span className="text-[10px] text-zinc-400">{t.dashboard.analyticsDesc}</span>
             </div>
           </button>
         </div>
@@ -405,7 +412,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
               <Package className="w-4 h-4 text-emerald-400" />
-              Top Performing Products ({analytics?.window.label})
+              {t.dashboard.topProductsTitle} ({analytics?.window.label})
             </h3>
             <Button
               variant="ghost"
@@ -414,7 +421,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               rightIcon={<ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-0.5" />}
               className="text-xs text-zinc-400 hover:text-white cursor-pointer group"
             >
-              View all products
+              {t.dashboard.viewAllProducts}
             </Button>
           </div>
 
@@ -428,7 +435,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-zinc-100 truncate">{p.name}</p>
                     <p className="text-[11px] text-zinc-400 truncate">
-                      {p.unitsSold ?? 0} units sold • Margin: {(p.grossMargin ?? 0).toFixed(1)}%
+                      {p.unitsSold ?? 0} {t.dashboard.unitsSold} • {language === 'fr' ? 'Marge' : 'Margin'}: {(p.grossMargin ?? 0).toFixed(1)}%
                     </p>
                   </div>
 
@@ -437,7 +444,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                       {currencyConfig.format(p.revenue ?? 0)}
                     </p>
                     <span className="text-[10px] text-zinc-500">
-                      Profit: {currencyConfig.format(p.grossProfit ?? 0)}
+                      {t.dashboard.profit}: {currencyConfig.format(p.grossProfit ?? 0)}
                     </span>
                   </div>
                 </div>
@@ -446,9 +453,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           ) : (
             <EmptyState
               icon={<ShoppingCart className="w-6 h-6 text-zinc-400" />}
-              title="No sales recorded in this period"
-              description="Start recording customer sales through the Point of Sale terminal."
-              actionLabel="Launch POS Terminal"
+              title={t.dashboard.noSalesPeriod}
+              description={t.dashboard.noSalesPeriodDesc}
+              actionLabel={t.dashboard.launchPosBtn}
               onAction={() => onNavigate('sell')}
             />
           )}
@@ -458,7 +465,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
         <div className="space-y-3">
           <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
             <Sparkles className="w-4 h-4 text-emerald-400" />
-            AI Operating Layer
+            {t.dashboard.aiOperatingLayer}
           </h3>
 
           <Card
@@ -467,12 +474,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           >
             <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Live Intelligence Connected
+              {t.dashboard.aiLiveConnected}
             </div>
 
             <p className="text-xs text-zinc-300 leading-relaxed">
-              Ursella tracks and synthesizes your core financial facts in real time: revenue, FIFO inventory margins,
-              cash collections, and customer receivables.
+              {t.dashboard.aiLayerDesc}
             </p>
 
             <Button
@@ -480,9 +486,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               size="sm"
               rightIcon={<ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-0.5" />}
               className="w-full text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 cursor-pointer group"
-              onClick={() => onNavigate('ai', 'Give me an overview of today’s store performance and top margin items.')}
+              onClick={() => onNavigate('ai', language === 'fr' ? 'Fais-moi un bilan de mes ventes du jour et de mes meilleures marges.' : 'Give me an overview of today’s store performance and top margin items.')}
             >
-              Chat with Ursella AI
+              {t.dashboard.chatWithAiBtn}
             </Button>
           </Card>
         </div>
@@ -501,12 +507,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-between gap-3">
                 <div>
-                  <span className="text-xs text-zinc-400 font-medium">Inventory Stock Alerts</span>
+                  <span className="text-xs text-zinc-400 font-medium">{t.dashboard.stockAlertsTitle}</span>
                   <div className="text-lg font-bold text-white mt-0.5">
                     {analytics.inventorySummary.lowStockCount}{' '}
-                    <span className="text-xs font-normal text-zinc-400">low / </span>
+                    <span className="text-xs font-normal text-zinc-400">{t.dashboard.lowStock} / </span>
                     {analytics.inventorySummary.outOfStockCount}{' '}
-                    <span className="text-xs font-normal text-zinc-400">out of stock</span>
+                    <span className="text-xs font-normal text-zinc-400">{t.dashboard.outOfStock}</span>
                   </div>
                 </div>
                 <Button
@@ -516,13 +522,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                   rightIcon={<ArrowRight className="w-3 h-3 ml-1" />}
                   className="text-xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10 cursor-pointer"
                 >
-                  Stock List
+                  {t.dashboard.stockListBtn}
                 </Button>
               </div>
 
               <div className="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-between gap-3">
                 <div>
-                  <span className="text-xs text-zinc-400 font-medium">Customer Receivables</span>
+                  <span className="text-xs text-zinc-400 font-medium">{t.dashboard.customerReceivablesTitle}</span>
                   <div className="text-lg font-bold text-rose-400 mt-0.5">
                     {currencyConfig.format(analytics.financialOverview.outstandingReceivables ?? 0)}
                   </div>
@@ -534,7 +540,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                   rightIcon={<ArrowRight className="w-3 h-3 ml-1" />}
                   className="text-xs text-amber-400 border-amber-500/20 hover:bg-amber-500/10 cursor-pointer"
                 >
-                  Ledgers
+                  {t.dashboard.ledgersBtn}
                 </Button>
               </div>
             </div>

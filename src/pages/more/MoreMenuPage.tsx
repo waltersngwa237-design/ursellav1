@@ -69,6 +69,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
   } = useBusiness();
   const { theme, setTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
+  const isFr = language === 'fr';
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
 
@@ -124,7 +125,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profileName.trim()) {
-      setProfileError('Please enter your full name.');
+      setProfileError(isFr ? 'Veuillez saisir votre nom complet.' : 'Please enter your full name.');
       return;
     }
     try {
@@ -135,9 +136,9 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
         phone: profilePhone.trim() || null,
       });
       setIsEditProfileModalOpen(false);
-      setStatusMessage('Your profile information was updated successfully.');
+      setStatusMessage(isFr ? 'Profil mis à jour avec succès.' : 'Your profile information was updated successfully.');
     } catch (err: unknown) {
-      setProfileError(err instanceof Error ? err.message : 'Failed to update profile.');
+      setProfileError(err instanceof Error ? err.message : (isFr ? 'Erreur de mise à jour du profil.' : 'Failed to update profile.'));
     } finally {
       setProfileSaving(false);
     }
@@ -146,7 +147,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
   const handleSaveBusiness = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bizName.trim()) {
-      setBizError('Please enter your business name.');
+      setBizError(isFr ? 'Veuillez saisir le nom de l’entreprise.' : 'Please enter your business name.');
       return;
     }
     try {
@@ -161,9 +162,9 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
         description: bizDescription.trim() || undefined,
       });
       setIsEditBusinessModalOpen(false);
-      setStatusMessage('Business details were updated successfully.');
+      setStatusMessage(isFr ? 'Détails de l’entreprise mis à jour avec succès.' : 'Business details were updated successfully.');
     } catch (err: unknown) {
-      setBizError(err instanceof Error ? err.message : 'Failed to update business details.');
+      setBizError(err instanceof Error ? err.message : (isFr ? 'Erreur de mise à jour.' : 'Failed to update business details.'));
     } finally {
       setBizSaving(false);
     }
@@ -173,7 +174,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
     try {
       setIsDemoLoading(true);
       await createDemoBusiness();
-      setStatusMessage('Demo business created successfully!');
+      setStatusMessage(isFr ? 'Boutique de démonstration créée avec succès !' : 'Demo business created successfully!');
     } finally {
       setIsDemoLoading(false);
     }
@@ -184,7 +185,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
       setIsResetLoading(true);
       await resetCurrentBusinessData();
       setShowResetConfirm(false);
-      setStatusMessage('Business data reset! You now have a clean, fresh workspace.');
+      setStatusMessage(isFr ? 'Données réinitialisées avec succès ! Espace prêt à l’emploi.' : 'Business data reset! You now have a clean, fresh workspace.');
     } finally {
       setIsResetLoading(false);
     }
@@ -194,18 +195,18 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
     try {
       setIsSeedLoading(true);
       await seedSampleCatalog();
-      setStatusMessage('Starter catalog seeded successfully for quick testing.');
+      setStatusMessage(isFr ? 'Catalogue initial chargé avec succès pour vos tests.' : 'Starter catalog seeded successfully for quick testing.');
     } finally {
       setIsSeedLoading(false);
     }
   };
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'general', label: 'General', icon: <User className="w-4 h-4" /> },
-    { id: 'business', label: 'Store Profile', icon: <Store className="w-4 h-4" /> },
-    { id: 'team', label: 'Team & Staff', icon: <Users className="w-4 h-4" /> },
-    { id: 'hardware', label: 'POS Hardware', icon: <Printer className="w-4 h-4" /> },
-    { id: 'data', label: 'Data & Cloud', icon: <Database className="w-4 h-4" /> },
+    { id: 'general', label: isFr ? 'Général' : 'General', icon: <User className="w-4 h-4" /> },
+    { id: 'business', label: isFr ? 'Profil Boutique' : 'Store Profile', icon: <Store className="w-4 h-4" /> },
+    { id: 'team', label: isFr ? 'Équipe & Accès' : 'Team & Staff', icon: <Users className="w-4 h-4" /> },
+    { id: 'hardware', label: isFr ? 'Matériel & Caisse' : 'POS Hardware', icon: <Printer className="w-4 h-4" /> },
+    { id: 'data', label: isFr ? 'Données & Cloud' : 'Data & Cloud', icon: <Database className="w-4 h-4" /> },
   ];
 
   return (
@@ -214,10 +215,12 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-            Settings
+            {t.navigation.settings}
           </h1>
           <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
-            Manage your store preferences, staff access, POS peripherals, and data architecture.
+            {isFr
+              ? 'Gérez vos préférences de boutique, accès du personnel, imprimantes et architecture de données.'
+              : 'Manage your store preferences, staff access, POS peripherals, and data architecture.'}
           </p>
         </div>
 
@@ -227,18 +230,18 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
             variant="outline"
             onClick={() => setIsFeedbackModalOpen(true)}
             leftIcon={<MessageSquare className="w-3.5 h-3.5 text-zinc-400" />}
-            className="text-xs text-zinc-400 hover:text-zinc-200"
+            className="text-xs text-zinc-400 hover:text-zinc-200 cursor-pointer"
           >
-            Feedback
+            {isFr ? 'Commentaires' : 'Feedback'}
           </Button>
           <Button
             size="sm"
             variant="danger"
             onClick={() => signOut()}
             leftIcon={<LogOut className="w-3.5 h-3.5" />}
-            className="text-xs"
+            className="text-xs cursor-pointer"
           >
-            Sign Out
+            {isFr ? 'Déconnexion' : 'Sign Out'}
           </Button>
         </div>
       </div>
@@ -253,7 +256,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
             onClick={() => setStatusMessage(null)}
             className="text-emerald-400 hover:text-emerald-200 text-xs cursor-pointer font-bold"
           >
-            Dismiss
+            {isFr ? 'Fermer' : 'Dismiss'}
           </button>
         </div>
       )}
@@ -296,10 +299,10 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-bold text-zinc-100">
-                      {profile?.full_name || 'Business User'}
+                      {profile?.full_name || (isFr ? 'Utilisateur' : 'Business User')}
                     </h3>
                     <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                      Account Owner
+                      {isFr ? 'Propriétaire du Compte' : 'Account Owner'}
                     </span>
                   </div>
                   <p className="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5">
@@ -328,7 +331,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                   leftIcon={<Edit3 className="w-3.5 h-3.5 text-emerald-400" />}
                   className="text-xs cursor-pointer"
                 >
-                  Edit Profile
+                  {isFr ? 'Modifier le Profil' : 'Edit Profile'}
                 </Button>
               </div>
             </div>
@@ -340,16 +343,16 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               <div className="flex items-center gap-2">
                 <Sun className="w-4 h-4 text-amber-400" />
                 <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
-                  Interface Appearance
+                  {isFr ? 'Apparence de l’Interface' : 'Interface Appearance'}
                 </h3>
               </div>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 border border-zinc-700/60">
-                {theme === 'light' ? 'Light Mode Active' : 'Dark Mode Active'}
+                {theme === 'light' ? (isFr ? 'Mode Clair Actif' : 'Light Mode Active') : (isFr ? 'Mode Sombre Actif' : 'Dark Mode Active')}
               </span>
             </div>
 
             <p className="text-xs text-zinc-400">
-              Switch between daylight high-contrast and low-light eye-safe night mode.
+              {isFr ? 'Basculez entre le mode clair à contraste élevé et le mode sombre reposant.' : 'Switch between daylight high-contrast and low-light eye-safe night mode.'}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -366,10 +369,10 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                 </div>
                 <div>
                   <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
-                    Light Mode
+                    {isFr ? 'Mode Clair' : 'Light Mode'}
                     {theme === 'light' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
                   </div>
-                  <span className="text-[10px] text-zinc-400">Crisp high-contrast day theme</span>
+                  <span className="text-[10px] text-zinc-400">{isFr ? 'Thème jour net et contrasté' : 'Crisp high-contrast day theme'}</span>
                 </div>
               </button>
 
@@ -386,10 +389,10 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                 </div>
                 <div>
                   <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
-                    Dark Mode
+                    {isFr ? 'Mode Sombre' : 'Dark Mode'}
                     {theme === 'dark' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
                   </div>
-                  <span className="text-[10px] text-zinc-400">Sleek, eye-safe night theme</span>
+                  <span className="text-[10px] text-zinc-400">{isFr ? 'Thème nuit élégant et sobre' : 'Sleek, eye-safe night theme'}</span>
                 </div>
               </button>
             </div>
@@ -470,7 +473,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               <div className="flex items-center gap-2.5">
                 <Store className="w-5 h-5 text-emerald-400" />
                 <h3 className="text-sm font-bold text-zinc-100 uppercase tracking-wider">
-                  Active Business Entity
+                  {isFr ? 'Entité Commerciale Active' : 'Active Business Entity'}
                 </h3>
               </div>
               <div className="flex items-center gap-2">
@@ -489,28 +492,28 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                     setIsEditBusinessModalOpen(true);
                   }}
                   leftIcon={<Edit3 className="w-3.5 h-3.5 text-emerald-400" />}
-                  className="text-xs py-1"
+                  className="text-xs py-1 cursor-pointer"
                 >
-                  Edit Business Info
+                  {isFr ? 'Modifier les Infos' : 'Edit Business Info'}
                 </Button>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
-                <span className="text-[11px] text-zinc-400 block">Business Name</span>
+                <span className="text-[11px] text-zinc-400 block">{isFr ? 'Nom de l’Entreprise' : 'Business Name'}</span>
                 <span className="text-sm font-bold text-zinc-100">{activeBusiness?.name}</span>
               </div>
 
               <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
-                <span className="text-[11px] text-zinc-400 block">Industry</span>
+                <span className="text-[11px] text-zinc-400 block">{isFr ? 'Secteur d’Activité' : 'Industry'}</span>
                 <span className="text-sm font-bold text-zinc-100">
                   {activeBusiness?.business_type || 'Retail'}
                 </span>
               </div>
 
               <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
-                <span className="text-[11px] text-zinc-400 block">Currency & Region</span>
+                <span className="text-[11px] text-zinc-400 block">{isFr ? 'Devise & Pays' : 'Currency & Region'}</span>
                 <span className="text-sm font-bold text-zinc-100">
                   {currencyConfig.code} ({currencyConfig.symbol}) • {activeBusiness?.country}
                 </span>
@@ -519,7 +522,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
 
             {activeBusiness?.description && (
               <div className="p-3 rounded-xl bg-zinc-950/40 border border-zinc-800/60 text-xs text-zinc-400">
-                <span className="text-zinc-500 font-semibold block mb-0.5">Description:</span>
+                <span className="text-zinc-500 font-semibold block mb-0.5">{isFr ? 'Description :' : 'Description:'}</span>
                 {activeBusiness.description}
               </div>
             )}
@@ -531,7 +534,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               <div className="flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
-                  Managed Businesses ({businesses.length})
+                  {isFr ? `Boutiques Gérées (${businesses.length})` : `Managed Businesses (${businesses.length})`}
                 </h3>
               </div>
               <Button
@@ -539,9 +542,9 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                 variant="outline"
                 onClick={() => setIsNewBusinessModalOpen(true)}
                 leftIcon={<Plus className="w-3.5 h-3.5" />}
-                className="text-xs"
+                className="text-xs cursor-pointer"
               >
-                Add Business
+                {isFr ? 'Ajouter une Boutique' : 'Add Business'}
               </Button>
             </div>
 
@@ -562,23 +565,23 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                         {b.business.name}
                       </p>
                       <p className="text-[10px] text-zinc-400">
-                        {b.business.currency} • Role: {b.role.toUpperCase()}
+                        {b.business.currency} • {isFr ? 'Rôle :' : 'Role:'} {b.role.toUpperCase()}
                       </p>
                     </div>
                   </div>
 
                   {b.business.id === activeBusiness?.id ? (
                     <Badge variant="emerald" size="sm">
-                      ACTIVE
+                      {isFr ? 'ACTIF' : 'ACTIVE'}
                     </Badge>
                   ) : (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-xs py-1"
+                      className="text-xs py-1 cursor-pointer"
                       onClick={() => setActiveBusinessId(b.business.id)}
                     >
-                      Select
+                      {isFr ? 'Sélectionner' : 'Select'}
                     </Button>
                   )}
                 </div>
@@ -593,7 +596,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                 isLoading={isDemoLoading}
                 className="text-zinc-400 hover:text-zinc-200 cursor-pointer text-xs"
               >
-                + Create Sample Demo Business
+                {isFr ? '+ Créer une Boutique Démo' : '+ Create Sample Demo Business'}
               </Button>
             </div>
           </Card>
@@ -619,31 +622,33 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               <div className="flex items-center gap-2">
                 <Printer className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
-                  Thermal Receipt Printing & Peripherals
+                  {isFr ? 'Impression Thermique & Périphériques' : 'Thermal Receipt Printing & Peripherals'}
                 </h3>
               </div>
-              <Badge variant="emerald">{hwSettings.paperWidth} Thermal</Badge>
+              <Badge variant="emerald">{hwSettings.paperWidth} {isFr ? 'Thermique' : 'Thermal'}</Badge>
             </div>
 
             <p className="text-xs text-zinc-400">
-              Configure ESC/POS thermal printers (58mm/80mm), Bluetooth pairing, and automatic cash drawer kick commands on cash checkout.
+              {isFr
+                ? 'Configurez vos imprimantes thermiques ESC/POS (58mm/80mm), appairage Bluetooth et ouverture automatique du tiroir-caisse.'
+                : 'Configure ESC/POS thermal printers (58mm/80mm), Bluetooth pairing, and automatic cash drawer kick commands on cash checkout.'}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs">
               <div className="p-3 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
-                <span className="text-zinc-500 block text-[10px] uppercase font-bold">Paper Format</span>
-                <span className="text-zinc-200 font-semibold">{hwSettings.paperWidth} Roll</span>
+                <span className="text-zinc-500 block text-[10px] uppercase font-bold">{isFr ? 'Format Papier' : 'Paper Format'}</span>
+                <span className="text-zinc-200 font-semibold">{hwSettings.paperWidth} {isFr ? 'Rouleau' : 'Roll'}</span>
               </div>
               <div className="p-3 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
-                <span className="text-zinc-500 block text-[10px] uppercase font-bold">Cash Drawer Trigger</span>
+                <span className="text-zinc-500 block text-[10px] uppercase font-bold">{isFr ? 'Tiroir-Caisse Auto' : 'Cash Drawer Trigger'}</span>
                 <span className="text-zinc-200 font-semibold">
-                  {hwSettings.autoKickDrawerOnCash ? 'Auto-Kick Active' : 'Manual Only'}
+                  {hwSettings.autoKickDrawerOnCash ? (isFr ? 'Ouverture Auto Active' : 'Auto-Kick Active') : (isFr ? 'Manuel Uniquement' : 'Manual Only')}
                 </span>
               </div>
               <div className="p-3 rounded-xl bg-zinc-950/50 border border-zinc-800/80">
-                <span className="text-zinc-500 block text-[10px] uppercase font-bold">Connection Mode</span>
+                <span className="text-zinc-500 block text-[10px] uppercase font-bold">{isFr ? 'Mode de Connexion' : 'Connection Mode'}</span>
                 <span className="text-zinc-200 font-semibold truncate">
-                  {hwSettings.pairedDeviceName || 'Browser / Raw Print'}
+                  {hwSettings.pairedDeviceName || (isFr ? 'Navigateur / Impression Brute' : 'Browser / Raw Print')}
                 </span>
               </div>
             </div>
@@ -657,9 +662,9 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                   setIsHardwareModalOpen(true);
                 }}
                 leftIcon={<Sliders className="w-3.5 h-3.5 text-emerald-400" />}
-                className="text-xs"
+                className="text-xs cursor-pointer"
               >
-                Configure Hardware & Printers
+                {isFr ? 'Configurer Matériel & Imprimantes' : 'Configure Hardware & Printers'}
               </Button>
             </div>
           </Card>
@@ -685,10 +690,10 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               </div>
               <div className="mt-3">
                 <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
-                  Financial Reports
+                  {isFr ? 'Rapports Financiers' : 'Financial Reports'}
                 </h4>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
-                  P&L, Gross Margins, Sales, and Cash Flow.
+                  {isFr ? 'Compte de résultat, marges, ventes et trésorerie.' : 'P&L, Gross Margins, Sales, and Cash Flow.'}
                 </p>
               </div>
             </button>
@@ -705,10 +710,10 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               </div>
               <div className="mt-3">
                 <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
-                  Data Migration Hub
+                  {isFr ? 'Centre d’Import & Export' : 'Data Migration Hub'}
                 </h4>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
-                  CSV spreadsheet upload and full business export.
+                  {isFr ? 'Importation Excel/CSV et sauvegarde complète de la boutique.' : 'CSV spreadsheet upload and full business export.'}
                 </p>
               </div>
             </button>
@@ -725,10 +730,10 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               </div>
               <div className="mt-3">
                 <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
-                  Plan & Quota
+                  {isFr ? 'Abonnement & Quotas' : 'Plan & Quota'}
                 </h4>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
-                  Usage status and free enterprise retail capabilities.
+                  {isFr ? 'Statut d’utilisation et fonctionnalités de gestion complètes.' : 'Usage status and free enterprise retail capabilities.'}
                 </p>
               </div>
             </button>
@@ -740,20 +745,22 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
-                  Database & Multi-Tenant Isolation
+                  {isFr ? 'Sécurité Base de Données & Isolation Multi-Boutiques' : 'Database & Multi-Tenant Isolation'}
                 </h3>
               </div>
               <Badge variant={isSupabaseConfigured ? 'emerald' : 'amber'}>
-                {isSupabaseConfigured ? 'SUPABASE RLS ACTIVE' : 'LOCAL / PREVIEW MODE'}
+                {isSupabaseConfigured ? (isFr ? 'SÉCURITÉ RLS ACTIVE' : 'SUPABASE RLS ACTIVE') : (isFr ? 'MODE LOCAL / APERÇU' : 'LOCAL / PREVIEW MODE')}
               </Badge>
             </div>
 
             <div className="text-xs text-zinc-400 space-y-2 leading-relaxed">
               <p>
-                Ursella enforces strict Row Level Security (RLS) across all tables, ensuring strict multi-tenant isolation. No business entity can ever access or modify records belonging to another store.
+                {isFr
+                  ? 'Ursella applique une politique stricte de sécurité au niveau des lignes (RLS) sur toutes les tables. Aucune entité ne peut accéder aux données d’une autre boutique.'
+                  : 'Ursella enforces strict Row Level Security (RLS) across all tables, ensuring strict multi-tenant isolation. No business entity can ever access or modify records belonging to another store.'}
               </p>
               <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 font-mono text-[11px] text-zinc-300">
-                Current User ID: {user?.id}
+                {isFr ? 'Identifiant Utilisateur :' : 'Current User ID:'} {user?.id}
               </div>
             </div>
           </Card>
@@ -764,14 +771,16 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               <div className="flex items-center gap-2">
                 <RefreshCw className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
-                  Workspace Reset & Clean Slate
+                  {isFr ? 'Réinitialisation de l’Espace de Travail' : 'Workspace Reset & Clean Slate'}
                 </h3>
               </div>
-              <Badge variant="zinc">Data Controls</Badge>
+              <Badge variant="zinc">{isFr ? 'Contrôles Données' : 'Data Controls'}</Badge>
             </div>
 
             <p className="text-xs text-zinc-400">
-              You can wipe test data at any time to return to a pristine zero-state, or load sample starter items.
+              {isFr
+                ? 'Vous pouvez effacer les données de test à tout moment pour repartir de zéro, ou charger un échantillon de produits.'
+                : 'You can wipe test data at any time to return to a pristine zero-state, or load sample starter items.'}
             </p>
 
             <div className="flex flex-wrap gap-2.5 pt-2">
@@ -782,7 +791,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                 leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-400" />}
                 className="text-rose-400 border-rose-500/30 hover:bg-rose-500/10 cursor-pointer"
               >
-                Reset Store to Clean Slate
+                {isFr ? 'Remettre la Boutique à Zéro' : 'Reset Store to Clean Slate'}
               </Button>
 
               <Button
@@ -792,7 +801,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
                 isLoading={isSeedLoading}
                 className="text-zinc-400 hover:text-zinc-200 cursor-pointer text-xs"
               >
-                Load Starter Catalog Sample
+                {isFr ? 'Charger un Catalogue Échantillon' : 'Load Starter Catalog Sample'}
               </Button>
             </div>
           </Card>
@@ -803,8 +812,8 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
       <Modal
         isOpen={isEditProfileModalOpen}
         onClose={() => setIsEditProfileModalOpen(false)}
-        title="Edit Profile Information"
-        description="Update your personal account name and contact details."
+        title={isFr ? 'Modifier les Informations du Profil' : 'Edit Profile Information'}
+        description={isFr ? 'Mettez à jour votre nom de compte et vos coordonnées personnelles.' : 'Update your personal account name and contact details.'}
         maxWidth="md"
       >
         <form onSubmit={handleSaveProfile} className="space-y-4 py-2">
@@ -816,7 +825,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
 
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-zinc-300">
-              Full Name <span className="text-rose-400">*</span>
+              {isFr ? 'Nom Complet' : 'Full Name'} <span className="text-rose-400">*</span>
             </label>
             <input
               type="text"
@@ -830,7 +839,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
 
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-zinc-300">
-              Phone Number
+              {isFr ? 'Numéro de Téléphone' : 'Phone Number'}
             </label>
             <input
               type="tel"
@@ -839,12 +848,12 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               placeholder="e.g. +237 670 123 456"
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-hidden focus:border-emerald-500"
             />
-            <span className="text-[11px] text-zinc-500">Used for WhatsApp receipts and alerts.</span>
+            <span className="text-[11px] text-zinc-500">{isFr ? 'Utilisé pour les reçus WhatsApp et les alertes.' : 'Used for WhatsApp receipts and alerts.'}</span>
           </div>
 
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-zinc-300">
-              Email Address
+              {isFr ? 'Adresse Email' : 'Email Address'}
             </label>
             <input
               type="text"
@@ -852,7 +861,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               disabled
               className="w-full bg-zinc-950/50 border border-zinc-800/80 rounded-xl px-3.5 py-2.5 text-xs text-zinc-400 cursor-not-allowed"
             />
-            <span className="text-[11px] text-zinc-500">Account login email address.</span>
+            <span className="text-[11px] text-zinc-500">{isFr ? 'Adresse email de connexion au compte.' : 'Account login email address.'}</span>
           </div>
 
           <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-zinc-800">
@@ -862,16 +871,16 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               size="sm"
               onClick={() => setIsEditProfileModalOpen(false)}
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               type="submit"
               size="sm"
               isLoading={profileSaving}
               leftIcon={<Check className="w-3.5 h-3.5" />}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
             >
-              Save Profile
+              {isFr ? 'Enregistrer le Profil' : 'Save Profile'}
             </Button>
           </div>
         </form>
@@ -881,8 +890,8 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
       <Modal
         isOpen={isEditBusinessModalOpen}
         onClose={() => setIsEditBusinessModalOpen(false)}
-        title="Edit Business Details"
-        description="Update your business entity name, country, currency, and timezone."
+        title={isFr ? 'Modifier les Détails de l’Entreprise' : 'Edit Business Details'}
+        description={isFr ? 'Mettez à jour le nom, le pays, la devise et le fuseau horaire de votre boutique.' : 'Update your business entity name, country, currency, and timezone.'}
         maxWidth="lg"
       >
         <form onSubmit={handleSaveBusiness} className="space-y-4 py-2">
@@ -895,7 +904,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-zinc-300">
-                Business Name <span className="text-rose-400">*</span>
+                {isFr ? 'Nom de l’Entreprise' : 'Business Name'} <span className="text-rose-400">*</span>
               </label>
               <input
                 type="text"
@@ -909,20 +918,20 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
 
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-zinc-300">
-                Industry / Business Type
+                {isFr ? 'Secteur d’Activité' : 'Industry / Business Type'}
               </label>
               <select
                 value={bizType}
                 onChange={(e) => setBizType(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-hidden focus:border-emerald-500"
               >
-                <option value="Retail">Retail Store / Boutique</option>
-                <option value="Supermarket">Supermarket & Grocery</option>
-                <option value="Food & Restaurant / Cafe">Restaurant / Cafe / Food</option>
-                <option value="Wholesale & Distribution">Wholesale & Distribution</option>
-                <option value="Pharmacy & Health">Pharmacy & Health</option>
-                <option value="Electronics & IT">Electronics & IT</option>
-                <option value="Services & Consulting">Services & Consulting</option>
+                <option value="Retail">{isFr ? 'Boutique / Commerce de Détail' : 'Retail Store / Boutique'}</option>
+                <option value="Supermarket">{isFr ? 'Supermarché & Épicerie' : 'Supermarket & Grocery'}</option>
+                <option value="Food & Restaurant / Cafe">{isFr ? 'Restaurant / Café / Alimentation' : 'Restaurant / Cafe / Food'}</option>
+                <option value="Wholesale & Distribution">{isFr ? 'Commerce de Gros & Distribution' : 'Wholesale & Distribution'}</option>
+                <option value="Pharmacy & Health">{isFr ? 'Pharmacie & Santé' : 'Pharmacy & Health'}</option>
+                <option value="Electronics & IT">{isFr ? 'Électronique & Informatique' : 'Electronics & IT'}</option>
+                <option value="Services & Consulting">{isFr ? 'Services & Conseil' : 'Services & Consulting'}</option>
               </select>
             </div>
           </div>
@@ -930,7 +939,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-zinc-300">
-                Country
+                {isFr ? 'Pays' : 'Country'}
               </label>
               <input
                 type="text"
@@ -943,7 +952,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
 
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-zinc-300">
-                Operating Currency
+                {isFr ? 'Devise d’Exploitation' : 'Operating Currency'}
               </label>
               <select
                 value={bizCurrency}
@@ -960,7 +969,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
 
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-zinc-300">
-                Timezone
+                {isFr ? 'Fuseau Horaire' : 'Timezone'}
               </label>
               <input
                 type="text"
@@ -974,13 +983,13 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
 
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-zinc-300">
-              Description / Store Address
+              {isFr ? 'Description / Adresse de la Boutique' : 'Description / Store Address'}
             </label>
             <textarea
               rows={2}
               value={bizDescription}
               onChange={(e) => setBizDescription(e.target.value)}
-              placeholder="Brief description, store location, or tax identification number..."
+              placeholder={isFr ? 'Brève description, emplacement, numéro fiscal...' : 'Brief description, store location, or tax identification number...'}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-hidden focus:border-emerald-500"
             />
           </div>
@@ -992,7 +1001,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               size="sm"
               onClick={() => setIsEditBusinessModalOpen(false)}
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               type="submit"
@@ -1001,7 +1010,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               leftIcon={<Check className="w-3.5 h-3.5" />}
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
             >
-              Save Business Details
+              {isFr ? 'Enregistrer les Modifications' : 'Save Business Details'}
             </Button>
           </div>
         </form>
@@ -1011,15 +1020,15 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
       <Modal
         isOpen={showResetConfirm}
         onClose={() => setShowResetConfirm(false)}
-        title="Reset Store Workspace"
-        description="Are you sure you want to wipe all local transactions and inventory?"
+        title={isFr ? 'Remise à Zéro de la Boutique' : 'Reset Store Workspace'}
+        description={isFr ? 'Êtes-vous sûr de vouloir effacer toutes les transactions et stocks locaux ?' : 'Are you sure you want to wipe all local transactions and inventory?'}
       >
         <div className="space-y-4 py-2">
           <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
             <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold">This will erase all test products, sales, customers, and expenses for this business.</p>
-              <p className="mt-1 text-rose-200/80">Your business settings and login profile will remain intact.</p>
+              <p className="font-bold">{isFr ? 'Cette action effacera tous les produits, ventes, clients et dépenses de test pour cette boutique.' : 'This will erase all test products, sales, customers, and expenses for this business.'}</p>
+              <p className="mt-1 text-rose-200/80">{isFr ? 'Vos paramètres d’entreprise et votre profil utilisateur seront conservés.' : 'Your business settings and login profile will remain intact.'}</p>
             </div>
           </div>
 
@@ -1029,7 +1038,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               size="sm"
               onClick={() => setShowResetConfirm(false)}
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               variant="danger"
@@ -1038,7 +1047,7 @@ export const MoreMenuPage: React.FC<MoreMenuPageProps> = ({ onNavigate, defaultT
               isLoading={isResetLoading}
               leftIcon={<Trash2 className="w-3.5 h-3.5" />}
             >
-              Confirm & Wipe Data
+              {isFr ? 'Confirmer & Tout Réinitialiser' : 'Confirm & Wipe Data'}
             </Button>
           </div>
         </div>

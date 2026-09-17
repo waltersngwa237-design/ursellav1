@@ -30,6 +30,18 @@ export interface Translations {
     language: string;
     switchToFrench: string;
     switchToEnglish: string;
+    success: string;
+    error: string;
+    all: string;
+    none: string;
+    notes: string;
+    optional: string;
+    required: string;
+    download: string;
+    print: string;
+    share: string;
+    copy: string;
+    copied: string;
   };
   navigation: {
     home: string;
@@ -49,6 +61,56 @@ export interface Translations {
     settings: string;
     menu: string;
     logout: string;
+  };
+  dashboard: {
+    greetingMorning: string;
+    greetingAfternoon: string;
+    greetingEvening: string;
+    partner: string;
+    overviewSubtitle: string;
+    fullAnalyticsBtn: string;
+    quickShortcuts: string;
+    newSaleTitle: string;
+    newSaleDesc: string;
+    inventoryTitle: string;
+    inventoryDesc: string;
+    customersTitle: string;
+    customersDesc: string;
+    analyticsTitle: string;
+    analyticsDesc: string;
+    salesRevenue: string;
+    grossProfit: string;
+    operatingExpenses: string;
+    estimatedNetProfit: string;
+    topProductsTitle: string;
+    viewAllProducts: string;
+    unitsSold: string;
+    profit: string;
+    noSalesPeriod: string;
+    noSalesPeriodDesc: string;
+    launchPosBtn: string;
+    aiOperatingLayer: string;
+    aiLiveConnected: string;
+    aiLayerDesc: string;
+    chatWithAiBtn: string;
+    stockAlertsTitle: string;
+    lowStock: string;
+    outOfStock: string;
+    stockListBtn: string;
+    customerReceivablesTitle: string;
+    ledgersBtn: string;
+    refreshing: string;
+    releaseToRefresh: string;
+    swipeToRefresh: string;
+    timeframes: {
+      today: string;
+      last7Days: string;
+      last30Days: string;
+      thisMonth: string;
+    };
+    noBusinessFound: string;
+    noBusinessDesc: string;
+    createBusinessBtn: string;
   };
   landing: {
     heroBadge: string;
@@ -122,6 +184,28 @@ export interface Translations {
     barcodeScan: string;
     outOfStockWarning: string;
     itemAdded: string;
+    salesHistory: string;
+    terminal: string;
+    allCategories: string;
+    searchProductsPlaceholder: string;
+    itemsCount: string;
+    clearCart: string;
+    checkoutSummary: string;
+    paymentMethod: string;
+    paymentRef: string;
+    paymentRefPlaceholder: string;
+    saleNotes: string;
+    saleNotesPlaceholder: string;
+    customItem: string;
+    customItemName: string;
+    customItemPrice: string;
+    addCustomItem: string;
+    closeRegister: string;
+    hardwareSettings: string;
+    managerApprovalRequired: string;
+    managerPinPlaceholder: string;
+    approveOverride: string;
+    discountExceedsMax: string;
   };
   inventory: {
     products: string;
@@ -142,6 +226,24 @@ export interface Translations {
     healthyStock: string;
     restock: string;
     adjustStock: string;
+    searchPlaceholder: string;
+    allCategories: string;
+    addCategory: string;
+    valuationSummary: string;
+    totalActiveSkus: string;
+    fifoCostBasis: string;
+    stockAdjustments: string;
+    reasonLoss: string;
+    reasonDamage: string;
+    reasonAudit: string;
+    reasonReturn: string;
+    barcodeOrSku: string;
+    batchLots: string;
+    lotDate: string;
+    lotSupplier: string;
+    lotQty: string;
+    lotCost: string;
+    deleteProductConfirm: string;
   };
   customers: {
     title: string;
@@ -155,6 +257,20 @@ export interface Translations {
     recordPayment: string;
     sendDebtReminder: string;
     purchaseHistory: string;
+    searchPlaceholder: string;
+    allCustomers: string;
+    debtorsOnly: string;
+    totalReceivables: string;
+    activeAccounts: string;
+    allowCredit: string;
+    creditMaxLimit: string;
+    customerNotes: string;
+    paymentAmount: string;
+    paymentMethod: string;
+    confirmPayment: string;
+    reminderSent: string;
+    reminderMessageTemplate: string;
+    noCustomersFound: string;
   };
   finance: {
     revenue: string;
@@ -170,6 +286,59 @@ export interface Translations {
     allTime: string;
     addExpense: string;
     expenseCategory: string;
+    expenseAmount: string;
+    expenseDescription: string;
+    expenseDate: string;
+    recordedBy: string;
+    categories: {
+      rent: string;
+      utilities: string;
+      salaries: string;
+      transport: string;
+      supplies: string;
+      marketing: string;
+      taxes: string;
+      other: string;
+    };
+  };
+  analytics: {
+    title: string;
+    subtitle: string;
+    revenueTrends: string;
+    marginEvolution: string;
+    hourlyVelocity: string;
+    categoryContribution: string;
+    deadStockAnalysis: string;
+    deadStockDescription: string;
+    deadStockHealthy: string;
+    anomaliesDetected: string;
+    noAnomalies: string;
+    paymentMethodSplit: string;
+    customerRetention: string;
+    periodComparison: string;
+  };
+  reports: {
+    title: string;
+    subtitle: string;
+    profitAndLoss: string;
+    cashFlowStatement: string;
+    taxEstimate: string;
+    dateRange: string;
+    downloadPdf: string;
+    downloadCsv: string;
+    grossSalesRevenue: string;
+    returnsAndDiscounts: string;
+    netSalesRevenue: string;
+    cogsFifo: string;
+    grossProfitMargin: string;
+    operatingExpensesTotal: string;
+    netOperatingProfit: string;
+    estimatedTaxPayable: string;
+    registerCloseoutTitle: string;
+    registerCloseoutDesc: string;
+    cashCounted: string;
+    momoCounted: string;
+    discrepancy: string;
   };
   aiAdvisor: {
     title: string;
@@ -193,14 +362,66 @@ export interface Translations {
     };
     languageNotice: string;
   };
-  reports: {
+  dataHub: {
     title: string;
-    profitAndLoss: string;
-    cashFlowStatement: string;
-    taxEstimate: string;
-    dateRange: string;
-    downloadPdf: string;
-    downloadCsv: string;
+    subtitle: string;
+    exportCatalog: string;
+    exportSales: string;
+    exportCustomers: string;
+    importCatalog: string;
+    importCsvDesc: string;
+    cloudBackup: string;
+    cloudBackupDesc: string;
+    downloadTemplate: string;
+    uploadFile: string;
+    syncStatus: string;
+  };
+  billing: {
+    title: string;
+    subtitle: string;
+    currentPlan: string;
+    freeTrial: string;
+    starterPlan: string;
+    proPlan: string;
+    enterprisePlan: string;
+    upgradePlan: string;
+    monthly: string;
+    annual: string;
+    saveAnnual: string;
+    payWithMomo: string;
+    payWithCard: string;
+    activeFeatures: string;
+    unlimitedTransactions: string;
+    fifoValuation: string;
+    aiAdvisorUnlimited: string;
+    multiUserRoles: string;
+    offlinePwaSupport: string;
+  };
+  settings: {
+    title: string;
+    storeProfile: string;
+    storeName: string;
+    businessType: string;
+    currency: string;
+    phone: string;
+    address: string;
+    taxNumber: string;
+    receiptHeader: string;
+    receiptFooter: string;
+    hardwarePrinters: string;
+    printerType: string;
+    thermal58: string;
+    thermal80: string;
+    bluetooth: string;
+    usb: string;
+    network: string;
+    teamAndRoles: string;
+    addTeamMember: string;
+    securityPin: string;
+    changePin: string;
+    dangerZone: string;
+    resetSampleData: string;
+    resetSampleDataDesc: string;
   };
   auth: {
     welcomeBack: string;
@@ -253,6 +474,18 @@ export const enTranslations: Translations = {
     language: 'Language',
     switchToFrench: 'Passer en Français',
     switchToEnglish: 'Switch to English',
+    success: 'Success',
+    error: 'Error',
+    all: 'All',
+    none: 'None',
+    notes: 'Notes',
+    optional: 'Optional',
+    required: 'Required',
+    download: 'Download',
+    print: 'Print',
+    share: 'Share',
+    copy: 'Copy',
+    copied: 'Copied!',
   },
   navigation: {
     home: 'Home',
@@ -272,6 +505,56 @@ export const enTranslations: Translations = {
     settings: 'Settings',
     menu: 'Menu',
     logout: 'Sign Out',
+  },
+  dashboard: {
+    greetingMorning: 'Good morning',
+    greetingAfternoon: 'Good afternoon',
+    greetingEvening: 'Good evening',
+    partner: 'Partner',
+    overviewSubtitle: 'Operational and business intelligence overview for',
+    fullAnalyticsBtn: 'Full Analytics',
+    quickShortcuts: 'Quick Shortcuts',
+    newSaleTitle: 'New Sale',
+    newSaleDesc: 'Launch POS terminal',
+    inventoryTitle: 'Inventory',
+    inventoryDesc: 'Catalog & stock',
+    customersTitle: 'Customers',
+    customersDesc: 'Ledgers & debt',
+    analyticsTitle: 'Analytics Hub',
+    analyticsDesc: 'BI & Deep Insights',
+    salesRevenue: 'Sales Revenue',
+    grossProfit: 'Gross Profit',
+    operatingExpenses: 'Operating Expenses',
+    estimatedNetProfit: 'Estimated Net Profit',
+    topProductsTitle: 'Top Performing Products',
+    viewAllProducts: 'View all products',
+    unitsSold: 'units sold',
+    profit: 'Profit',
+    noSalesPeriod: 'No sales recorded in this period',
+    noSalesPeriodDesc: 'Start recording customer sales through the Point of Sale terminal.',
+    launchPosBtn: 'Launch POS Terminal',
+    aiOperatingLayer: 'AI Operating Layer',
+    aiLiveConnected: 'Live Intelligence Connected',
+    aiLayerDesc: 'Ursella tracks and synthesizes your core financial facts in real time: revenue, FIFO inventory margins, cash collections, and customer receivables.',
+    chatWithAiBtn: 'Chat with Ursella AI',
+    stockAlertsTitle: 'Inventory Stock Alerts',
+    lowStock: 'low',
+    outOfStock: 'out of stock',
+    stockListBtn: 'Stock List',
+    customerReceivablesTitle: 'Customer Receivables',
+    ledgersBtn: 'Ledgers',
+    refreshing: 'Refreshing dashboard...',
+    releaseToRefresh: 'Release to refresh',
+    swipeToRefresh: 'Swipe down to refresh',
+    timeframes: {
+      today: 'Today',
+      last7Days: '7 Days',
+      last30Days: '30 Days',
+      thisMonth: 'This Month',
+    },
+    noBusinessFound: 'No Active Business Found',
+    noBusinessDesc: 'Create your first business workspace or select an existing one to access the Ursella dashboard.',
+    createBusinessBtn: 'Create Business Workspace',
   },
   landing: {
     heroBadge: 'Next-Gen Retail Operating System',
@@ -346,6 +629,28 @@ export const enTranslations: Translations = {
     barcodeScan: 'Scan Barcode',
     outOfStockWarning: 'Insufficient stock on hand',
     itemAdded: 'Item added to cart',
+    salesHistory: 'Sales History',
+    terminal: 'POS Terminal',
+    allCategories: 'All Categories',
+    searchProductsPlaceholder: 'Search products by name, SKU, or barcode...',
+    itemsCount: 'Items',
+    clearCart: 'Clear Cart',
+    checkoutSummary: 'Checkout Summary',
+    paymentMethod: 'Payment Method',
+    paymentRef: 'Reference / Transaction ID',
+    paymentRefPlaceholder: 'e.g., MoMo Ref #987213',
+    saleNotes: 'Sale Notes',
+    saleNotesPlaceholder: 'Internal notes for this receipt...',
+    customItem: 'Custom Non-Inventory Item',
+    customItemName: 'Item Description',
+    customItemPrice: 'Price',
+    addCustomItem: 'Add Custom Item',
+    closeRegister: 'Close Register (EOD)',
+    hardwareSettings: 'Hardware / Printer',
+    managerApprovalRequired: 'Manager Approval Required',
+    managerPinPlaceholder: 'Enter Manager Security PIN',
+    approveOverride: 'Approve Discount Override',
+    discountExceedsMax: 'Discount exceeds cashier allowance limit',
   },
   inventory: {
     products: 'Products & SKUs',
@@ -366,6 +671,24 @@ export const enTranslations: Translations = {
     healthyStock: 'Healthy Stock',
     restock: 'Restock / Purchase',
     adjustStock: 'Adjust Stock',
+    searchPlaceholder: 'Search product catalog by name, code, or brand...',
+    allCategories: 'All Categories',
+    addCategory: 'Add Category',
+    valuationSummary: 'Valuation & Asset Overview',
+    totalActiveSkus: 'Total Active SKUs',
+    fifoCostBasis: 'Total FIFO Cost Basis',
+    stockAdjustments: 'Stock Adjustments',
+    reasonLoss: 'Inventory Shrinkage / Loss',
+    reasonDamage: 'Damaged Goods',
+    reasonAudit: 'Physical Stock Count Audit',
+    reasonReturn: 'Supplier Return',
+    barcodeOrSku: 'Barcode / SKU Code',
+    batchLots: 'Batch Purchase Lots (FIFO Queue)',
+    lotDate: 'Purchase Date',
+    lotSupplier: 'Supplier',
+    lotQty: 'Qty Available',
+    lotCost: 'Unit Cost',
+    deleteProductConfirm: 'Are you sure you want to delete this product? This action cannot be undone.',
   },
   customers: {
     title: 'Customer Directory & Debtors',
@@ -379,6 +702,20 @@ export const enTranslations: Translations = {
     recordPayment: 'Record Payment',
     sendDebtReminder: 'WhatsApp Reminder',
     purchaseHistory: 'Purchase History',
+    searchPlaceholder: 'Search by customer name, phone, or company...',
+    allCustomers: 'All Customers',
+    debtorsOnly: 'Debtors with Balance Due',
+    totalReceivables: 'Total Receivables',
+    activeAccounts: 'Active Accounts',
+    allowCredit: 'Allow Store Credit Purchases',
+    creditMaxLimit: 'Maximum Allowed Credit Ceiling',
+    customerNotes: 'Customer Profile Notes',
+    paymentAmount: 'Amount Received',
+    paymentMethod: 'Payment Channel',
+    confirmPayment: 'Post Payment to Ledger',
+    reminderSent: 'WhatsApp payment reminder generated!',
+    reminderMessageTemplate: 'Hello {name}, this is a friendly reminder from {business} regarding your outstanding balance of {amount}. Thank you!',
+    noCustomersFound: 'No customer accounts registered yet.',
   },
   finance: {
     revenue: 'Revenue',
@@ -394,6 +731,59 @@ export const enTranslations: Translations = {
     allTime: 'All-Time',
     addExpense: 'Record Expense',
     expenseCategory: 'Expense Category',
+    expenseAmount: 'Amount',
+    expenseDescription: 'Description / Purpose',
+    expenseDate: 'Date of Expense',
+    recordedBy: 'Recorded By',
+    categories: {
+      rent: 'Store Rent & Lease',
+      utilities: 'Electricity, Water & Internet',
+      salaries: 'Staff Wages & Payroll',
+      transport: 'Logistics & Transport',
+      supplies: 'Packaging & Supplies',
+      marketing: 'Advertising & Marketing',
+      taxes: 'Local Licenses & Tax',
+      other: 'General Miscellaneous',
+    },
+  },
+  analytics: {
+    title: 'Business Analytics & Intelligence',
+    subtitle: 'Comprehensive financial, inventory velocity, and operational performance metrics',
+    revenueTrends: 'Revenue & Gross Profit Trends',
+    marginEvolution: 'Gross Margin % Evolution',
+    hourlyVelocity: 'Sales Velocity by Hour of Day',
+    categoryContribution: 'Revenue Contribution by Category',
+    deadStockAnalysis: 'Dead Stock & Capital Trapped',
+    deadStockDescription: 'Products with zero sales velocity over the last 30 days consuming working capital.',
+    deadStockHealthy: 'No dead stock detected! Inventory turnover is healthy.',
+    anomaliesDetected: 'Operational Anomalies & Risk Flags',
+    noAnomalies: 'No anomalies detected. Operations are within expected normal thresholds.',
+    paymentMethodSplit: 'Payment Tender Breakdown',
+    customerRetention: 'Repeat vs New Customer Sales',
+    periodComparison: 'Comparison Against Previous Period',
+  },
+  reports: {
+    title: 'Financial & Tax Reports',
+    subtitle: 'Audited financial summaries, P&L statements, and register closeout audit logs',
+    profitAndLoss: 'Profit & Loss Statement (P&L)',
+    cashFlowStatement: 'Cash Flow Statement',
+    taxEstimate: 'Tax & VAT Estimate',
+    dateRange: 'Reporting Period',
+    downloadPdf: 'Download PDF Report',
+    downloadCsv: 'Export CSV',
+    grossSalesRevenue: 'Gross Sales Revenue',
+    returnsAndDiscounts: 'Discounts & Returns',
+    netSalesRevenue: 'Net Sales Revenue',
+    cogsFifo: 'Cost of Goods Sold (FIFO Realized)',
+    grossProfitMargin: 'Gross Profit (Margin %)',
+    operatingExpensesTotal: 'Total Operating Expenses',
+    netOperatingProfit: 'Net Operating Profit',
+    estimatedTaxPayable: 'Estimated VAT / Sales Tax Payable',
+    registerCloseoutTitle: 'End-of-Day Register Closeout',
+    registerCloseoutDesc: 'Reconcile drawer cash, Mobile Money receipts, and verify POS drawer totals.',
+    cashCounted: 'Physical Cash Counted',
+    momoCounted: 'Digital MoMo Balance Counted',
+    discrepancy: 'Register Discrepancy (Over / Short)',
   },
   aiAdvisor: {
     title: 'Ursella AI Advisor',
@@ -417,14 +807,66 @@ export const enTranslations: Translations = {
     },
     languageNotice: 'Ursella AI dynamically reasons and answers in English and French.',
   },
-  reports: {
-    title: 'Financial & Tax Reports',
-    profitAndLoss: 'Profit & Loss Statement (P&L)',
-    cashFlowStatement: 'Cash Flow Statement',
-    taxEstimate: 'Tax & VAT Estimate',
-    dateRange: 'Reporting Period',
-    downloadPdf: 'Download PDF Report',
-    downloadCsv: 'Export CSV',
+  dataHub: {
+    title: 'Data Import / Export Hub',
+    subtitle: 'Manage catalog backups, CSV migrations, and secure offsite ledger sync',
+    exportCatalog: 'Export Products & Cost Lots (CSV)',
+    exportSales: 'Export Sales History (CSV)',
+    exportCustomers: 'Export Customer Directory (CSV)',
+    importCatalog: 'Import Products from CSV',
+    importCsvDesc: 'Bulk upload your existing product list with SKU, selling price, and opening inventory.',
+    cloudBackup: 'Automated Cloud Database Backup',
+    cloudBackupDesc: 'Download complete encrypted JSON snapshot of your business workspace.',
+    downloadTemplate: 'Download CSV Sample Template',
+    uploadFile: 'Select or Drop CSV File',
+    syncStatus: 'Encrypted & Synced to Cloud DB',
+  },
+  billing: {
+    title: 'Subscription & Workspace Plan',
+    subtitle: 'Choose the right plan to power your store growth with FIFO costing and AI copilot',
+    currentPlan: 'Current Active Plan',
+    freeTrial: '14-Day Free Pro Trial',
+    starterPlan: 'Starter Boutique',
+    proPlan: 'Pro Merchant & Retail',
+    enterprisePlan: 'Enterprise Multi-Store',
+    upgradePlan: 'Upgrade Plan',
+    monthly: 'Billed Monthly',
+    annual: 'Billed Annually (Save 20%)',
+    saveAnnual: '20% OFF',
+    payWithMomo: 'Pay with MTN MoMo / Orange Money',
+    payWithCard: 'Pay with Debit / Credit Card',
+    activeFeatures: 'Included Features',
+    unlimitedTransactions: 'Unlimited POS Transactions',
+    fifoValuation: 'FIFO Real-Time Cost Valuation',
+    aiAdvisorUnlimited: 'Ursella AI Financial Advisor (Bilingual)',
+    multiUserRoles: 'Multi-User Roles & Permissions',
+    offlinePwaSupport: 'Offline PWA & Thermal Receipt Printing',
+  },
+  settings: {
+    title: 'Business Settings & Hardware',
+    storeProfile: 'Store Profile & Identity',
+    storeName: 'Business Name',
+    businessType: 'Industry / Business Type',
+    currency: 'Operating Currency',
+    phone: 'Store Phone / WhatsApp',
+    address: 'Physical Address',
+    taxNumber: 'Tax Identification Number (TIN / NIF)',
+    receiptHeader: 'Receipt Header Message',
+    receiptFooter: 'Receipt Footer Thank You Message',
+    hardwarePrinters: 'Hardware & ESC/POS Printers',
+    printerType: 'Printer Interface',
+    thermal58: '58mm Thermal Receipt Printer',
+    thermal80: '80mm Thermal Receipt Printer',
+    bluetooth: 'Bluetooth Wireless Printer',
+    usb: 'USB Direct Printer',
+    network: 'LAN / Wi-Fi Network Printer',
+    teamAndRoles: 'Team Members & Staff Access',
+    addTeamMember: 'Invite Team Member',
+    securityPin: 'Manager Security PIN',
+    changePin: 'Change PIN',
+    dangerZone: 'Data Management & Reset',
+    resetSampleData: 'Load Sample Store Data',
+    resetSampleDataDesc: 'Populate your workspace with sample African boutique inventory, transactions, and debtors to test features.',
   },
   auth: {
     welcomeBack: 'Welcome back to Ursella',
@@ -477,6 +919,18 @@ export const frTranslations: Translations = {
     language: 'Langue',
     switchToFrench: 'Passer en Français',
     switchToEnglish: 'Switch to English',
+    success: 'Succès',
+    error: 'Erreur',
+    all: 'Tous',
+    none: 'Aucun',
+    notes: 'Remarques',
+    optional: 'Optionnel',
+    required: 'Obligatoire',
+    download: 'Télécharger',
+    print: 'Imprimer',
+    share: 'Partager',
+    copy: 'Copier',
+    copied: 'Copié !',
   },
   navigation: {
     home: 'Accueil',
@@ -496,6 +950,56 @@ export const frTranslations: Translations = {
     settings: 'Paramètres',
     menu: 'Menu',
     logout: 'Déconnexion',
+  },
+  dashboard: {
+    greetingMorning: 'Bonjour',
+    greetingAfternoon: 'Bon après-midi',
+    greetingEvening: 'Bonsoir',
+    partner: 'Partenaire',
+    overviewSubtitle: 'Aperçu opérationnel et financier pour',
+    fullAnalyticsBtn: 'Statistiques Complètes',
+    quickShortcuts: 'Raccourcis Rapides',
+    newSaleTitle: 'Nouvelle Vente',
+    newSaleDesc: 'Lancer la caisse enregistreuse',
+    inventoryTitle: 'Stocks & Articles',
+    inventoryDesc: 'Catalogue et inventaire',
+    customersTitle: 'Clients & Dettes',
+    customersDesc: 'Carnet de crédit & impayés',
+    analyticsTitle: 'Centre Statistique',
+    analyticsDesc: 'Rapports & Indicateurs Clés',
+    salesRevenue: 'Chiffre d’Affaires',
+    grossProfit: 'Marge Brute',
+    operatingExpenses: 'Charges d’Exploitation',
+    estimatedNetProfit: 'Bénéfice Net Estimé',
+    topProductsTitle: 'Produits les Plus Performants',
+    viewAllProducts: 'Voir tous les produits',
+    unitsSold: 'unités vendues',
+    profit: 'Marge',
+    noSalesPeriod: 'Aucune vente enregistrée sur cette période',
+    noSalesPeriodDesc: 'Commencez à enregistrer des encaissements sur la caisse.',
+    launchPosBtn: 'Ouvrir la Caisse',
+    aiOperatingLayer: 'Moteur IA Opérationnel',
+    aiLiveConnected: 'Intelligence en Direct Connectée',
+    aiLayerDesc: 'Ursella consolide et synthétise vos chiffres clés en temps réel : chiffre d’affaires, marges réelles PEPS, encaissements et créances clients.',
+    chatWithAiBtn: 'Discuter avec Ursella IA',
+    stockAlertsTitle: 'Alertes de Stock & Ruptures',
+    lowStock: 'faible',
+    outOfStock: 'en rupture',
+    stockListBtn: 'Liste du Stock',
+    customerReceivablesTitle: 'Créances & Dettes Clients',
+    ledgersBtn: 'Carnet de Crédit',
+    refreshing: 'Actualisation du tableau de bord...',
+    releaseToRefresh: 'Relâchez pour actualiser',
+    swipeToRefresh: 'Tirez vers le bas pour actualiser',
+    timeframes: {
+      today: 'Aujourd’hui',
+      last7Days: '7 Jours',
+      last30Days: '30 Jours',
+      thisMonth: 'Ce Mois',
+    },
+    noBusinessFound: 'Aucune Entreprise Active Trouvée',
+    noBusinessDesc: 'Créez votre première boutique ou sélectionnez-en une pour accéder au tableau de bord Ursella.',
+    createBusinessBtn: 'Créer une Boutique',
   },
   landing: {
     heroBadge: 'Système d’Exploitation Commercial Moderne',
@@ -570,6 +1074,28 @@ export const frTranslations: Translations = {
     barcodeScan: 'Scanner Code-Barres',
     outOfStockWarning: 'Stock insuffisant en rayon',
     itemAdded: 'Article ajouté au panier',
+    salesHistory: 'Historique des Ventes',
+    terminal: 'Caisse POS',
+    allCategories: 'Toutes les Catégories',
+    searchProductsPlaceholder: 'Rechercher par nom, SKU ou code-barres...',
+    itemsCount: 'Articles',
+    clearCart: 'Vider le Panier',
+    checkoutSummary: 'Récapitulatif de Vente',
+    paymentMethod: 'Mode de Règlement',
+    paymentRef: 'Référence / ID de Transaction',
+    paymentRefPlaceholder: 'ex. Réf MoMo #987213',
+    saleNotes: 'Notes sur la Vente',
+    saleNotesPlaceholder: 'Notes internes sur ce reçu...',
+    customItem: 'Article Hors-Catalogue',
+    customItemName: 'Désignation de l’Article',
+    customItemPrice: 'Prix',
+    addCustomItem: 'Ajouter l’Article Personnalisé',
+    closeRegister: 'Clôturer la Caisse (Fin de Journée)',
+    hardwareSettings: 'Matériel / Imprimante',
+    managerApprovalRequired: 'Validation Responsable Requise',
+    managerPinPlaceholder: 'Entrez le Code PIN Responsable',
+    approveOverride: 'Approuver la Remise',
+    discountExceedsMax: 'La remise dépasse le plafond autorisé du caissier',
   },
   inventory: {
     products: 'Produits & Articles',
@@ -590,6 +1116,24 @@ export const frTranslations: Translations = {
     healthyStock: 'Stock Conforme',
     restock: 'Réapprovisionner / Achat',
     adjustStock: 'Ajuster l’Inventaire',
+    searchPlaceholder: 'Rechercher par nom, code ou marque...',
+    allCategories: 'Toutes les Catégories',
+    addCategory: 'Ajouter une Catégorie',
+    valuationSummary: 'Aperçu & Valorisation du Stock',
+    totalActiveSkus: 'Total Références Actives',
+    fifoCostBasis: 'Valeur Totale au Coût d’Achat',
+    stockAdjustments: 'Ajustements d’Inventaire',
+    reasonLoss: 'Perte / Démarque Inconnue',
+    reasonDamage: 'Marchandises Endommagées',
+    reasonAudit: 'Comptage Physique d’Inventaire',
+    reasonReturn: 'Retour au Fournisseur',
+    barcodeOrSku: 'Code-Barres / Code SKU',
+    batchLots: 'Lots d’Achat en File PEPS',
+    lotDate: 'Date d’Achat',
+    lotSupplier: 'Fournisseur',
+    lotQty: 'Quantité Disponible',
+    lotCost: 'Coût Unitaire',
+    deleteProductConfirm: 'Êtes-vous certain de vouloir supprimer cet article ? Cette action est irréversible.',
   },
   customers: {
     title: 'Répertoire Clients & Créances',
@@ -603,6 +1147,20 @@ export const frTranslations: Translations = {
     recordPayment: 'Encaisser un Remboursement',
     sendDebtReminder: 'Relance WhatsApp',
     purchaseHistory: 'Historique des Achats',
+    searchPlaceholder: 'Rechercher par nom, téléphone ou société...',
+    allCustomers: 'Tous les Clients',
+    debtorsOnly: 'Clients Débiteurs avec Impayés',
+    totalReceivables: 'Total des Créances',
+    activeAccounts: 'Comptes Clients Actifs',
+    allowCredit: 'Autoriser les Achats à Crédit',
+    creditMaxLimit: 'Plafond Maximal de Crédit Accordé',
+    customerNotes: 'Notes sur le Profil Client',
+    paymentAmount: 'Montant Encaissé',
+    paymentMethod: 'Canal de Paiement',
+    confirmPayment: 'Enregistrer le Remboursement',
+    reminderSent: 'Message de relance WhatsApp généré !',
+    reminderMessageTemplate: 'Bonjour {name}, voici un rappel de la part de {business} concernant votre solde restant de {amount}. Merci pour votre confiance !',
+    noCustomersFound: 'Aucun client enregistré pour le moment.',
   },
   finance: {
     revenue: 'Chiffre d’Affaires',
@@ -618,6 +1176,59 @@ export const frTranslations: Translations = {
     allTime: 'Historique Global',
     addExpense: 'Enregistrer une Dépense',
     expenseCategory: 'Catégorie de Dépense',
+    expenseAmount: 'Montant',
+    expenseDescription: 'Description / Objet',
+    expenseDate: 'Date de la Dépense',
+    recordedBy: 'Enregistré par',
+    categories: {
+      rent: 'Loyer & Charges Commerciales',
+      utilities: 'Électricité, Eau & Internet',
+      salaries: 'Salaires & Rémunérations',
+      transport: 'Logistique & Transport',
+      supplies: 'Emballages & Fournitures',
+      marketing: 'Publicité & Marketing',
+      taxes: 'Licences & Taxes Locales',
+      other: 'Divers & Frais Généraux',
+    },
+  },
+  analytics: {
+    title: 'Statistiques & Intelligence Commerciale',
+    subtitle: 'Indicateurs financiers, rotation des stocks et performance opérationnelle',
+    revenueTrends: 'Évolution du Chiffre d’Affaires & Marge Brute',
+    marginEvolution: 'Taux de Marge Brute %',
+    hourlyVelocity: 'Vitesse des Ventes par Heure de la Journée',
+    categoryContribution: 'Contribution au Chiffre d’Affaires par Catégorie',
+    deadStockAnalysis: 'Stock Dormant & Trésorerie Bloquée',
+    deadStockDescription: 'Articles sans aucune vente au cours des 30 derniers jours immobilisant du capital.',
+    deadStockHealthy: 'Aucun stock dormant détecté ! La rotation des articles est saine.',
+    anomaliesDetected: 'Anomalies Opérationnelles & Drapeaux de Risque',
+    noAnomalies: 'Aucune anomalie détectée. Les opérations sont dans les normes attendues.',
+    paymentMethodSplit: 'Répartition par Mode de Paiement',
+    customerRetention: 'Clients Fidèles vs Nouveaux Clients',
+    periodComparison: 'Comparaison par Rapport à la Période Précédente',
+  },
+  reports: {
+    title: 'Rapports & Déclarations Financières',
+    subtitle: 'États financiers certifiés, compte de résultat et clôtures de caisse journalières',
+    profitAndLoss: 'Compte de Résultat (P&L)',
+    cashFlowStatement: 'Tableau de Flux de Trésorerie',
+    taxEstimate: 'Estimation TVA & Impôts',
+    dateRange: 'Période d’Analyse',
+    downloadPdf: 'Télécharger le Rapport PDF',
+    downloadCsv: 'Exporter en CSV',
+    grossSalesRevenue: 'Chiffre d’Affaires Brut',
+    returnsAndDiscounts: 'Remises & Retours',
+    netSalesRevenue: 'Chiffre d’Affaires Net',
+    cogsFifo: 'Coût des Marchandises Vendues (Réalisé PEPS)',
+    grossProfitMargin: 'Marge Brute (Taux de Marge %)',
+    operatingExpensesTotal: 'Total des Dépenses d’Exploitation',
+    netOperatingProfit: 'Résultat d’Exploitation Net',
+    estimatedTaxPayable: 'Estimation de TVA / Taxes Déductibles',
+    registerCloseoutTitle: 'Clôture de Caisse Journalière',
+    registerCloseoutDesc: 'Rapprochez les espèces physiques en caisse, les virements Mobile Money et validez le total du tiroir-caisse.',
+    cashCounted: 'Espèces Physiques Comptées',
+    momoCounted: 'Solde Numérique Mobile Money Vérifié',
+    discrepancy: 'Écart de Caisse (Excédent / Déficit)',
   },
   aiAdvisor: {
     title: 'Conseiller Ursella IA',
@@ -641,14 +1252,66 @@ export const frTranslations: Translations = {
     },
     languageNotice: 'Ursella IA raisonne et répond naturellement en français et en anglais.',
   },
-  reports: {
-    title: 'Rapports & Déclarations Financières',
-    profitAndLoss: 'Compte de Résultat (P&L)',
-    cashFlowStatement: 'Tableau de Flux de Trésorerie',
-    taxEstimate: 'Estimation TVA & Impôts',
-    dateRange: 'Période d’Analyse',
-    downloadPdf: 'Télécharger le Rapport PDF',
-    downloadCsv: 'Exporter en CSV',
+  dataHub: {
+    title: 'Centre d’Import & Export de Données',
+    subtitle: 'Sauvegardez vos catalogues, gérez vos fichiers CSV et synchronisez vos registres',
+    exportCatalog: 'Exporter Produits & Lots de Coût (CSV)',
+    exportSales: 'Exporter l’Historique des Ventes (CSV)',
+    exportCustomers: 'Exporter le Répertoire Clients (CSV)',
+    importCatalog: 'Importer des Produits depuis un Fichier CSV',
+    importCsvDesc: 'Importez en masse votre catalogue avec codes-barres, prix de vente et stocks initiaux.',
+    cloudBackup: 'Sauvegarde Complète Cloud Sécurisée',
+    cloudBackupDesc: 'Téléchargez une sauvegarde instantanée au format JSON crypté de votre boutique.',
+    downloadTemplate: 'Télécharger le Modèle CSV Exemplaire',
+    uploadFile: 'Sélectionner ou Déposer un Fichier CSV',
+    syncStatus: 'Chiffré & Synchronisé dans la Base Cloud',
+  },
+  billing: {
+    title: 'Abonnement & Formule Entreprise',
+    subtitle: 'Choisissez la formule adaptée pour accélérer la croissance de votre commerce avec PEPS et l’IA',
+    currentPlan: 'Forfait Actif',
+    freeTrial: 'Essai Gratuit Pro de 14 Jours',
+    starterPlan: 'Boutique Starter',
+    proPlan: 'Commerce Pro & Retail',
+    enterprisePlan: 'Entreprise & Multi-Magasins',
+    upgradePlan: 'Changer de Forfait',
+    monthly: 'Facturation Mensuelle',
+    annual: 'Facturation Annuelle (Économisez 20%)',
+    saveAnnual: '20% DE RÉDUCTION',
+    payWithMomo: 'Payer avec MTN MoMo / Orange Money',
+    payWithCard: 'Payer par Carte Bancaire',
+    activeFeatures: 'Fonctionnalités Incluses',
+    unlimitedTransactions: 'Transactions de Caisse Illimitées',
+    fifoValuation: 'Valorisation des Stocks PEPS en Temps Réel',
+    aiAdvisorUnlimited: 'Conseiller Financier Ursella IA (Bilingue)',
+    multiUserRoles: 'Gestion des Rôles & Accès Collaborateurs',
+    offlinePwaSupport: 'PWA Hors-Ligne & Impression Reçus Thermiques',
+  },
+  settings: {
+    title: 'Paramètres & Matériel de Caisse',
+    storeProfile: 'Profil du Commerce & Identité',
+    storeName: 'Nom de la Boutique',
+    businessType: 'Secteur d’Activité / Type',
+    currency: 'Devise Principale',
+    phone: 'Téléphone / WhatsApp',
+    address: 'Adresse Physique',
+    taxNumber: 'Numéro d’Identification Fiscale (NIF / TIN)',
+    receiptHeader: 'Message d’En-tête de Ticket',
+    receiptFooter: 'Message de Remerciement en Bas de Ticket',
+    hardwarePrinters: 'Imprimantes Thermiques ESC/POS & Matériel',
+    printerType: 'Interface de Connexion Imprimante',
+    thermal58: 'Imprimante Thermique Ticket 58mm',
+    thermal80: 'Imprimante Thermique Ticket 80mm',
+    bluetooth: 'Imprimante Sans Fil Bluetooth',
+    usb: 'Connexion Directe USB',
+    network: 'Imprimante Réseau LAN / Wi-Fi',
+    teamAndRoles: 'Équipe & Gestion des Droits d’Accès',
+    addTeamMember: 'Inviter un Collaborateur',
+    securityPin: 'Code PIN de Sécurité Responsable',
+    changePin: 'Modifier le Code PIN',
+    dangerZone: 'Gestion des Données & Réinitialisation',
+    resetSampleData: 'Charger les Données Démo de la Boutique',
+    resetSampleDataDesc: 'Remplissez votre espace avec un catalogue exemple de boutique africaine, ventes et carnet de dettes pour tester.',
   },
   auth: {
     welcomeBack: 'Bienvenue sur Ursella',

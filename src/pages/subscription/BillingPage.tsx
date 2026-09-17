@@ -18,6 +18,7 @@ import {
 import { ClientSubscriptionService } from '../../services/subscription.service.ts';
 import { DEFAULT_SUBSCRIPTION_PLANS, type SubscriptionPlan, type BusinessSubscription } from '../../types/index.ts';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { ProductService } from '../../services/product.service.ts';
 import { isSupabaseConfigured } from '../../lib/supabase/client.ts';
 
@@ -27,6 +28,9 @@ interface BillingPageProps {
 
 export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusinessId }) => {
   const { activeBusiness, currency: preferredCurrency } = useBusiness();
+  const { language } = useLanguage();
+  const isFr = language === 'fr';
+
   const businessId = propBusinessId || activeBusiness?.id || 'demo_biz_1';
 
   const [plans, setPlans] = useState<SubscriptionPlan[]>(DEFAULT_SUBSCRIPTION_PLANS);
@@ -76,18 +80,25 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
         <div>
           <div className="flex items-center gap-2 text-emerald-400 mb-1">
             <Gift className="w-5 h-5" />
-            <span className="text-xs font-bold uppercase tracking-wider">Free Access & Quotas</span>
+            <span className="text-xs font-bold uppercase tracking-wider">
+              {isFr ? 'Accès Gratuit & Quotas' : 'Free Access & Quotas'}
+            </span>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Free Community Tier</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">
+            {isFr ? 'Offre Communautaire Gratuite' : 'Free Community Tier'}
+          </h1>
           <p className="text-xs text-zinc-400 mt-1">
-            All Ursella features are 100% free and unlocked for <strong className="text-zinc-200 font-semibold">{activeBusiness?.name || 'Your Store'}</strong>.
+            {isFr
+              ? 'Toutes les fonctionnalités Ursella sont 100% gratuites et débloquées pour '
+              : 'All Ursella features are 100% free and unlocked for '}
+            <strong className="text-zinc-200 font-semibold">{activeBusiness?.name || (isFr ? 'Votre Boutique' : 'Your Store')}</strong>.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5">
             <CheckCircle className="w-4 h-4" />
-            <span>100% Free Plan Active</span>
+            <span>{isFr ? 'Offre 100% Gratuite Active' : '100% Free Plan Active'}</span>
           </span>
         </div>
       </div>
@@ -100,10 +111,12 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
           </div>
           <div>
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              Full Platform Features Included at Zero Cost
+              {isFr ? 'Toutes les fonctionnalités incluses sans frais' : 'Full Platform Features Included at Zero Cost'}
             </h2>
             <p className="text-xs text-zinc-300 mt-0.5 leading-relaxed max-w-2xl">
-              Enjoy unlimited Point of Sale checkouts, FIFO inventory tracking, Ursella AI co-pilot, customer credit ledgers, and financial reports without any payment required.
+              {isFr
+                ? 'Profitez des encaissements caisse illimités, du suivi FIFO des stocks, du copilote IA Ursella, du carnet de crédits clients et des rapports financiers sans aucun abonnement requis.'
+                : 'Enjoy unlimited Point of Sale checkouts, FIFO inventory tracking, Ursella AI co-pilot, customer credit ledgers, and financial reports without any payment required.'}
             </p>
           </div>
         </div>
@@ -114,7 +127,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
           className="flex items-center gap-1.5 px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl text-xs font-semibold transition-colors shrink-0 cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
-          <span>Refresh Status</span>
+          <span>{isFr ? 'Actualiser' : 'Refresh Status'}</span>
         </button>
       </div>
 
@@ -129,21 +142,22 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-bold text-white">
-                    Current Plan: <span className="text-emerald-400">{subscription.plan?.name || activePlan.name}</span>
+                    {isFr ? 'Offre Active :' : 'Current Plan:'}{' '}
+                    <span className="text-emerald-400">{subscription.plan?.name || activePlan.name}</span>
                   </h3>
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 capitalize">
-                    {subscription.status}
+                    {isFr && subscription.status === 'active' ? 'Active' : subscription.status}
                   </span>
                 </div>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Full tier access enabled • No billing required
+                  {isFr ? 'Accès complet activé • Aucun paiement requis' : 'Full tier access enabled • No billing required'}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-500/20">
-                $0 / Free Forever
+                {isFr ? '0 FCFA / Gratuit à vie' : '$0 / Free Forever'}
               </span>
             </div>
           </div>
@@ -155,7 +169,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-400 flex items-center gap-1.5">
                   <Cpu className="w-4 h-4 text-emerald-400" />
-                  <span>Ursella AI Monthly Queries</span>
+                  <span>{isFr ? 'Requêtes Mensuelles Ursella IA' : 'Ursella AI Monthly Queries'}</span>
                 </span>
                 <span className="font-mono text-zinc-200 font-bold">
                   {subscription.usage?.ai_queries_used || 0} / {(subscription.usage?.ai_monthly_quota || activePlan.ai_monthly_quota).toLocaleString()}
@@ -173,7 +187,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
                 />
               </div>
               <p className="text-[11px] text-zinc-500">
-                Generous quota included for all business prompts & analysis
+                {isFr ? 'Quota généreux inclus pour toutes vos analyses' : 'Generous quota included for all business prompts & analysis'}
               </p>
             </div>
 
@@ -182,7 +196,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-400 flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-cyan-400" />
-                  <span>Team Seats (Operator Access)</span>
+                  <span>{isFr ? 'Comptes Équipe (Accès Caissiers)' : 'Team Seats (Operator Access)'}</span>
                 </span>
                 <span className="font-mono text-zinc-200 font-bold">
                   {subscription.usage?.members_count || 1} / {subscription.usage?.max_members || activePlan.max_members}
@@ -200,7 +214,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
                 />
               </div>
               <p className="text-[11px] text-zinc-500">
-                Supports multiple cashier logins & role management
+                {isFr ? 'Prise en charge de multiples caissiers & rôles' : 'Supports multiple cashier logins & role management'}
               </p>
             </div>
 
@@ -209,7 +223,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-400 flex items-center gap-1.5">
                   <Package className="w-4 h-4 text-amber-400" />
-                  <span>Catalog Products ({totalProductsCount})</span>
+                  <span>{isFr ? 'Articles du Catalogue' : 'Catalog Products'} ({totalProductsCount})</span>
                 </span>
                 <span className="font-mono text-zinc-200 font-bold">
                   {totalProductsCount} / {activePlan.max_products.toLocaleString()} SKUs
@@ -227,7 +241,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
                 />
               </div>
               <p className="text-[11px] text-zinc-500">
-                FIFO cost tracking & barcode stock management
+                {isFr ? 'Suivi du coût FIFO & gestion par codes-barres' : 'FIFO cost tracking & barcode stock management'}
               </p>
             </div>
           </div>
@@ -237,9 +251,13 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
       {/* Included Features Overview */}
       <div className="rounded-3xl bg-zinc-900/70 border border-zinc-800 p-6 sm:p-8">
         <div className="mb-6">
-          <h3 className="text-base font-bold text-white">All Included Free Capabilities</h3>
+          <h3 className="text-base font-bold text-white">
+            {isFr ? 'Toutes les Fonctionnalités Incluses' : 'All Included Free Capabilities'}
+          </h3>
           <p className="text-xs text-zinc-400 mt-1">
-            Everything you need to run, manage, and scale your store operations is completely free.
+            {isFr
+              ? 'Tout le nécessaire pour gérer, sécuriser et développer votre boutique est inclus gratuitement.'
+              : 'Everything you need to run, manage, and scale your store operations is completely free.'}
           </p>
         </div>
 
@@ -254,7 +272,9 @@ export const BillingPage: React.FC<BillingPageProps> = ({ businessId: propBusine
               </div>
               <div>
                 <span className="text-xs font-bold text-zinc-200 block">{feat}</span>
-                <span className="text-[10px] text-emerald-400/90 font-medium">Included Free</span>
+                <span className="text-[10px] text-emerald-400/90 font-medium">
+                  {isFr ? 'Inclus Gratuitement' : 'Included Free'}
+                </span>
               </div>
             </div>
           ))}

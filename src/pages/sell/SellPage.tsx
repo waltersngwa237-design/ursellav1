@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { ProductService } from '../../services/product.service.ts';
 import { SalesService } from '../../services/sales.service.ts';
 import { CustomerService } from '../../services/customer.service.ts';
@@ -7,7 +8,6 @@ import { Card } from '../../components/common/Card.tsx';
 import { Badge } from '../../components/common/Badge.tsx';
 import { Button } from '../../components/common/Button.tsx';
 import { Input } from '../../components/common/Input.tsx';
-import { Select } from '../../components/common/Select.tsx';
 import { Modal } from '../../components/common/Modal.tsx';
 import { ReceiptModal } from '../../components/sales/ReceiptModal.tsx';
 import { SaleDetailModal } from '../../components/sales/SaleDetailModal.tsx';
@@ -35,16 +35,12 @@ import {
   CheckCircle2,
   Clock,
   Receipt,
-  RotateCcw,
   Tag,
   AlertCircle,
-  Sparkles,
   History,
   X,
-  UserPlus,
   Printer,
   Lock,
-  ShieldAlert,
 } from 'lucide-react';
 import { PDFAndPrintService } from '../../services/pdf.service.ts';
 import { HardwarePrinterService } from '../../services/hardware-printer.service.ts';
@@ -52,11 +48,12 @@ import { HardwareSettingsModal } from '../../components/hardware/HardwareSetting
 import { RegisterCloseoutModal } from '../../components/reports/RegisterCloseoutModal.tsx';
 import { IndexedDBService } from '../../services/indexed-db.service.ts';
 import { calculateCartTotals, calculateChangeDue, roundToDecimals } from '../../utils/currency-math.ts';
-import { verifyManagerPin, getMaxAllowedDiscount, ROLE_CONFIGS } from '../../utils/rbac.ts';
-import { Sliders, DollarSign } from 'lucide-react';
+import { verifyManagerPin, getMaxAllowedDiscount } from '../../utils/rbac.ts';
 
 export const SellPage: React.FC = () => {
   const { activeBusiness, currency, effectiveRole } = useBusiness();
+  const { language, t } = useLanguage();
+  const isFr = language === 'fr';
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
 
   const [activeTab, setActiveTab] = useState<'pos' | 'history'>('pos');
@@ -302,7 +299,7 @@ export const SellPage: React.FC = () => {
   const handleCompleteSale = async () => {
     if (!activeBusiness?.id) return;
     if (cart.length === 0) {
-      setSaleError('Cart is empty. Select products to sell.');
+      setSaleError(isFr ? 'Le panier est vide. Sélectionnez des articles.' : 'Cart is empty. Select products to sell.');
       return;
     }
 
@@ -341,7 +338,7 @@ export const SellPage: React.FC = () => {
       });
 
       if (error || !sale_id) {
-        throw error || new Error('Sale could not be completed.');
+        throw error || new Error(isFr ? 'La vente n’a pas pu être finalisée.' : 'Sale could not be completed.');
       }
 
       // Fetch the full newly completed sale record for the receipt
@@ -362,7 +359,7 @@ export const SellPage: React.FC = () => {
       loadData();
       clearCart();
     } catch (err: any) {
-      setSaleError(err?.message || 'Failed to process sale.');
+      setSaleError(err?.message || (isFr ? 'Échec de l’encaissement.' : 'Failed to process sale.'));
     } finally {
       setIsSubmittingSale(false);
     }
@@ -413,14 +410,14 @@ export const SellPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-              Point of Sale & Checkout
+              {isFr ? 'Point de Vente' : 'Point of Sale'}
             </h1>
             <Badge variant="emerald" size="sm">
-              Live Terminal
+              {isFr ? 'Caisse En Direct' : 'Live Register'}
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-            Fast transactions, stock synchronization, and customer debt ledger for{' '}
+            {isFr ? 'Terminal de caisse connecté pour' : 'Real-time sales terminal for'}{' '}
             <strong className="text-zinc-200">{activeBusiness?.name}</strong>
           </p>
         </div>
@@ -430,33 +427,33 @@ export const SellPage: React.FC = () => {
           <div className="flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800">
             <button
               onClick={() => setActiveTab('pos')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'pos'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
               <ShoppingCart className="w-3.5 h-3.5" />
-              <span>Terminal</span>
+              <span>{isFr ? 'Caisse' : 'Terminal'}</span>
             </button>
             <button
               onClick={() => setActiveTab('history')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'history'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
               <History className="w-3.5 h-3.5" />
-              <span>Sales History</span>
+              <span>{isFr ? 'Historique' : 'History'}</span>
             </button>
           </div>
 
           <button
             type="button"
             onClick={() => setIsHardwareModalOpen(true)}
-            className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
-            title="Configure Thermal Printer & Cash Drawer"
+            className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors cursor-pointer"
+            title={isFr ? 'Paramètres Imprimante' : 'Printer & Hardware Settings'}
           >
             <Printer className="w-4 h-4 text-emerald-400" />
           </button>
@@ -465,11 +462,11 @@ export const SellPage: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={() => setIsRegisterCloseoutOpen(true)}
-            className="flex items-center gap-1.5 border-zinc-800 bg-zinc-900 text-zinc-200 hover:text-white"
-            title="Open Register Audit & End-of-Day Closeout (Z-Report)"
+            className="flex items-center gap-1.5 border-zinc-800 bg-zinc-900 text-zinc-200 hover:text-white cursor-pointer"
+            title={isFr ? 'Clôture de caisse & Rapport Z' : 'Open Register Audit & End-of-Day Closeout (Z-Report)'}
           >
             <Receipt className="w-4 h-4 text-emerald-400" />
-            <span className="hidden sm:inline">Register & Z-Report</span>
+            <span className="hidden sm:inline">{isFr ? 'Clôture Caisse' : 'Z-Report'}</span>
           </Button>
 
           <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-zinc-800 bg-zinc-900 text-xs">
@@ -492,7 +489,7 @@ export const SellPage: React.FC = () => {
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                 <input
                   type="text"
-                  placeholder="Search products by name or SKU..."
+                  placeholder={t.pos.searchProductsPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 transition-all"
@@ -512,19 +509,19 @@ export const SellPage: React.FC = () => {
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none max-w-full overscroll-x-contain touch-pan-x">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   selectedCategory === 'all'
                     ? 'bg-zinc-100 text-zinc-950 font-bold shadow'
                     : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
                 }`}
               >
-                All Categories ({products.length})
+                {t.pos.allCategories} ({products.length})
               </button>
               {categories.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     selectedCategory === cat.id
                       ? 'bg-emerald-600 text-white font-bold'
                       : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
@@ -548,11 +545,11 @@ export const SellPage: React.FC = () => {
             ) : filteredProducts.length === 0 ? (
               <Card className="text-center py-12 space-y-2">
                 <Tag className="w-8 h-8 text-zinc-600 mx-auto" />
-                <p className="text-sm font-semibold text-zinc-300">No products found</p>
+                <p className="text-sm font-semibold text-zinc-300">{isFr ? 'Aucun produit trouvé' : 'No products found'}</p>
                 <p className="text-xs text-zinc-500">
                   {searchQuery || selectedCategory !== 'all'
-                    ? 'Try adjusting your search or category filter.'
-                    : 'Add products in the Business Catalog tab to start selling.'}
+                    ? (isFr ? 'Essayez de modifier votre recherche ou filtre.' : 'Try adjusting your search or category filter.')
+                    : (isFr ? 'Ajoutez des articles dans le catalogue pour commencer à encaisser.' : 'Add products in the Business Catalog tab to start selling.')}
                 </p>
               </Card>
             ) : (
@@ -594,7 +591,7 @@ export const SellPage: React.FC = () => {
                           ) : <span />}
                           {isService && (
                             <span className="text-[9px] font-bold text-blue-400 bg-blue-950/40 border border-blue-800/50 px-1.5 py-0.5 rounded">
-                              Service
+                              {isFr ? 'Service' : 'Service'}
                             </span>
                           )}
                         </div>
@@ -616,19 +613,19 @@ export const SellPage: React.FC = () => {
                           <div className="mt-0.5">
                             {isService ? (
                               <span className="text-[10px] font-medium text-blue-400">
-                                Service (No stock limit)
+                                {isFr ? 'Service (Sans limite de stock)' : 'Service (No stock limit)'}
                               </span>
                             ) : isOutOfStock ? (
                               <span className="text-[10px] font-bold text-rose-400">
-                                Out of stock
+                                {isFr ? 'Rupture' : 'Out of stock'}
                               </span>
                             ) : isLowStock ? (
                               <span className="text-[10px] font-semibold text-amber-400">
-                                {product.stock_quantity} {product.unit_of_measure || 'piece'} left (Low)
+                                {product.stock_quantity} {product.unit_of_measure || (isFr ? 'pièce' : 'piece')} {isFr ? 'Faible' : 'Low stock'}
                               </span>
                             ) : (
                               <span className="text-[10px] text-zinc-400">
-                                Stock: {product.stock_quantity} {product.unit_of_measure || 'piece'}
+                                {isFr ? 'Stock' : 'Stock'}: {product.stock_quantity} {product.unit_of_measure || (isFr ? 'pièce' : 'piece')}
                               </span>
                             )}
                           </div>
@@ -662,18 +659,18 @@ export const SellPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <ShoppingCart className="w-4 h-4 text-emerald-400" />
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                    Current Order
+                    {isFr ? 'Commande en cours' : 'Current Order'}
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={cart.length > 0 ? 'emerald' : 'zinc'}>
-                    {cart.reduce((s, i) => s + i.quantity, 0)} Items
+                    {cart.reduce((s, i) => s + i.quantity, 0)} {t.pos.itemsCount}
                   </Badge>
                   {cart.length > 0 && (
                     <button
                       onClick={clearCart}
-                      title="Clear Cart"
-                      className="text-xs text-zinc-400 hover:text-rose-400 transition-colors p-1"
+                      title={isFr ? 'Vider le panier' : 'Clear cart'}
+                      className="text-xs text-zinc-400 hover:text-rose-400 transition-colors p-1 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -686,14 +683,14 @@ export const SellPage: React.FC = () => {
                 <div className="flex items-center justify-between text-xs font-semibold text-zinc-300">
                   <label className="flex items-center gap-1">
                     <User className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>Customer</span>
+                    <span>{isFr ? 'Client' : 'Customer'}</span>
                   </label>
                   <button
                     type="button"
                     onClick={() => setIsNewCustomerModalOpen(true)}
-                    className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5"
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5 cursor-pointer"
                   >
-                    <Plus className="w-3 h-3" /> New Customer
+                    <Plus className="w-3 h-3" /> {isFr ? 'Nouveau' : 'New'}
                   </button>
                 </div>
                 <select
@@ -701,12 +698,12 @@ export const SellPage: React.FC = () => {
                   onChange={(e) => setSelectedCustomerId(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500"
                 >
-                  <option value="">Walk-in Customer (General)</option>
+                  <option value="">{t.pos.walkInCustomer}</option>
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}{' '}
                       {c.outstanding_balance > 0
-                        ? `[Debt: ${currencyConfig.format(c.outstanding_balance)}]`
+                        ? `[${isFr ? 'Dette' : 'Debt'}: ${currencyConfig.format(c.outstanding_balance)}]`
                         : ''}
                     </option>
                   ))}
@@ -717,7 +714,7 @@ export const SellPage: React.FC = () => {
                   <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-500/30 text-xs text-amber-300 flex items-center justify-between">
                     <span className="inline-flex items-center gap-1.5">
                       <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 stroke-[1.75]" />
-                      <span>Outstanding Debt Balance:</span>
+                      <span>{isFr ? 'Dette en cours' : 'Outstanding Debt'}:</span>
                     </span>
                     <strong className="font-bold font-mono">
                       {currencyConfig.format(selectedCustomerObj.outstanding_balance)}
@@ -731,8 +728,8 @@ export const SellPage: React.FC = () => {
                 {cart.length === 0 ? (
                   <div className="text-center py-8 text-zinc-500 text-xs space-y-1">
                     <ShoppingCart className="w-7 h-7 mx-auto opacity-30" />
-                    <p>No items in cart</p>
-                    <p className="text-[10px] text-zinc-400">Click products from catalog to add</p>
+                    <p>{t.pos.cartEmpty}</p>
+                    <p className="text-[10px] text-zinc-400">{isFr ? 'Cliquez sur les articles pour les ajouter au panier' : 'Click products to add to current ticket'}</p>
                   </div>
                 ) : (
                   cart.map((item) => (
@@ -751,7 +748,7 @@ export const SellPage: React.FC = () => {
                       <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
                         <button
                           onClick={() => updateCartQuantity(item.product.id, Math.max(0, item.quantity - 1))}
-                          className="w-5 h-5 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800"
+                          className="w-5 h-5 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
@@ -770,12 +767,12 @@ export const SellPage: React.FC = () => {
                           className="w-11 text-center font-bold text-zinc-100 text-xs bg-transparent border-none focus:outline-none p-0"
                         />
                         <span className="text-[10px] text-zinc-400 select-none pr-0.5">
-                          {item.product.unit_of_measure || 'piece'}
+                          {item.product.unit_of_measure || (isFr ? 'pièce' : 'piece')}
                         </span>
                         <button
                           onClick={() => updateCartQuantity(item.product.id, item.quantity + 1)}
                           disabled={item.product.product_type !== 'service' && item.quantity >= item.product.stock_quantity}
-                          className="w-5 h-5 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30"
+                          className="w-5 h-5 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 cursor-pointer"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -787,7 +784,7 @@ export const SellPage: React.FC = () => {
 
                       <button
                         onClick={() => removeFromCart(item.product.id)}
-                        className="text-zinc-500 hover:text-rose-400 p-1"
+                        className="text-zinc-500 hover:text-rose-400 p-1 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -804,10 +801,10 @@ export const SellPage: React.FC = () => {
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-1.5 shrink-0">
                         <label className="text-zinc-400 flex items-center gap-1">
-                          <Tag className="w-3.5 h-3.5" /> Discount:
+                          <Tag className="w-3.5 h-3.5" /> {isFr ? 'Remise' : 'Discount'}:
                         </label>
                         {effectiveRole === 'cashier' && (
-                          <span className="text-[10px] text-zinc-500 font-mono">(Max 10%)</span>
+                          <span className="text-[10px] text-zinc-500 font-mono">({isFr ? 'Max 10%' : 'Max 10%'})</span>
                         )}
                       </div>
                       <div className="w-32">
@@ -837,16 +834,16 @@ export const SellPage: React.FC = () => {
                           <span className="flex items-center gap-1">
                             <Lock className="w-3 h-3" />
                             {isDiscountOverrideApproved
-                              ? 'Manager override approved'
-                              : `Discount exceeds ${getMaxAllowedDiscount(effectiveRole)}% limit`}
+                              ? (isFr ? 'Dérogation responsable validée' : 'Manager override approved')
+                              : (isFr ? `Remise supérieure à la limite de ${getMaxAllowedDiscount(effectiveRole)}%` : `Discount exceeds ${getMaxAllowedDiscount(effectiveRole)}% limit`)}
                           </span>
                           {!isDiscountOverrideApproved && (
                             <button
                               type="button"
                               onClick={() => setIsManagerDiscountApprovalOpen(true)}
-                              className="font-bold underline hover:text-amber-300 ml-1"
+                              className="font-bold underline hover:text-amber-300 ml-1 cursor-pointer"
                             >
-                              Enter PIN
+                              {isFr ? 'Code PIN' : 'Enter PIN'}
                             </button>
                           )}
                         </div>
@@ -856,26 +853,26 @@ export const SellPage: React.FC = () => {
                   {/* Payment Method Selector */}
                   <div className="space-y-1.5">
                     <label className="text-zinc-400 flex items-center gap-1 font-semibold">
-                      <CreditCard className="w-3.5 h-3.5" /> Payment Method:
+                      <CreditCard className="w-3.5 h-3.5" /> {t.pos.paymentMethod}:
                     </label>
                     <div className="grid grid-cols-3 gap-1.5">
                       {[
-                        { id: 'cash', label: 'Cash', icon: <Banknote className="w-3.5 h-3.5" /> },
+                        { id: 'cash', label: isFr ? 'Espèces' : 'Cash', icon: <Banknote className="w-3.5 h-3.5" /> },
                         {
                           id: 'mobile_money',
-                          label: 'Mobile Money',
+                          label: isFr ? 'Mobile Money' : 'MoMo',
                           icon: <Smartphone className="w-3.5 h-3.5" />,
                         },
                         {
                           id: 'bank_transfer',
-                          label: 'Transfer',
+                          label: isFr ? 'Virement' : 'Bank',
                           icon: <Building2 className="w-3.5 h-3.5" />,
                         },
-                        { id: 'card', label: 'Card', icon: <CreditCard className="w-3.5 h-3.5" /> },
-                        { id: 'other', label: 'Other', icon: <Receipt className="w-3.5 h-3.5" /> },
+                        { id: 'card', label: isFr ? 'Carte' : 'Card', icon: <CreditCard className="w-3.5 h-3.5" /> },
+                        { id: 'other', label: isFr ? 'Autre' : 'Other', icon: <Receipt className="w-3.5 h-3.5" /> },
                         {
                           id: 'credit',
-                          label: 'Credit / Unpaid',
+                          label: isFr ? 'Crédit / Dette' : 'Credit',
                           icon: <Clock className="w-3.5 h-3.5" />,
                         },
                       ].map((m) => {
@@ -895,7 +892,7 @@ export const SellPage: React.FC = () => {
                                 if (amountPaidInput === '0') setAmountPaidInput('');
                               }
                             }}
-                            className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold border transition-all ${
+                            className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
                                 : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200'
@@ -912,13 +909,13 @@ export const SellPage: React.FC = () => {
                   {/* Amount Paid Field */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-zinc-400">Amount Tendered / Paid:</label>
+                      <label className="text-zinc-400">{t.pos.amountTendered}:</label>
                       <button
                         type="button"
                         onClick={() => setAmountPaidInput(String(cartTotal))}
-                        className="text-[11px] text-emerald-400 hover:underline font-semibold"
+                        className="text-[11px] text-emerald-400 hover:underline font-semibold cursor-pointer"
                       >
-                        Exact ({currencyConfig.format(cartTotal)})
+                        {isFr ? 'Montant Exact' : 'Exact Amount'} ({currencyConfig.format(cartTotal)})
                       </button>
                     </div>
                     <input
@@ -936,22 +933,31 @@ export const SellPage: React.FC = () => {
                   {/* Change or Debt Breakdown */}
                   {changeDue > 0 && (
                     <div className="p-2 rounded-lg bg-emerald-950/20 border border-emerald-500/30 flex justify-between text-xs text-emerald-300 font-bold">
-                      <span>Change to Return:</span>
+                      <span>{t.pos.changeDue}:</span>
                       <span>{currencyConfig.format(changeDue)}</span>
                     </div>
                   )}
 
                   {balanceDue > 0 && (
                     <div className="p-2 rounded-lg bg-rose-950/20 border border-rose-500/30 flex justify-between text-xs text-rose-300 font-bold">
-                      <span>Remaining Balance (Debt):</span>
+                      <span>{isFr ? 'Reste à devoir (Dette)' : 'Balance / Debt'}:</span>
                       <span>{currencyConfig.format(balanceDue)}</span>
                     </div>
                   )}
 
+                  {/* Reference input */}
+                  <input
+                    type="text"
+                    placeholder={t.pos.paymentRefPlaceholder}
+                    value={paymentReference}
+                    onChange={(e) => setPaymentReference(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-emerald-500"
+                  />
+
                   {/* Optional Notes */}
                   <input
                     type="text"
-                    placeholder="Optional memo / reference..."
+                    placeholder={t.pos.saleNotesPlaceholder}
                     value={saleNotes}
                     onChange={(e) => setSaleNotes(e.target.value)}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-emerald-500"
@@ -963,17 +969,17 @@ export const SellPage: React.FC = () => {
               <div className="pt-3 border-t border-zinc-800 space-y-3">
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between text-zinc-400">
-                    <span>Subtotal:</span>
+                    <span>{t.pos.subtotal}:</span>
                     <span>{currencyConfig.format(cartSubtotal)}</span>
                   </div>
                   {discountAmount > 0 && (
                     <div className="flex justify-between text-emerald-400">
-                      <span>Discount:</span>
+                      <span>{t.pos.discount}:</span>
                       <span>-{currencyConfig.format(discountAmount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-base font-extrabold text-white pt-1 border-t border-zinc-800">
-                    <span>Total Due:</span>
+                    <span>{t.pos.totalToPay}:</span>
                     <span className="text-emerald-400">{currencyConfig.format(cartTotal)}</span>
                   </div>
                 </div>
@@ -991,10 +997,12 @@ export const SellPage: React.FC = () => {
                   onClick={handleCompleteSale}
                   disabled={cart.length === 0 || isSubmittingSale}
                   isLoading={isSubmittingSale}
-                  className="w-full py-3 text-sm font-extrabold shadow-lg shadow-emerald-950/40"
+                  className="w-full py-3 text-sm font-extrabold shadow-lg shadow-emerald-950/40 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Complete Sale ({currencyConfig.format(cartTotal)})
+                  {isSubmittingSale
+                    ? (isFr ? 'Finalisation de la vente...' : 'Processing Sale...')
+                    : `${t.pos.completeSale} (${currencyConfig.format(cartTotal)})`}
                 </Button>
               </div>
             </Card>
@@ -1013,7 +1021,7 @@ export const SellPage: React.FC = () => {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Search by order ID, customer name, notes..."
+                placeholder={isFr ? 'Rechercher par n° de reçu, client, mémo...' : 'Search by order ID, customer name, notes...'}
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
@@ -1021,19 +1029,29 @@ export const SellPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto">
-              {(['all', 'paid', 'partial', 'unpaid'] as const).map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setHistoryStatusFilter(status)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold uppercase transition-all whitespace-nowrap ${
-                    historyStatusFilter === status
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
+              {(['all', 'paid', 'partial', 'unpaid'] as const).map((status) => {
+                const label =
+                  status === 'all'
+                    ? (isFr ? 'Tous' : 'All')
+                    : status === 'paid'
+                    ? (isFr ? 'Payé' : 'Paid')
+                    : status === 'partial'
+                    ? (isFr ? 'Partiel' : 'Partial')
+                    : (isFr ? 'Impayé' : 'Unpaid');
+                return (
+                  <button
+                    key={status}
+                    onClick={() => setHistoryStatusFilter(status)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold uppercase transition-all whitespace-nowrap cursor-pointer ${
+                      historyStatusFilter === status
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
 
               <button
                 onClick={() =>
@@ -1041,15 +1059,17 @@ export const SellPage: React.FC = () => {
                     salesHistory,
                     activeBusiness,
                     currencyConfig,
-                    historyStatusFilter === 'all' ? 'All Transactions' : `${historyStatusFilter.toUpperCase()} Transactions`
+                    historyStatusFilter === 'all'
+                      ? (isFr ? 'Toutes les Transactions' : 'All Transactions')
+                      : `${historyStatusFilter.toUpperCase()} ${isFr ? 'Transactions' : 'Transactions'}`
                   )
                 }
                 disabled={salesHistory.length === 0}
-                className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap disabled:opacity-40"
-                title="Print Sales Ledger"
+                className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap disabled:opacity-40 cursor-pointer"
+                title={isFr ? 'Imprimer le journal des ventes' : 'Print Sales Ledger'}
               >
                 <Printer className="w-3.5 h-3.5 text-blue-400" />
-                <span>Print Ledger</span>
+                <span>{isFr ? 'Imprimer Journal' : 'Print Ledger'}</span>
               </button>
             </div>
           </div>
@@ -1067,9 +1087,13 @@ export const SellPage: React.FC = () => {
           ) : salesHistory.length === 0 ? (
             <Card className="text-center py-12 space-y-2">
               <Receipt className="w-8 h-8 text-zinc-600 mx-auto" />
-              <p className="text-sm font-semibold text-zinc-300">No sales transactions found</p>
+              <p className="text-sm font-semibold text-zinc-300">
+                {isFr ? 'Aucune transaction trouvée' : 'No sales transactions found'}
+              </p>
               <p className="text-xs text-zinc-500">
-                Completed sales and customer orders will appear here.
+                {isFr
+                  ? 'Les ventes enregistrées et commandes clients apparaîtront ici.'
+                  : 'Completed sales and customer orders will appear here.'}
               </p>
             </Card>
           ) : (
@@ -1119,8 +1143,10 @@ export const SellPage: React.FC = () => {
                       </div>
 
                       <p className="text-xs font-semibold text-zinc-100">
-                        {sale.customers?.name || 'Walk-in Customer'}
-                        <span className="text-zinc-400 font-normal ml-2">({itemsCount} items)</span>
+                        {sale.customers?.name || t.pos.walkInCustomer}
+                        <span className="text-zinc-400 font-normal ml-2">
+                          ({itemsCount} {isFr ? 'articles' : 'items'})
+                        </span>
                       </p>
 
                       <p className="text-[11px] text-zinc-400 truncate max-w-lg">
@@ -1133,7 +1159,7 @@ export const SellPage: React.FC = () => {
                         {currencyConfig.format(sale.total)}
                       </p>
                       <p className="text-[10px] text-zinc-400">
-                        {new Date(sale.sold_at).toLocaleString(undefined, {
+                        {new Date(sale.sold_at).toLocaleString(language === 'fr' ? 'fr-FR' : undefined, {
                           month: 'short',
                           day: 'numeric',
                           hour: '2-digit',
@@ -1181,27 +1207,27 @@ export const SellPage: React.FC = () => {
       <Modal
         isOpen={isNewCustomerModalOpen}
         onClose={() => setIsNewCustomerModalOpen(false)}
-        title="Add Customer"
-        description="Save customer info to track credit orders and sales"
+        title={isFr ? 'Ajouter un Client' : 'Add Customer'}
+        description={isFr ? 'Enregistrez les coordonnées pour gérer les dettes et factures' : 'Save customer info to track credit orders and sales'}
       >
         <form onSubmit={handleCreateCustomer} className="space-y-4">
           <Input
-            label="Customer Name *"
-            placeholder="e.g. John Doe / Grace Enterprise"
+            label={isFr ? 'Nom Complet du Client *' : 'Customer Name *'}
+            placeholder={isFr ? 'ex: Jean Dupont / Société Alpha' : 'e.g. John Doe / Grace Enterprise'}
             value={newCustName}
             onChange={(e) => setNewCustName(e.target.value)}
             required
           />
           <Input
-            label="Phone Number"
-            placeholder="e.g. +237 670 000 000"
+            label={isFr ? 'Numéro de Téléphone' : 'Phone Number'}
+            placeholder={isFr ? 'ex: +237 670 000 000' : 'e.g. +237 670 000 000'}
             value={newCustPhone}
             onChange={(e) => setNewCustPhone(e.target.value)}
           />
           <Input
-            label="Email Address"
+            label={isFr ? 'Adresse E-mail' : 'Email Address'}
             type="email"
-            placeholder="customer@example.com"
+            placeholder="client@example.com"
             value={newCustEmail}
             onChange={(e) => setNewCustEmail(e.target.value)}
           />
@@ -1211,16 +1237,18 @@ export const SellPage: React.FC = () => {
               type="button"
               variant="outline"
               onClick={() => setIsNewCustomerModalOpen(false)}
+              className="cursor-pointer"
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               type="submit"
               variant="primary"
               disabled={!newCustName.trim() || creatingCust}
               isLoading={creatingCust}
+              className="cursor-pointer"
             >
-              Save Customer
+              {isFr ? 'Enregistrer le Client' : 'Save Customer'}
             </Button>
           </div>
         </form>
@@ -1246,8 +1274,12 @@ export const SellPage: React.FC = () => {
           setManagerDiscountPin('');
           setManagerDiscountError(null);
         }}
-        title="Manager Approval Required"
-        description="This discount exceeds the cashier limit. A manager or owner must enter their PIN to authorize this override."
+        title={isFr ? 'Validation Responsable Requise' : 'Manager Approval Required'}
+        description={
+          isFr
+            ? 'Cette remise dépasse le plafond autorisé pour la caisse. Un gérant ou propriétaire doit saisir son code PIN.'
+            : 'This discount exceeds the cashier limit. A manager or owner must enter their PIN to authorize this override.'
+        }
       >
         <div className="space-y-4 pt-2">
           <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-3">
@@ -1255,17 +1287,21 @@ export const SellPage: React.FC = () => {
               <Lock className="w-5 h-5" />
             </div>
             <div className="text-xs">
-              <p className="font-bold text-amber-300">Excess Discount Override</p>
+              <p className="font-bold text-amber-300">
+                {isFr ? 'Dérogation Plafond de Remise' : 'Excess Discount Override'}
+              </p>
               <p className="text-zinc-400">
-                Discount: {currencyConfig.format(Number(discountAmount))} ({cartSubtotal > 0 ? Math.round((Number(discountAmount) / cartSubtotal) * 100) : 0}%) exceeds cashier threshold of {getMaxAllowedDiscount(effectiveRole)}%.
+                {isFr
+                  ? `Remise: ${currencyConfig.format(Number(discountAmount))} (${cartSubtotal > 0 ? Math.round((Number(discountAmount) / cartSubtotal) * 100) : 0}%) dépasse la limite caissier de ${getMaxAllowedDiscount(effectiveRole)}%.`
+                  : `Discount: ${currencyConfig.format(Number(discountAmount))} (${cartSubtotal > 0 ? Math.round((Number(discountAmount) / cartSubtotal) * 100) : 0}%) exceeds cashier threshold of ${getMaxAllowedDiscount(effectiveRole)}%.`}
               </p>
             </div>
           </div>
 
           <Input
-            label="Manager PIN *"
+            label={isFr ? 'Code PIN Responsable *' : 'Manager PIN *'}
             type="password"
-            placeholder="Enter PIN (default: 8888)"
+            placeholder={isFr ? 'Entrez le PIN (défaut: 8888)' : 'Enter PIN (default: 8888)'}
             value={managerDiscountPin}
             onChange={(e) => {
               setManagerDiscountPin(e.target.value);
@@ -1287,15 +1323,19 @@ export const SellPage: React.FC = () => {
                 setManagerDiscountPin('');
                 setManagerDiscountError(null);
               }}
+              className="cursor-pointer"
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               type="button"
               variant="primary"
+              className="cursor-pointer"
               onClick={() => {
                 if (!verifyManagerPin(managerDiscountPin)) {
-                  setManagerDiscountError('Invalid manager PIN. Please enter an authorized manager PIN.');
+                  setManagerDiscountError(
+                    isFr ? 'Code PIN responsable invalide. Veuillez réessayer.' : 'Invalid manager PIN. Please enter an authorized manager PIN.'
+                  );
                   return;
                 }
                 setIsDiscountOverrideApproved(true);
@@ -1304,7 +1344,7 @@ export const SellPage: React.FC = () => {
                 setManagerDiscountError(null);
               }}
             >
-              Authorize Discount
+              {isFr ? 'Autoriser la Remise' : 'Authorize Discount'}
             </Button>
           </div>
         </div>

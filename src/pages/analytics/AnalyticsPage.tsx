@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { AnalyticsService } from '../../services/analytics.service.ts';
 import { CURRENCY_MAP, type CompleteBusinessAnalytics, type DateRangePreset, type AIBusinessContextPayload, type AppNavRoute } from '../../types/index.ts';
 import { DateRangePicker } from '../../components/analytics/DateRangePicker.tsx';
@@ -39,6 +40,8 @@ type AnalyticsTab = 'overview' | 'sales' | 'products' | 'customers' | 'expenses'
 
 export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
   const { activeBusiness, currency, loading: businessLoading } = useBusiness();
+  const { language, t } = useLanguage();
+  const isFr = language === 'fr';
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF || CURRENCY_MAP.USD;
 
   const [activePreset, setActivePreset] = useState<DateRangePreset>('last_30_days');
@@ -79,14 +82,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
         const payload = await AnalyticsService.getAIBusinessContext(activeBusiness.id, 30);
         setAiPayload(payload);
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to compute business analytics.';
+        const msg = err instanceof Error ? err.message : (isFr ? 'Impossible de calculer les statistiques d’entreprise.' : 'Failed to compute business analytics.');
         setError(msg);
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [activeBusiness?.id, activePreset, customStart, customEnd, businessLoading]
+    [activeBusiness?.id, activePreset, customStart, customEnd, businessLoading, isFr]
   );
 
   useEffect(() => {
@@ -113,11 +116,13 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-emerald-400" />
-              Business Intelligence & Analytics
+              {isFr ? 'Statistiques & Intelligence Commerciale' : 'Business Intelligence & Analytics'}
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
-            Authoritative, deterministic financial intelligence for{' '}
+            {isFr
+              ? 'Rapports financiers précis et déterministes pour '
+              : 'Authoritative, deterministic financial intelligence for '}
             <span className="font-semibold text-zinc-200">{activeBusiness?.name}</span>
           </p>
         </div>
@@ -131,11 +136,11 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => onNavigate('ai', `Can you analyze my business performance for ${analytics?.window.label || 'this period'} and provide strategic advice?`)}
+              onClick={() => onNavigate('ai', isFr ? `Peux-tu analyser les performances de mon entreprise pour ${analytics?.window.label || 'cette période'} et me donner des conseils stratégiques ?` : `Can you analyze my business performance for ${analytics?.window.label || 'this period'} and provide strategic advice?`)}
               leftIcon={<Sparkles className="w-3.5 h-3.5" />}
-              className="text-xs"
+              className="text-xs cursor-pointer"
             >
-              Ask Ursella
+              {isFr ? 'Demander à Ursella' : 'Ask Ursella'}
             </Button>
           )}
 
@@ -144,9 +149,9 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
             size="sm"
             onClick={() => setShowAiModal(true)}
             leftIcon={<FileText className="w-3.5 h-3.5 text-zinc-400" />}
-            className="text-xs text-zinc-300"
+            className="text-xs text-zinc-300 cursor-pointer"
           >
-            Data Payload
+            {isFr ? 'Données Brutes' : 'Data Payload'}
           </Button>
 
           <Button
@@ -155,9 +160,9 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
             onClick={() => loadAnalytics(true)}
             isLoading={refreshing}
             leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />}
-            className="text-xs text-zinc-300"
+            className="text-xs text-zinc-300 cursor-pointer"
           >
-            Refresh
+            {isFr ? 'Actualiser' : 'Refresh'}
           </Button>
         </div>
       </div>
@@ -177,7 +182,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
 
       {error && (
         <ErrorAlert
-          title="Could not calculate analytics"
+          title={isFr ? 'Calcul des statistiques impossible' : 'Could not calculate analytics'}
           message={error}
           onRetry={() => loadAnalytics(true)}
         />
@@ -194,7 +199,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
           }`}
         >
-          Executive Overview
+          {isFr ? 'Vue d’Ensemble' : 'Executive Overview'}
         </button>
 
         <button
@@ -206,7 +211,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
           }`}
         >
-          Sales & Trajectory
+          {isFr ? 'Ventes & Tendances' : 'Sales & Trajectory'}
         </button>
 
         <button
@@ -218,7 +223,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
           }`}
         >
-          Product Performance
+          {isFr ? 'Performance Produits' : 'Product Performance'}
         </button>
 
         <button
@@ -230,7 +235,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
           }`}
         >
-          Customer Intelligence
+          {isFr ? 'Intelligence Clients' : 'Customer Intelligence'}
         </button>
 
         <button
@@ -242,7 +247,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
           }`}
         >
-          Expenses & Cash Flow
+          {isFr ? 'Dépenses & Trésorerie' : 'Expenses & Cash Flow'}
         </button>
       </div>
 
@@ -254,64 +259,64 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
           {/* Top KPI Trend Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             <MetricTrendCard
-              title="Sales Revenue (Accrual)"
+              title={isFr ? 'Chiffre d’Affaires (Facturé)' : 'Sales Revenue (Accrual)'}
               comparison={analytics.comparison.revenue}
               currencyConfig={currencyConfig}
               icon={<TrendingUp className="w-4 h-4 text-emerald-400" />}
-              tooltip="Total completed invoice value in selected period"
+              tooltip={isFr ? 'Total des ventes complètes sur la période' : 'Total completed invoice value in selected period'}
             />
 
             <MetricTrendCard
-              title="Gross Profit"
+              title={isFr ? 'Bénéfice Brut' : 'Gross Profit'}
               comparison={analytics.comparison.grossProfit}
               currencyConfig={currencyConfig}
               icon={<DollarSign className="w-4 h-4 text-cyan-400" />}
-              tooltip="Revenue minus Cost of Goods Sold (using historical cost basis)"
+              tooltip={isFr ? 'Chiffre d’affaires moins le coût d’achat des marchandises' : 'Revenue minus Cost of Goods Sold (using historical cost basis)'}
             />
 
             <MetricTrendCard
-              title="Operating Expenses"
+              title={isFr ? 'Charges d’Exploitation' : 'Operating Expenses'}
               comparison={analytics.comparison.operatingExpenses}
               currencyConfig={currencyConfig}
               invertColors={true}
               icon={<PieChart className="w-4 h-4 text-rose-400" />}
-              tooltip="Total operational expenses incurred in period"
+              tooltip={isFr ? 'Total des charges opérationnelles de la période' : 'Total operational expenses incurred in period'}
             />
 
             <MetricTrendCard
-              title="Estimated Net Profit"
+              title={isFr ? 'Bénéfice Net Estimé' : 'Estimated Net Profit'}
               comparison={analytics.comparison.estimatedNetProfit}
               currencyConfig={currencyConfig}
               icon={<Activity className="w-4 h-4 text-amber-400" />}
-              tooltip="Gross Profit minus Operating Expenses"
+              tooltip={isFr ? 'Bénéfice brut moins les charges d’exploitation' : 'Gross Profit minus Operating Expenses'}
             />
           </div>
 
           {/* Secondary KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <MetricTrendCard
-              title="Cash Collected (Inflows)"
+              title={isFr ? 'Encaissements Réels' : 'Cash Collected (Inflows)'}
               comparison={analytics.comparison.amountCollected}
               currencyConfig={currencyConfig}
               icon={<Receipt className="w-4 h-4 text-purple-400" />}
-              tooltip="Actual cash payments deposited in period"
+              tooltip={isFr ? 'Montants réels encaissés sur la période' : 'Actual cash payments deposited in period'}
             />
 
             <MetricTrendCard
-              title="Transactions (Orders)"
+              title={isFr ? 'Nombre de Ventes' : 'Transactions (Orders)'}
               comparison={analytics.comparison.transactionCount}
               currencyConfig={currencyConfig}
               formatAsCurrency={false}
               icon={<BarChart3 className="w-4 h-4 text-blue-400" />}
-              tooltip="Completed sales volume"
+              tooltip={isFr ? 'Nombre de transactions enregistrées' : 'Completed sales volume'}
             />
 
             <MetricTrendCard
-              title="Average Order Value"
+              title={isFr ? 'Panier Moyen' : 'Average Order Value'}
               comparison={analytics.comparison.averageOrderValue}
               currencyConfig={currencyConfig}
               icon={<DollarSign className="w-4 h-4 text-zinc-400" />}
-              tooltip="Revenue divided by completed transactions"
+              tooltip={isFr ? 'Chiffre d’affaires divisé par le nombre de ventes' : 'Revenue divided by completed transactions'}
             />
           </div>
 
@@ -325,23 +330,23 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
               <div className="p-5 rounded-2xl bg-zinc-900/80 border border-zinc-800 shadow-sm space-y-3">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Package className="w-4 h-4 text-emerald-400" />
-                  Inventory Valuation & Risk
+                  {isFr ? 'Valorisation du Stock & Risques' : 'Inventory Valuation & Risk'}
                 </h3>
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between items-center text-zinc-400">
-                    <span>Total Valuation at Cost:</span>
+                    <span>{isFr ? 'Valeur totale au coût d’achat :' : 'Total Valuation at Cost:'}</span>
                     <strong className="text-white text-sm">
                       {currencyConfig.format(analytics.inventorySummary.totalValuation)}
                     </strong>
                   </div>
                   <div className="flex justify-between items-center text-zinc-400">
-                    <span>Active Product SKUs:</span>
+                    <span>{isFr ? 'Articles actifs au catalogue :' : 'Active Product SKUs:'}</span>
                     <span className="text-zinc-200 font-semibold">
                       {analytics.inventorySummary.totalActiveSKUs}
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-zinc-400">
-                    <span>Low Stock Items:</span>
+                    <span>{isFr ? 'Articles en stock faible :' : 'Low Stock Items:'}</span>
                     <span
                       className={`font-semibold ${
                         analytics.inventorySummary.lowStockCount > 0
@@ -353,7 +358,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-zinc-400">
-                    <span>Out of Stock Items:</span>
+                    <span>{isFr ? 'Articles en rupture :' : 'Out of Stock Items:'}</span>
                     <span
                       className={`font-semibold ${
                         analytics.inventorySummary.outOfStockCount > 0
@@ -371,17 +376,17 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
               <div className="p-5 rounded-2xl bg-zinc-900/80 border border-zinc-800 shadow-sm space-y-3">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Users className="w-4 h-4 text-cyan-400" />
-                  Receivables Summary
+                  {isFr ? 'Synthèse des Créances' : 'Receivables Summary'}
                 </h3>
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between items-center text-zinc-400">
-                    <span>Total Unpaid Debt:</span>
+                    <span>{isFr ? 'Total des dettes clients :' : 'Total Unpaid Debt:'}</span>
                     <strong className="text-rose-400 text-sm font-bold">
                       {currencyConfig.format(analytics.financialOverview.outstandingReceivables)}
                     </strong>
                   </div>
                   <div className="flex justify-between items-center text-zinc-400">
-                    <span>Debtor Customers:</span>
+                    <span>{isFr ? 'Clients débiteurs :' : 'Debtor Customers:'}</span>
                     <span className="text-zinc-200 font-semibold">
                       {analytics.customerAnalytics.debtorCustomers}
                     </span>
@@ -408,27 +413,27 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 rounded-xl bg-zinc-900/70 border border-zinc-800">
-              <span className="text-xs text-zinc-400">Gross Margin Rate</span>
+              <span className="text-xs text-zinc-400">{isFr ? 'Taux de Marge Brute' : 'Gross Margin Rate'}</span>
               <div className="text-xl font-bold text-emerald-400 mt-1">
                 {analytics.financialOverview.grossMargin.toFixed(1)}%
               </div>
-              <span className="text-[11px] text-zinc-500">Gross profit / total revenue</span>
+              <span className="text-[11px] text-zinc-500">{isFr ? 'Bénéfice brut / Chiffre d’affaires' : 'Gross profit / total revenue'}</span>
             </div>
 
             <div className="p-4 rounded-xl bg-zinc-900/70 border border-zinc-800">
-              <span className="text-xs text-zinc-400">Net Margin Rate</span>
+              <span className="text-xs text-zinc-400">{isFr ? 'Taux de Marge Nette' : 'Net Margin Rate'}</span>
               <div className="text-xl font-bold text-amber-400 mt-1">
                 {analytics.financialOverview.netMargin.toFixed(1)}%
               </div>
-              <span className="text-[11px] text-zinc-500">Net profit / total revenue</span>
+              <span className="text-[11px] text-zinc-500">{isFr ? 'Bénéfice net / Chiffre d’affaires' : 'Net profit / total revenue'}</span>
             </div>
 
             <div className="p-4 rounded-xl bg-zinc-900/70 border border-zinc-800">
-              <span className="text-xs text-zinc-400">Total Units Sold</span>
+              <span className="text-xs text-zinc-400">{isFr ? 'Total d’Unités Vendues' : 'Total Units Sold'}</span>
               <div className="text-xl font-bold text-cyan-400 mt-1">
-                {analytics.financialOverview.unitsSold} units
+                {analytics.financialOverview.unitsSold} {isFr ? 'unités' : 'units'}
               </div>
-              <span className="text-[11px] text-zinc-500">Across completed sales</span>
+              <span className="text-[11px] text-zinc-500">{isFr ? 'Sur l’ensemble des ventes' : 'Across completed sales'}</span>
             </div>
           </div>
         </div>

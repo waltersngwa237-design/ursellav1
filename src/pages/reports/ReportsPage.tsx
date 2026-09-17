@@ -25,6 +25,7 @@ import {
 import { ClientReportingService } from '../../services/reporting.service.ts';
 import { PDFAndPrintService } from '../../services/pdf.service.ts';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { CURRENCY_MAP, type BusinessReportData, type MemberRole } from '../../types/index.ts';
 import { RegisterCloseoutModal } from '../../components/reports/RegisterCloseoutModal.tsx';
 import {
@@ -53,6 +54,8 @@ type PeriodOption = 'today' | '7d' | '30d' | 'this_month' | 'last_month' | 'this
 
 export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
   const { activeBusiness, currency, effectiveRole, setSimulatedRole, simulatedRole } = useBusiness();
+  const { language, t } = useLanguage();
+  const isFr = language === 'fr';
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
 
   const [activeReport, setActiveReport] = useState<ReportType>('z_reports');
@@ -75,13 +78,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
     try {
       const current = await RegisterCloseoutService.getCurrentShift(
         businessId,
-        effectiveRole === 'cashier' ? 'Cashier Station' : 'Store Manager'
+        effectiveRole === 'cashier' ? (isFr ? 'Poste Caisse' : 'Cashier Station') : (isFr ? 'Responsable Boutique' : 'Store Manager')
       );
       setActiveShift(current);
       const history = RegisterCloseoutService.getHistoricCloseouts(businessId);
       setHistoricShifts(history);
     } catch (err: any) {
-      setError(err.message || 'Failed to load register shifts');
+      setError(err.message || (isFr ? 'Erreur lors du chargement des sessions de caisse' : 'Failed to load register shifts'));
     } finally {
       setLoading(false);
     }
@@ -102,7 +105,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
       });
       setReportData(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to load report data');
+      setError(err.message || (isFr ? 'Erreur lors du chargement du rapport' : 'Failed to load report data'));
     } finally {
       setLoading(false);
     }
@@ -126,23 +129,23 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
   }, [businessId, activeReport, selectedPeriod, effectiveRole]);
 
   const reportTabs: Array<{ id: ReportType; label: string; icon: React.FC<{ className?: string }>; requiresManager?: boolean }> = [
-    { id: 'z_reports', label: 'Register Closeouts (Z-Reports)', icon: Receipt },
-    { id: 'sales', label: 'Sales & Receipts', icon: DollarSign },
-    { id: 'profitability', label: 'P&L / Profitability', icon: TrendingUp, requiresManager: true },
-    { id: 'inventory', label: 'Inventory Valuation', icon: Package },
-    { id: 'expenses', label: 'Expense Analysis', icon: PieChartIcon },
-    { id: 'receivables', label: 'Customer Receivables', icon: CreditCard },
-    { id: 'cash_flow', label: 'Cash Flow Statement', icon: ArrowDownRight, requiresManager: true },
-    { id: 'tax', label: 'Tax & Compliance', icon: Landmark, requiresManager: true },
+    { id: 'z_reports', label: isFr ? 'Clôture de Caisse (Rapport Z)' : 'Register Closeouts (Z-Reports)', icon: Receipt },
+    { id: 'sales', label: isFr ? 'Ventes & Reçus' : 'Sales & Receipts', icon: DollarSign },
+    { id: 'profitability', label: isFr ? 'Compte de Résultat / Marges' : 'P&L / Profitability', icon: TrendingUp, requiresManager: true },
+    { id: 'inventory', label: isFr ? 'Valorisation des Stocks' : 'Inventory Valuation', icon: Package },
+    { id: 'expenses', label: isFr ? 'Analyse des Charges' : 'Expense Analysis', icon: PieChartIcon },
+    { id: 'receivables', label: isFr ? 'Créances Clients' : 'Customer Receivables', icon: CreditCard },
+    { id: 'cash_flow', label: isFr ? 'Flux de Trésorerie' : 'Cash Flow Statement', icon: ArrowDownRight, requiresManager: true },
+    { id: 'tax', label: isFr ? 'Fiscalité & Taxes' : 'Tax & Compliance', icon: Landmark, requiresManager: true },
   ];
 
   const periodOptions: Array<{ id: PeriodOption; label: string }> = [
-    { id: 'today', label: 'Today' },
-    { id: '7d', label: '7 Days' },
-    { id: '30d', label: '30 Days' },
-    { id: 'this_month', label: 'This Month' },
-    { id: 'last_month', label: 'Last Month' },
-    { id: 'this_year', label: 'This Year' },
+    { id: 'today', label: isFr ? 'Aujourd’hui' : 'Today' },
+    { id: '7d', label: isFr ? '7 Derniers Jours' : '7 Days' },
+    { id: '30d', label: isFr ? '30 Derniers Jours' : '30 Days' },
+    { id: 'this_month', label: isFr ? 'Ce Mois-ci' : 'This Month' },
+    { id: 'last_month', label: isFr ? 'Le Mois Dernier' : 'Last Month' },
+    { id: 'this_year', label: isFr ? 'Cette Année' : 'This Year' },
   ];
 
   const handlePrint = () => {
@@ -239,11 +242,17 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-emerald-400 mb-1">
             <FileText className="w-5 h-5 shrink-0" />
-            <span className="text-xs font-bold uppercase tracking-wider">Financial & Register Intelligence</span>
+            <span className="text-xs font-bold uppercase tracking-wider">
+              {isFr ? 'Intelligence Financière & Sessions de Caisse' : 'Financial & Register Intelligence'}
+            </span>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight break-words">Business Financial & Register Reports</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight break-words">
+            {isFr ? 'Rapports Financiers & Clôtures de Caisse' : 'Business Financial & Register Reports'}
+          </h1>
           <p className="text-xs text-zinc-400 mt-1">
-            Auditable, GAAP-aligned financial statements, register shift closeouts (Z-Reports), and tax estimates.
+            {isFr
+              ? 'États financiers audités, clôtures de caisse (Rapports Z) et estimations fiscales conformes.'
+              : 'Auditable, GAAP-aligned financial statements, register shift closeouts (Z-Reports), and tax estimates.'}
           </p>
         </div>
 
@@ -251,21 +260,23 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {/* Role badge with switch popover / dropdown */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-700 bg-zinc-900 text-xs">
-            <span className="text-zinc-400">Role:</span>
+            <span className="text-zinc-400">{isFr ? 'Rôle :' : 'Role:'}</span>
             <span className={`font-bold uppercase text-[11px] ${
               effectiveRole === 'owner' ? 'text-purple-400' :
               effectiveRole === 'manager' ? 'text-sky-400' : 'text-emerald-400'
             }`}>
-              {currentRoleConfig.label}
+              {isFr 
+                ? (effectiveRole === 'owner' ? 'Propriétaire' : effectiveRole === 'manager' ? 'Gérant' : 'Caissier')
+                : currentRoleConfig.label}
             </span>
             <select
               value={simulatedRole || effectiveRole}
               onChange={(e) => setSimulatedRole(e.target.value as MemberRole)}
               className="bg-transparent text-zinc-300 text-xs border-none focus:outline-none cursor-pointer pl-1 pr-1 font-semibold"
             >
-              <option value="owner" className="bg-zinc-900 text-white">Owner (Full)</option>
-              <option value="manager" className="bg-zinc-900 text-white">Manager (High)</option>
-              <option value="cashier" className="bg-zinc-900 text-white">Cashier (Limited)</option>
+              <option value="owner" className="bg-zinc-900 text-white">{isFr ? 'Propriétaire (Complet)' : 'Owner (Full)'}</option>
+              <option value="manager" className="bg-zinc-900 text-white">{isFr ? 'Gérant (Avancé)' : 'Manager (High)'}</option>
+              <option value="cashier" className="bg-zinc-900 text-white">{isFr ? 'Caissier (Restreint)' : 'Cashier (Limited)'}</option>
             </select>
           </div>
 
@@ -275,7 +286,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
             className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5 text-zinc-400" />
-            <span>{activeReport === 'z_reports' ? 'Print Slip' : 'Print'}</span>
+            <span>{activeReport === 'z_reports' ? (isFr ? 'Ticket Z' : 'Print Slip') : (isFr ? 'Imprimer' : 'Print')}</span>
           </button>
           
           {activeReport !== 'z_reports' && (
@@ -286,7 +297,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
                 className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{isExportingPDF ? 'Exporting...' : 'Export PDF'}</span>
+                <span>{isExportingPDF ? (isFr ? 'Exportation...' : 'Exporting...') : (isFr ? 'Export PDF' : 'Export PDF')}</span>
               </button>
               <button
                 onClick={handleExportCSV}
@@ -294,7 +305,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
                 className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>Export CSV</span>
+                <span>{isFr ? 'Export CSV' : 'Export CSV'}</span>
               </button>
             </>
           )}
@@ -331,7 +342,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
         <div className="flex items-center gap-2 flex-wrap bg-zinc-900/60 p-2 rounded-xl border border-zinc-800/80">
           <div className="flex items-center gap-1.5 text-xs text-zinc-400 px-2 font-medium">
             <Calendar className="w-3.5 h-3.5 text-zinc-500" />
-            <span>Time Horizon:</span>
+            <span>{isFr ? 'Période d’Analyse :' : 'Time Horizon:'}</span>
           </div>
           {periodOptions.map((p) => (
             <button
@@ -356,17 +367,22 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
             <Lock className="w-6 h-6" />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-base font-bold text-white">Confidential Financial Report Restricted</h3>
+            <h3 className="text-base font-bold text-white">
+              {isFr ? 'Rapport Financier Confidentiel Restreint' : 'Confidential Financial Report Restricted'}
+            </h3>
             <p className="text-xs text-zinc-400 max-w-md mx-auto">
-              Access to profit margins, cash flow statements, and tax audits is limited to Store Managers and Business Owners. Your current simulated role is <strong className="text-amber-400 capitalize">{effectiveRole}</strong>.
+              {isFr
+                ? 'L’accès aux marges bénéficiaires, flux de trésorerie et fiscalité est réservé aux Gérants et Propriétaires. Votre rôle simulé actuel est '
+                : 'Access to profit margins, cash flow statements, and tax audits is limited to Store Managers and Business Owners. Your current simulated role is '}
+              <strong className="text-amber-400 capitalize">{effectiveRole}</strong>.
             </p>
           </div>
           <div className="flex items-center justify-center gap-3 pt-2">
             <Button variant="outline" size="sm" onClick={() => setActiveReport('z_reports')}>
-              Go to Register Closeout (Z-Reports)
+              {isFr ? 'Aller aux Clôtures de Caisse (Rapport Z)' : 'Go to Register Closeout (Z-Reports)'}
             </Button>
             <Button size="sm" onClick={() => setSimulatedRole('owner')}>
-              Switch to Owner Role
+              {isFr ? 'Passer au Rôle Propriétaire' : 'Switch to Owner Role'}
             </Button>
           </div>
         </div>
@@ -379,17 +395,20 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">
-                    Live Cash Register
+                    {isFr ? 'Caisse Directe' : 'Live Cash Register'}
                   </span>
                   <Badge variant={activeShift?.status === 'open' ? 'amber' : 'emerald'}>
-                    {activeShift?.status === 'open' ? 'Open & Active' : 'Shift Closed'}
+                    {activeShift?.status === 'open' ? (isFr ? 'Session Ouverte' : 'Open & Active') : (isFr ? 'Session Clôturée' : 'Shift Closed')}
                   </Badge>
                 </div>
                 <h3 className="text-lg font-bold text-white mt-1 break-words">
-                  Shift #{activeShift?.shift_number || 1} &bull; Expected Z-Report: {activeShift?.z_report_number || 'Z-001'}
+                  {isFr ? 'Session #' : 'Shift #'}{activeShift?.shift_number || 1} &bull; {isFr ? 'Rapport Z Attendu :' : 'Expected Z-Report:'} {activeShift?.z_report_number || 'Z-001'}
                 </h3>
                 <p className="text-xs text-zinc-400 mt-0.5 break-words">
-                  Opened {activeShift?.opened_at ? new Date(activeShift.opened_at).toLocaleString() : 'Today'} by {activeShift?.opened_by || 'Store Cashier'}
+                  {isFr ? 'Ouverte le ' : 'Opened '}
+                  {activeShift?.opened_at ? new Date(activeShift.opened_at).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US') : (isFr ? 'Aujourd’hui' : 'Today')} 
+                  {isFr ? ' par ' : ' by '}
+                  {activeShift?.opened_by || (isFr ? 'Caissier' : 'Store Cashier')}
                 </p>
               </div>
 
@@ -402,11 +421,11 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
                       HardwarePrinterService.printZReport(activeShift, activeBusiness, currencyConfig);
                     }
                   }}
-                  className="text-xs shrink-0"
-                  title="Print Mid-Day X-Reading Slip"
+                  className="text-xs shrink-0 cursor-pointer"
+                  title={isFr ? 'Imprimer le ticket X de mi-journée' : 'Print Mid-Day X-Reading Slip'}
                 >
                   <Printer className="w-3.5 h-3.5 mr-1.5" />
-                  <span>Print X-Reading</span>
+                  <span>{isFr ? 'Imprimer Lecture X' : 'Print X-Reading'}</span>
                 </Button>
                 <Button
                   variant="primary"
@@ -415,11 +434,11 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
                     setSelectedShiftForModal(activeShift);
                     setIsCloseoutModalOpen(true);
                   }}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold shadow-xs shrink-0"
-                  title="Perform End-of-Day Closeout (Z-Report)"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold shadow-xs shrink-0 cursor-pointer"
+                  title={isFr ? 'Clôturer la journée et générer le Rapport Z' : 'Perform End-of-Day Closeout (Z-Report)'}
                 >
                   <Receipt className="w-3.5 h-3.5 mr-1.5" />
-                  <span>Perform Closeout (Z-Report)</span>
+                  <span>{isFr ? 'Clôturer la Caisse (Rapport Z)' : 'Perform Closeout (Z-Report)'}</span>
                 </Button>
               </div>
             </div>
@@ -427,43 +446,53 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
             {/* Live Register Balance Breakdown */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/60">
-                <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">Opening Float</span>
+                <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">
+                  {isFr ? 'Fond de Caisse Initial' : 'Opening Float'}
+                </span>
                 <p className="text-base font-bold font-mono text-zinc-200 mt-1">
                   {currencyConfig.format(activeShift?.opening_float || 0)}
                 </p>
-                <span className="text-[10px] text-zinc-500">Drawer seed cash</span>
+                <span className="text-[10px] text-zinc-500">{isFr ? 'Monnaie de départ' : 'Drawer seed cash'}</span>
               </div>
 
               <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/60">
-                <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">Cash Collected</span>
+                <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">
+                  {isFr ? 'Espèces Encaissées' : 'Cash Collected'}
+                </span>
                 <p className="text-base font-bold font-mono text-emerald-400 mt-1">
                   +{currencyConfig.format(activeShift?.cash_sales || 0)}
                 </p>
-                <span className="text-[10px] text-zinc-500">From cash sales</span>
+                <span className="text-[10px] text-zinc-500">{isFr ? 'Ventes en espèces' : 'From cash sales'}</span>
               </div>
 
               <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/60">
-                <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">Card / MoMo</span>
+                <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">
+                  {isFr ? 'Carte / MoMo' : 'Card / MoMo'}
+                </span>
                 <p className="text-base font-bold font-mono text-indigo-400 mt-1">
                   {currencyConfig.format((activeShift?.card_sales || 0) + (activeShift?.momo_sales || 0))}
                 </p>
-                <span className="text-[10px] text-zinc-500">Non-cash tenders</span>
+                <span className="text-[10px] text-zinc-500">{isFr ? 'Paiements digitaux' : 'Non-cash tenders'}</span>
               </div>
 
               <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/60">
-                <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">Petty Payouts</span>
+                <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">
+                  {isFr ? 'Sorties de Caisse' : 'Petty Payouts'}
+                </span>
                 <p className="text-base font-bold font-mono text-rose-400 mt-1">
                   -{currencyConfig.format(activeShift?.cash_out || 0)}
                 </p>
-                <span className="text-[10px] text-zinc-500">Expenses from drawer</span>
+                <span className="text-[10px] text-zinc-500">{isFr ? 'Dépenses du tiroir' : 'Expenses from drawer'}</span>
               </div>
 
               <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10">
-                <span className="text-[11px] text-emerald-400 uppercase tracking-wider font-semibold">Expected In Drawer</span>
+                <span className="text-[11px] text-emerald-400 uppercase tracking-wider font-semibold">
+                  {isFr ? 'Total Théorique Caisse' : 'Expected In Drawer'}
+                </span>
                 <p className="text-base font-bold font-mono text-emerald-300 mt-1">
                   {currencyConfig.format(activeShift?.expected_cash || 0)}
                 </p>
-                <span className="text-[10px] text-emerald-400/80">Audit baseline</span>
+                <span className="text-[10px] text-emerald-400/80">{isFr ? 'Base de contrôle' : 'Audit baseline'}</span>
               </div>
             </div>
           </div>
@@ -472,36 +501,38 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
             <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-white">Historical Z-Report Audit Records</h3>
+                <h3 className="text-sm font-bold text-white">
+                  {isFr ? 'Historique des Clôtures & Rapports Z' : 'Historical Z-Report Audit Records'}
+                </h3>
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  Permanent audit ledger of all closed shifts and cash variance counts.
+                  {isFr ? 'Journal permanent des shifts fermés et écarts de caisse constatés.' : 'Permanent audit ledger of all closed shifts and cash variance counts.'}
                 </p>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
                 <ShieldCheck className="w-4 h-4" />
-                <span>Tamper-Sealed Ledger</span>
+                <span>{isFr ? 'Journal Inaltérable' : 'Tamper-Sealed Ledger'}</span>
               </div>
             </div>
 
             {historicShifts.length === 0 ? (
               <div className="py-12 text-center text-zinc-500 text-sm space-y-2">
                 <Receipt className="w-8 h-8 text-zinc-600 mx-auto" />
-                <p>No closed Z-reports yet.</p>
-                <p className="text-xs text-zinc-600">Close an active shift to generate the official Z-Report record.</p>
+                <p>{isFr ? 'Aucun Rapport Z clôturé pour l’instant.' : 'No closed Z-reports yet.'}</p>
+                <p className="text-xs text-zinc-600">{isFr ? 'Clôturez une session pour générer le rapport Z officiel.' : 'Close an active shift to generate the official Z-Report record.'}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-zinc-950/80 text-zinc-400 uppercase tracking-wider font-semibold border-b border-zinc-800">
                     <tr>
-                      <th className="px-4 py-3">Report #</th>
-                      <th className="px-4 py-3">Closed Date & Time</th>
-                      <th className="px-4 py-3">Cashier / Staff</th>
-                      <th className="px-4 py-3">Gross Sales</th>
-                      <th className="px-4 py-3">Expected Cash</th>
-                      <th className="px-4 py-3">Actual Count</th>
-                      <th className="px-4 py-3">Discrepancy</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
+                      <th className="px-4 py-3">{isFr ? 'N° Rapport' : 'Report #'}</th>
+                      <th className="px-4 py-3">{isFr ? 'Date & Heure de Clôture' : 'Closed Date & Time'}</th>
+                      <th className="px-4 py-3">{isFr ? 'Caissier / Agent' : 'Cashier / Staff'}</th>
+                      <th className="px-4 py-3">{isFr ? 'Ventes Brutes' : 'Gross Sales'}</th>
+                      <th className="px-4 py-3">{isFr ? 'Espèces Attendues' : 'Expected Cash'}</th>
+                      <th className="px-4 py-3">{isFr ? 'Comptage Réel' : 'Actual Count'}</th>
+                      <th className="px-4 py-3">{isFr ? 'Écart' : 'Discrepancy'}</th>
+                      <th className="px-4 py-3 text-right">{isFr ? 'Actions' : 'Actions'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/60 font-mono text-zinc-300">
@@ -509,7 +540,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
                       <tr key={hist.id} className="hover:bg-zinc-800/40 transition-colors">
                         <td className="px-4 py-3 font-bold text-emerald-400">{hist.z_report_number}</td>
                         <td className="px-4 py-3 font-sans text-zinc-400">
-                          {hist.closed_at ? new Date(hist.closed_at).toLocaleString() : 'Active'}
+                          {hist.closed_at ? new Date(hist.closed_at).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US') : (isFr ? 'Actif' : 'Active')}
                         </td>
                         <td className="px-4 py-3 font-sans text-zinc-300">{hist.opened_by}</td>
                         <td className="px-4 py-3 font-bold text-white">{currencyConfig.format(hist.total_sales)}</td>
@@ -520,15 +551,15 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
                         <td className="px-4 py-3">
                           {hist.discrepancy === 0 ? (
                             <span className="text-emerald-400 font-bold font-sans text-[11px] flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Balanced
+                              <CheckCircle2 className="w-3.5 h-3.5" /> {isFr ? 'Équilibré' : 'Balanced'}
                             </span>
                           ) : hist.discrepancy > 0 ? (
                             <span className="text-sky-400 font-sans text-[11px]">
-                              +{currencyConfig.format(hist.discrepancy)} Over
+                              +{currencyConfig.format(hist.discrepancy)} {isFr ? 'Excédent' : 'Over'}
                             </span>
                           ) : (
                             <span className="text-rose-400 font-bold font-sans text-[11px] flex items-center gap-1">
-                              <AlertTriangle className="w-3.5 h-3.5" /> -{currencyConfig.format(Math.abs(hist.discrepancy))} Short
+                              <AlertTriangle className="w-3.5 h-3.5" /> -{currencyConfig.format(Math.abs(hist.discrepancy))} {isFr ? 'Manquant' : 'Short'}
                             </span>
                           )}
                         </td>
@@ -536,20 +567,20 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => HardwarePrinterService.printZReport(hist, activeBusiness, currencyConfig)}
-                              className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[11px] font-semibold flex items-center gap-1"
-                              title="Print Thermal Slip"
+                              className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                              title={isFr ? 'Imprimer le ticket' : 'Print Thermal Slip'}
                             >
                               <Printer className="w-3 h-3" />
-                              Slip
+                              {isFr ? 'Ticket' : 'Slip'}
                             </button>
                             <button
                               onClick={() => {
                                 setSelectedShiftForModal(hist);
                                 setIsCloseoutModalOpen(true);
                               }}
-                              className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-emerald-400 rounded text-[11px] font-semibold"
+                              className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-emerald-400 rounded text-[11px] font-semibold cursor-pointer"
                             >
-                              View
+                              {isFr ? 'Voir' : 'View'}
                             </button>
                           </div>
                         </td>
@@ -564,14 +595,14 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
       ) : loading ? (
         <div className="py-20 text-center flex flex-col items-center justify-center">
           <RefreshCw className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
-          <p className="text-sm text-zinc-400">Compiling financial metrics from database ledger...</p>
+          <p className="text-sm text-zinc-400">{isFr ? 'Compilation des données financières depuis le registre...' : 'Compiling financial metrics from database ledger...'}</p>
         </div>
       ) : error ? (
         <div className="p-6 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-rose-300 text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <AlertCircle className="w-6 h-6 text-rose-400 flex-shrink-0" />
             <div>
-              <p className="font-bold">Unable to load report</p>
+              <p className="font-bold">{isFr ? 'Impossible de charger le rapport' : 'Unable to load report'}</p>
               <p className="text-xs text-rose-300/80 mt-0.5">{error}</p>
             </div>
           </div>
@@ -579,7 +610,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
             onClick={loadReport}
             className="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 font-semibold text-xs rounded-xl border border-rose-500/30 transition-colors cursor-pointer"
           >
-            Retry Report
+            {isFr ? 'Réessayer' : 'Retry Report'}
           </button>
         </div>
       ) : reportData ? (
@@ -613,21 +644,21 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
             <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-white capitalize">
-                  {reportData.reportType.replace('_', ' ')} Breakdown Table
+                  {reportData.reportType.replace('_', ' ')} {isFr ? 'Tableau Détaillé' : 'Breakdown Table'}
                 </h3>
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  Coverage: <span className="text-emerald-400 font-semibold">{reportData.periodLabel}</span>
+                  {isFr ? 'Couverture :' : 'Coverage:'} <span className="text-emerald-400 font-semibold">{reportData.periodLabel}</span>
                 </p>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-zinc-400">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Deterministic Ledger Verified</span>
+                <span>{isFr ? 'Vérifié au Registre Déterministe' : 'Deterministic Ledger Verified'}</span>
               </div>
             </div>
 
             {reportData.breakdownRows.length === 0 ? (
               <div className="py-12 text-center text-zinc-500 text-sm">
-                No recorded entries found for this time period.
+                {isFr ? 'Aucune entrée enregistrée pour cette période.' : 'No recorded entries found for this time period.'}
               </div>
             ) : (() => {
               const visibleCols = Object.keys(reportData.breakdownRows[0]).filter(
@@ -684,7 +715,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
                 if (lowerCol.includes('date') || lowerCol === 'sold_at') {
                   try {
                     const d = new Date(val);
-                    if (!isNaN(d.getTime())) return d.toLocaleDateString();
+                    if (!isNaN(d.getTime())) return d.toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-US');
                   } catch {}
                 }
 
@@ -739,4 +770,3 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ businessId }) => {
     </div>
   );
 };
-

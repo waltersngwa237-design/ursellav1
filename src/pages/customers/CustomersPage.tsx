@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { CustomerService, type CreateCustomerInput, type CustomerProfileResult } from '../../services/customer.service.ts';
 import { PDFAndPrintService } from '../../services/pdf.service.ts';
 import { Card } from '../../components/common/Card.tsx';
@@ -39,6 +40,8 @@ import {
 
 export const CustomersPage: React.FC = () => {
   const { activeBusiness, currency } = useBusiness();
+  const { language, t } = useLanguage();
+  const isFr = language === 'fr';
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
 
   const [customers, setCustomers] = useState<CustomerWithSummary[]>([]);
@@ -129,7 +132,7 @@ export const CustomersPage: React.FC = () => {
     setDebtPaymentAmount(String(cust.outstanding_balance));
     setDebtPaymentMethod('cash');
     setDebtPaymentRef('');
-    setDebtPaymentNotes('Debt Settlement Payment');
+    setDebtPaymentNotes(isFr ? 'Règlement de dette client' : 'Debt Settlement Payment');
     setDebtPaymentError(null);
     setIsSettleDebtModalOpen(true);
   };
@@ -145,7 +148,7 @@ export const CustomersPage: React.FC = () => {
     try {
       const amt = Number(debtPaymentAmount);
       if (isNaN(amt) || amt <= 0) {
-        throw new Error('Payment amount must be greater than zero.');
+        throw new Error(isFr ? 'Le montant doit être supérieur à zéro.' : 'Payment amount must be greater than zero.');
       }
 
       await CustomerService.recordDebtPayment({
@@ -163,7 +166,7 @@ export const CustomersPage: React.FC = () => {
         handleOpenCustomerProfile(selectedCustomerProfile.customer.id);
       }
     } catch (err: any) {
-      setDebtPaymentError(err?.message || 'Failed to record payment.');
+      setDebtPaymentError(err?.message || (isFr ? 'Erreur lors de l’enregistrement du paiement.' : 'Failed to record payment.'));
     } finally {
       setProcessingDebtPayment(false);
     }
@@ -201,7 +204,7 @@ export const CustomersPage: React.FC = () => {
       resetCustomerForm();
       loadCustomers();
     } catch (err: any) {
-      setCustomerError(err?.message || 'Failed to save customer.');
+      setCustomerError(err?.message || (isFr ? 'Erreur lors de l’enregistrement du client.' : 'Failed to save customer.'));
     } finally {
       setSavingCustomer(false);
     }
@@ -236,7 +239,7 @@ export const CustomersPage: React.FC = () => {
         setIsProfileModalOpen(false);
       }
     } catch (err: any) {
-      alert(err?.message || 'Failed to update customer status');
+      alert(err?.message || (isFr ? 'Échec de la mise à jour' : 'Failed to update customer status'));
     }
   };
 
@@ -247,14 +250,16 @@ export const CustomersPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-              Customer Directory & Debt Ledger
+              {isFr ? 'Répertoire Clients & Suivi des Dettes' : 'Customer Directory & Debt Ledger'}
             </h1>
             <Badge variant="purple" size="sm">
-              CRM Engine
+              {isFr ? 'Moteur CRM' : 'CRM Engine'}
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-            Accounts, customer transaction history, and outstanding credit balances for{' '}
+            {isFr
+              ? 'Comptes, historique des transactions et soldes de crédit pour '
+              : 'Accounts, customer transaction history, and outstanding credit balances for '}
             <strong className="text-zinc-200">{activeBusiness?.name}</strong>
           </p>
         </div>
@@ -265,10 +270,10 @@ export const CustomersPage: React.FC = () => {
             resetCustomerForm();
             setIsAddCustomerModalOpen(true);
           }}
-          className="bg-purple-600 hover:bg-purple-500 text-white flex items-center gap-1.5 self-start sm:self-auto"
+          className="bg-purple-600 hover:bg-purple-500 text-white flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Add Customer</span>
+          <span>{t.customers.addCustomer}</span>
         </Button>
       </div>
 
@@ -276,32 +281,32 @@ export const CustomersPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card className="p-4 space-y-1">
           <span className="text-[10px] uppercase font-bold text-zinc-400">
-            Total Outstanding Receivables
+            {isFr ? 'Créances Totales à Recouvrer' : 'Total Outstanding Receivables'}
           </span>
           <p className="text-xl font-extrabold text-rose-400">
             {currencyConfig.format(totalReceivables)}
           </p>
-          <span className="text-[11px] text-zinc-400">Across all credit sales</span>
+          <span className="text-[11px] text-zinc-400">{isFr ? 'Sur l’ensemble des ventes à crédit' : 'Across all credit sales'}</span>
         </Card>
 
         <Card className="p-4 space-y-1">
           <span className="text-[10px] uppercase font-bold text-zinc-400">
-            Customers with Debt
+            {isFr ? 'Clients avec Dette' : 'Customers with Debt'}
           </span>
           <p className="text-xl font-extrabold text-amber-400">
-            {debtCustomersCount} Accounts
+            {debtCustomersCount} {isFr ? 'Comptes' : 'Accounts'}
           </p>
-          <span className="text-[11px] text-zinc-400">Require payment collection</span>
+          <span className="text-[11px] text-zinc-400">{isFr ? 'Nécessitent un recouvrement' : 'Require payment collection'}</span>
         </Card>
 
         <Card className="p-4 space-y-1">
           <span className="text-[10px] uppercase font-bold text-zinc-400">
-            Total Customer Accounts
+            {isFr ? 'Comptes Clients Enregistrés' : 'Total Customer Accounts'}
           </span>
           <p className="text-xl font-extrabold text-purple-400">
-            {customers.length} Profiles
+            {customers.length} {isFr ? 'Profils' : 'Profiles'}
           </p>
-          <span className="text-[11px] text-zinc-400">Registered in business</span>
+          <span className="text-[11px] text-zinc-400">{isFr ? 'Inscrits dans l’entreprise' : 'Registered in business'}</span>
         </Card>
       </div>
 
@@ -311,7 +316,7 @@ export const CustomersPage: React.FC = () => {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
           <input
             type="text"
-            placeholder="Search customers by name, phone, email, or location..."
+            placeholder={isFr ? 'Rechercher par nom, téléphone, email ou adresse...' : 'Search customers by name, phone, email, or location...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
@@ -320,15 +325,15 @@ export const CustomersPage: React.FC = () => {
 
         <div className="flex items-center gap-2 overflow-x-auto">
           {[
-            { id: 'all', label: 'All Customers' },
-            { id: 'debt_only', label: 'With Debt', hasAlert: true },
-            { id: 'active', label: 'Active Only' },
-            { id: 'archived', label: 'Archived' },
+            { id: 'all', label: isFr ? 'Tous les Clients' : 'All Customers' },
+            { id: 'debt_only', label: isFr ? 'Avec Dette' : 'With Debt', hasAlert: true },
+            { id: 'active', label: isFr ? 'Actifs Uniquement' : 'Active Only' },
+            { id: 'archived', label: isFr ? 'Archivés' : 'Archived' },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setFilterType(tab.id as any)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap inline-flex items-center gap-1.5 active:scale-[0.98] ${
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer active:scale-[0.98] ${
                 filterType === tab.id
                   ? 'bg-purple-600 text-white shadow-sm'
                   : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200'
@@ -354,11 +359,11 @@ export const CustomersPage: React.FC = () => {
       ) : customers.length === 0 ? (
         <Card className="text-center py-12 space-y-2">
           <Users className="w-8 h-8 text-zinc-600 mx-auto" />
-          <p className="text-sm font-semibold text-zinc-300">No customers found</p>
+          <p className="text-sm font-semibold text-zinc-300">{isFr ? 'Aucun client trouvé' : 'No customers found'}</p>
           <p className="text-xs text-zinc-500">
             {searchQuery || filterType !== 'all'
-              ? 'Try changing your search or filter options.'
-              : 'Add customer profiles to track repeat sales and store debt.'}
+              ? (isFr ? 'Modifiez votre recherche ou vos filtres.' : 'Try changing your search or filter options.')
+              : (isFr ? 'Ajoutez des profils clients pour suivre les ventes récurrentes et les crédits.' : 'Add customer profiles to track repeat sales and store debt.')}
           </p>
         </Card>
       ) : (
@@ -385,7 +390,7 @@ export const CustomersPage: React.FC = () => {
                     >
                       {cust.name}
                     </h3>
-                    {!cust.is_active && <Badge variant="zinc">Archived</Badge>}
+                    {!cust.is_active && <Badge variant="zinc">{isFr ? 'Archivé' : 'Archived'}</Badge>}
                   </div>
 
                   <div className="mt-2 space-y-1 text-xs text-zinc-400">
@@ -407,20 +412,20 @@ export const CustomersPage: React.FC = () => {
                 <div className="mt-4 pt-3 border-t border-zinc-800/80 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <div>
-                      <p className="text-[10px] text-zinc-400">Lifetime Spent</p>
+                      <p className="text-[10px] text-zinc-400">{isFr ? 'Cumul des Achats' : 'Lifetime Spent'}</p>
                       <p className="font-bold text-zinc-200">
                         {currencyConfig.format(cust.total_spent)}
                       </p>
                     </div>
 
                     <div className="text-right">
-                      <p className="text-[10px] text-zinc-400">Debt Balance</p>
+                      <p className="text-[10px] text-zinc-400">{isFr ? 'Solde Dû' : 'Debt Balance'}</p>
                       {hasDebt ? (
                         <p className="font-extrabold text-rose-400">
                           {currencyConfig.format(cust.outstanding_balance)}
                         </p>
                       ) : (
-                        <p className="font-semibold text-emerald-400">Clear ($0)</p>
+                        <p className="font-semibold text-emerald-400">{isFr ? 'Soldé (0)' : 'Clear ($0)'}</p>
                       )}
                     </div>
                   </div>
@@ -428,9 +433,9 @@ export const CustomersPage: React.FC = () => {
                   <div className="flex items-center justify-between pt-1">
                     <button
                       onClick={() => handleOpenCustomerProfile(cust.id)}
-                      className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1"
+                      className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1 cursor-pointer"
                     >
-                      <span>View Profile & History</span>
+                      <span>{isFr ? 'Voir Fiche & Historique' : 'View Profile & History'}</span>
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
 
@@ -438,16 +443,16 @@ export const CustomersPage: React.FC = () => {
                       {hasDebt && (
                         <button
                           onClick={() => handleOpenSettleDebt(cust)}
-                          title="Settle Debt"
-                          className="p-1 px-2 rounded-lg text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 shadow-sm"
+                          title={isFr ? 'Régler la dette' : 'Settle Debt'}
+                          className="p-1 px-2 rounded-lg text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 shadow-sm cursor-pointer"
                         >
-                          Settle
+                          {isFr ? 'Régler' : 'Settle'}
                         </button>
                       )}
                       <button
                         onClick={() => openEditCustomer(cust)}
-                        title="Edit Customer"
-                        className="p-1 rounded-lg text-zinc-400 hover:text-purple-400 hover:bg-purple-950/20"
+                        title={isFr ? 'Modifier le client' : 'Edit Customer'}
+                        className="p-1 rounded-lg text-zinc-400 hover:text-purple-400 hover:bg-purple-950/20 cursor-pointer"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -466,26 +471,26 @@ export const CustomersPage: React.FC = () => {
       <Modal
         isOpen={isAddCustomerModalOpen}
         onClose={() => setIsAddCustomerModalOpen(false)}
-        title={editingCustomerId ? 'Edit Customer' : 'Add New Customer'}
-        description="Register customer account to track purchases and credit orders"
+        title={editingCustomerId ? (isFr ? 'Modifier le Client' : 'Edit Customer') : (isFr ? 'Ajouter un Nouveau Client' : 'Add New Customer')}
+        description={isFr ? 'Enregistrez un compte client pour suivre achats et crédits' : 'Register customer account to track purchases and credit orders'}
       >
         <form onSubmit={handleSaveCustomer} className="space-y-4">
           <Input
-            label="Customer Name *"
-            placeholder="e.g. John Doe / Grace Enterprise"
+            label={`${isFr ? 'Nom du Client' : 'Customer Name'} *`}
+            placeholder={isFr ? 'ex. Jean Dupont / Entreprise Grace' : 'e.g. John Doe / Grace Enterprise'}
             value={custName}
             onChange={(e) => setCustName(e.target.value)}
             required
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
-              label="Phone Number"
+              label={isFr ? 'Numéro de Téléphone' : 'Phone Number'}
               placeholder="e.g. +237 670 000 000"
               value={custPhone}
               onChange={(e) => setCustPhone(e.target.value)}
             />
             <Input
-              label="Email Address"
+              label={isFr ? 'Adresse Email' : 'Email Address'}
               type="email"
               placeholder="customer@example.com"
               value={custEmail}
@@ -494,15 +499,15 @@ export const CustomersPage: React.FC = () => {
           </div>
 
           <Input
-            label="Physical Location / Delivery Address"
-            placeholder="e.g. Douala, Bonanjo Market Stall 12"
+            label={isFr ? 'Adresse Physique / Lieu de Livraison' : 'Physical Location / Delivery Address'}
+            placeholder={isFr ? 'ex. Douala, Marché Bonanjo Box 12' : 'e.g. Douala, Bonanjo Market Stall 12'}
             value={custLocation}
             onChange={(e) => setCustLocation(e.target.value)}
           />
 
           <Input
-            label="Customer Notes"
-            placeholder="e.g. Wholesale buyer, pays on Fridays"
+            label={isFr ? 'Notes sur le Client' : 'Customer Notes'}
+            placeholder={isFr ? 'ex. Acheteur grossiste, paie les vendredis' : 'e.g. Wholesale buyer, pays on Fridays'}
             value={custNotes}
             onChange={(e) => setCustNotes(e.target.value)}
           />
@@ -517,7 +522,7 @@ export const CustomersPage: React.FC = () => {
               variant="outline"
               onClick={() => setIsAddCustomerModalOpen(false)}
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               type="submit"
@@ -526,7 +531,7 @@ export const CustomersPage: React.FC = () => {
               isLoading={savingCustomer}
               className="bg-purple-600 hover:bg-purple-500 text-white"
             >
-              {editingCustomerId ? 'Update Customer' : 'Save Customer'}
+              {editingCustomerId ? (isFr ? 'Mettre à Jour' : 'Update Customer') : (isFr ? 'Créer le Client' : 'Save Customer')}
             </Button>
           </div>
         </form>
@@ -539,11 +544,11 @@ export const CustomersPage: React.FC = () => {
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
         maxWidth="lg"
-        title={selectedCustomerProfile?.customer.name || 'Customer Profile'}
-        description="Purchases, debt status, and payment receipts"
+        title={selectedCustomerProfile?.customer.name || (isFr ? 'Profil Client' : 'Customer Profile')}
+        description={isFr ? 'Historique des achats, situation de crédit et reçus' : 'Purchases, debt status, and payment receipts'}
       >
         {loadingProfile ? (
-          <div className="py-12 text-center text-zinc-400 animate-pulse">Loading customer profile...</div>
+          <div className="py-12 text-center text-zinc-400 animate-pulse">{isFr ? 'Chargement du profil client...' : 'Loading customer profile...'}</div>
         ) : selectedCustomerProfile ? (
           <div className="space-y-6">
             {/* Customer Contact & Stats Banner */}
@@ -572,7 +577,7 @@ export const CustomersPage: React.FC = () => {
                 {selectedCustomerProfile.customer.outstanding_balance > 0 ? (
                   <div className="p-2.5 rounded-xl bg-rose-950/30 border border-rose-500/30 text-right">
                     <span className="text-[10px] uppercase font-bold text-rose-400">
-                      Outstanding Debt
+                      {isFr ? 'Dette Restante' : 'Outstanding Debt'}
                     </span>
                     <p className="text-lg font-black text-rose-300">
                       {currencyConfig.format(selectedCustomerProfile.customer.outstanding_balance)}
@@ -580,7 +585,7 @@ export const CustomersPage: React.FC = () => {
                   </div>
                 ) : (
                   <Badge variant="emerald" size="md">
-                    No Outstanding Debt
+                    {isFr ? 'Aucune Dette En Cours' : 'No Outstanding Debt'}
                   </Badge>
                 )}
               </div>
@@ -588,23 +593,23 @@ export const CustomersPage: React.FC = () => {
               {/* Economic Summary Cards */}
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div>
-                  <span className="text-zinc-400">Total Spent:</span>
+                  <span className="text-zinc-400">{isFr ? 'Cumul Dépensé :' : 'Total Spent:'}</span>
                   <p className="font-extrabold text-sm text-emerald-400">
                     {currencyConfig.format(selectedCustomerProfile.customer.total_spent)}
                   </p>
                 </div>
                 <div>
-                  <span className="text-zinc-400">Completed Orders:</span>
+                  <span className="text-zinc-400">{isFr ? 'Commandes :' : 'Completed Orders:'}</span>
                   <p className="font-bold text-sm text-zinc-200">
-                    {selectedCustomerProfile.customer.purchase_count} Sales
+                    {selectedCustomerProfile.customer.purchase_count} {isFr ? 'Ventes' : 'Sales'}
                   </p>
                 </div>
                 <div>
-                  <span className="text-zinc-400">Last Purchase:</span>
+                  <span className="text-zinc-400">{isFr ? 'Dernier Achat :' : 'Last Purchase:'}</span>
                   <p className="font-semibold text-xs text-zinc-300">
                     {selectedCustomerProfile.customer.last_purchase_at
-                      ? new Date(selectedCustomerProfile.customer.last_purchase_at).toLocaleDateString()
-                      : 'Never'}
+                      ? new Date(selectedCustomerProfile.customer.last_purchase_at).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-US')
+                      : (isFr ? 'Jamais' : 'Never')}
                   </p>
                 </div>
               </div>
@@ -615,11 +620,11 @@ export const CustomersPage: React.FC = () => {
                   variant="primary"
                   size="sm"
                   onClick={() => handleOpenSettleDebt(selectedCustomerProfile.customer)}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-1.5 font-bold"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-1.5 font-bold cursor-pointer"
                 >
                   <DollarSign className="w-4 h-4" />
                   <span>
-                    Record Debt Payment (
+                    {isFr ? 'Enregistrer un Règlement de Dette (' : 'Record Debt Payment ('}
                     {currencyConfig.format(selectedCustomerProfile.customer.outstanding_balance)})
                   </span>
                 </Button>
@@ -639,10 +644,10 @@ export const CustomersPage: React.FC = () => {
                       currencyConfig
                     );
                   }}
-                  className="flex-1 flex items-center justify-center gap-1.5 text-xs"
+                  className="flex-1 flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5 text-zinc-400" />
-                  <span>Print Statement</span>
+                  <span>{isFr ? 'Imprimer Relevé' : 'Print Statement'}</span>
                 </Button>
                 <Button
                   variant="secondary"
@@ -656,10 +661,10 @@ export const CustomersPage: React.FC = () => {
                       currencyConfig
                     );
                   }}
-                  className="flex-1 flex items-center justify-center gap-1.5 text-xs"
+                  className="flex-1 flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Statement PDF</span>
+                  <span>{isFr ? 'Relevé PDF' : 'Statement PDF'}</span>
                 </Button>
               </div>
             </div>
@@ -667,23 +672,23 @@ export const CustomersPage: React.FC = () => {
             {/* Sales Purchase History Table */}
             <div className="space-y-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                <Receipt className="w-3.5 h-3.5 text-zinc-400" /> Order History
+                <Receipt className="w-3.5 h-3.5 text-zinc-400" /> {isFr ? 'Historique des Commandes' : 'Order History'}
               </h4>
 
               {selectedCustomerProfile.sales.length === 0 ? (
                 <div className="p-6 text-center text-zinc-500 text-xs rounded-xl bg-zinc-900/40 border border-zinc-800">
-                  No orders recorded for this customer yet.
+                  {isFr ? 'Aucune commande enregistrée pour ce client.' : 'No orders recorded for this customer yet.'}
                 </div>
               ) : (
                 <div className="rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900/40 max-h-48 overflow-y-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-zinc-800/80 text-zinc-400 uppercase tracking-wider text-[10px]">
                       <tr>
-                        <th className="py-2.5 px-3">Date</th>
-                        <th className="py-2.5 px-3 text-right">Total</th>
-                        <th className="py-2.5 px-3 text-right">Paid</th>
-                        <th className="py-2.5 px-3 text-right">Due</th>
-                        <th className="py-2.5 px-2 text-center">Status</th>
+                        <th className="py-2.5 px-3">{isFr ? 'Date' : 'Date'}</th>
+                        <th className="py-2.5 px-3 text-right">{isFr ? 'Total' : 'Total'}</th>
+                        <th className="py-2.5 px-3 text-right">{isFr ? 'Payé' : 'Paid'}</th>
+                        <th className="py-2.5 px-3 text-right">{isFr ? 'Restant' : 'Due'}</th>
+                        <th className="py-2.5 px-2 text-center">{isFr ? 'Statut' : 'Status'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800">
@@ -699,7 +704,7 @@ export const CustomersPage: React.FC = () => {
                           className="hover:bg-zinc-800/30 cursor-pointer"
                         >
                           <td className="py-2.5 px-3 text-zinc-400 whitespace-nowrap">
-                            {new Date(sale.sold_at).toLocaleDateString()}
+                            {new Date(sale.sold_at).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-US')}
                           </td>
                           <td className="py-2.5 px-3 text-right font-bold text-zinc-200">
                             {currencyConfig.format(sale.total)}
@@ -724,7 +729,13 @@ export const CustomersPage: React.FC = () => {
                                   : 'rose'
                               }
                             >
-                              {sale.payment_status.toUpperCase()}
+                              {isFr
+                                ? sale.payment_status === 'paid'
+                                  ? 'PAYÉ'
+                                  : sale.payment_status === 'partial'
+                                  ? 'PARTIEL'
+                                  : 'IMPAYÉ'
+                                : sale.payment_status.toUpperCase()}
                             </Badge>
                           </td>
                         </tr>
@@ -739,23 +750,23 @@ export const CustomersPage: React.FC = () => {
             {selectedCustomerProfile.payments.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5 text-zinc-400" /> Recorded Payment Receipts
+                  <CreditCard className="w-3.5 h-3.5 text-zinc-400" /> {isFr ? 'Reçus de Paiement Enregistrés' : 'Recorded Payment Receipts'}
                 </h4>
                 <div className="rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900/40 max-h-40 overflow-y-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-zinc-800/80 text-zinc-400 uppercase tracking-wider text-[10px]">
                       <tr>
-                        <th className="py-2 px-3">Date</th>
-                        <th className="py-2 px-2">Method</th>
-                        <th className="py-2 px-3 text-right">Amount</th>
-                        <th className="py-2 px-3">Reference / Memo</th>
+                        <th className="py-2 px-3">{isFr ? 'Date' : 'Date'}</th>
+                        <th className="py-2 px-2">{isFr ? 'Méthode' : 'Method'}</th>
+                        <th className="py-2 px-3 text-right">{isFr ? 'Montant' : 'Amount'}</th>
+                        <th className="py-2 px-3">{isFr ? 'Référence / Note' : 'Reference / Memo'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800">
                       {selectedCustomerProfile.payments.map((p) => (
                         <tr key={p.id}>
                           <td className="py-2 px-3 text-zinc-400">
-                            {new Date(p.paid_at).toLocaleDateString()}
+                            {new Date(p.paid_at).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-US')}
                           </td>
                           <td className="py-2 px-2 uppercase font-bold text-[10px] text-zinc-300">
                             {p.payment_method.replace('_', ' ')}
@@ -781,12 +792,12 @@ export const CustomersPage: React.FC = () => {
       <Modal
         isOpen={isSettleDebtModalOpen}
         onClose={() => setIsSettleDebtModalOpen(false)}
-        title="Record Debt Settlement Payment"
-        description={`Record payment received from ${selectedCustomerProfile?.customer.name}`}
+        title={isFr ? 'Enregistrer le Règlement de Dette' : 'Record Debt Settlement Payment'}
+        description={isFr ? `Enregistrer le paiement reçu de ${selectedCustomerProfile?.customer.name}` : `Record payment received from ${selectedCustomerProfile?.customer.name}`}
       >
         <form onSubmit={handleProcessDebtPayment} className="space-y-4">
           <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 flex justify-between text-xs">
-            <span className="text-amber-300 font-semibold">Current Outstanding Balance:</span>
+            <span className="text-amber-300 font-semibold">{isFr ? 'Solde Débiteur Actuel :' : 'Current Outstanding Balance:'}</span>
             <span className="text-amber-200 font-extrabold text-sm">
               {selectedCustomerProfile
                 ? currencyConfig.format(selectedCustomerProfile.customer.outstanding_balance)
@@ -795,7 +806,7 @@ export const CustomersPage: React.FC = () => {
           </div>
 
           <Input
-            label="Payment Amount Received *"
+            label={`${isFr ? 'Montant du Paiement Reçu' : 'Payment Amount Received'} *`}
             type="number"
             inputMode="decimal"
             min="0.01"
@@ -807,30 +818,30 @@ export const CustomersPage: React.FC = () => {
           />
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-zinc-300">Payment Method *</label>
+            <label className="text-xs font-semibold text-zinc-300">{isFr ? 'Mode de Règlement *' : 'Payment Method *'}</label>
             <select
               value={debtPaymentMethod}
               onChange={(e) => setDebtPaymentMethod(e.target.value as PaymentMethodType)}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500"
             >
-              <option value="cash">Cash</option>
-              <option value="mobile_money">Mobile Money</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="card">Card</option>
-              <option value="other">Other</option>
+              <option value="cash">{isFr ? 'Espèces' : 'Cash'}</option>
+              <option value="mobile_money">{isFr ? 'Mobile Money (MTN / Orange / Wave)' : 'Mobile Money'}</option>
+              <option value="bank_transfer">{isFr ? 'Virement Bancaire' : 'Bank Transfer'}</option>
+              <option value="card">{isFr ? 'Carte Bancaire' : 'Card / POS'}</option>
+              <option value="other">{isFr ? 'Autre' : 'Other'}</option>
             </select>
           </div>
 
           <Input
-            label="Payment Reference / Transaction ID"
+            label={isFr ? 'Référence de Paiement / N° Transaction' : 'Payment Reference / Transaction ID'}
             placeholder="e.g. MoMo ID: TX1029482"
             value={debtPaymentRef}
             onChange={(e) => setDebtPaymentRef(e.target.value)}
           />
 
           <Input
-            label="Notes / Receipt Memo"
-            placeholder="e.g. Settle balance for Invoice #8"
+            label={isFr ? 'Notes / Mémo du Reçu' : 'Notes / Receipt Memo'}
+            placeholder={isFr ? 'ex. Règlement du solde pour Facture #8' : 'e.g. Settle balance for Invoice #8'}
             value={debtPaymentNotes}
             onChange={(e) => setDebtPaymentNotes(e.target.value)}
           />
@@ -845,7 +856,7 @@ export const CustomersPage: React.FC = () => {
               variant="outline"
               onClick={() => setIsSettleDebtModalOpen(false)}
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               type="submit"
@@ -854,7 +865,7 @@ export const CustomersPage: React.FC = () => {
               isLoading={processingDebtPayment}
               className="bg-emerald-600 hover:bg-emerald-500 text-white"
             >
-              Confirm Payment
+              {isFr ? 'Confirmer le Règlement' : 'Confirm Payment'}
             </Button>
           </div>
         </form>
