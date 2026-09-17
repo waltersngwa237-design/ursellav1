@@ -66,9 +66,9 @@ export const Modal: React.FC<ModalProps> = ({
       <div
         className={`relative w-full ${maxWidthMap[maxWidth]} ${
           isDark 
-            ? 'bg-zinc-900 border-zinc-800 text-zinc-100 shadow-zinc-950/80' 
-            : 'bg-white border-slate-200 text-slate-900 shadow-slate-900/20'
-        } border rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto`}
+            ? 'bg-zinc-900 border-zinc-800 text-zinc-100 shadow-2xl shadow-zinc-950/80' 
+            : 'bg-white border-slate-200/90 text-slate-900 shadow-xl shadow-slate-900/10'
+        } border rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 z-10 max-h-[90vh] overflow-y-auto`}
         style={{
           paddingBottom: 'max(1.25rem, calc(1rem + env(safe-area-inset-bottom, 0px)))',
         }}

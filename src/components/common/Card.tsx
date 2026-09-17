@@ -20,15 +20,15 @@ export const Card: React.FC<CardProps> = ({
   };
 
   const variantMap = {
-    default: 'bg-zinc-900/90 border border-zinc-800/90 shadow-sm shadow-zinc-950/40',
-    subtle: 'bg-zinc-900/40 border border-zinc-800/50',
-    outline: 'bg-transparent border border-zinc-800',
-    glass: 'bg-zinc-900/70 backdrop-blur-md border border-zinc-800/80',
+    default: 'bg-white dark:bg-zinc-900 border border-slate-200/90 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 shadow-[0_1px_3px_rgba(15,23,42,0.04),0_1px_2px_rgba(15,23,42,0.02)]',
+    subtle: 'bg-slate-50/70 dark:bg-zinc-900/40 border border-slate-200/70 dark:border-zinc-800/50 text-slate-900 dark:text-zinc-100',
+    outline: 'bg-transparent border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-zinc-100',
+    glass: 'bg-white/80 dark:bg-zinc-900/70 backdrop-blur-md border border-slate-200/80 dark:border-zinc-800/80 text-slate-900 dark:text-zinc-100 shadow-xs',
   };
 
   return (
     <div
-      className={`rounded-2xl ${variantMap[variant]} ${paddingMap[padding]} transition-all ${className}`}
+      className={`rounded-xl sm:rounded-2xl ${variantMap[variant]} ${paddingMap[padding]} transition-all ${className}`}
       {...props}
     >
       {children}

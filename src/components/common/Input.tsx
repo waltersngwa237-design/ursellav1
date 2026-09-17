@@ -50,13 +50,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full flex flex-col gap-1.5">
         {label && (
-          <label htmlFor={inputId} className="text-xs font-semibold text-zinc-300 select-none">
+          <label htmlFor={inputId} className="text-xs font-semibold text-slate-700 dark:text-zinc-300 select-none">
             {label}
           </label>
         )}
         <div className="relative flex items-center">
           {leftIcon && (
-            <div className="absolute left-3 text-zinc-400 pointer-events-none flex items-center justify-center">
+            <div className="absolute left-3 text-slate-400 dark:text-zinc-400 pointer-events-none flex items-center justify-center">
               {leftIcon}
             </div>
           )}
@@ -64,12 +64,12 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             type={computedType}
-            className={`w-full bg-zinc-900/90 text-zinc-100 text-sm placeholder-zinc-500 rounded-xl px-3.5 py-2.5 border transition-all focus:outline-none focus:ring-2 ${
+            className={`w-full bg-white dark:bg-zinc-900/90 text-slate-900 dark:text-zinc-100 text-sm placeholder-slate-400 dark:placeholder-zinc-500 rounded-xl px-3.5 py-2.5 border transition-all focus:outline-hidden focus:ring-2 ${
               leftIcon ? 'pl-9' : ''
             } ${renderedRightIcon ? 'pr-10' : ''} ${
               error
-                ? 'border-rose-500/80 focus:border-rose-500 focus:ring-rose-500/20'
-                : 'border-zinc-800 focus:border-emerald-500 focus:ring-emerald-500/20 hover:border-zinc-700'
+                ? 'border-rose-300 dark:border-rose-500/80 focus:border-rose-500 focus:ring-rose-500/20'
+                : 'border-slate-200 dark:border-zinc-800 focus:border-emerald-500 focus:ring-emerald-500/20 hover:border-slate-300 dark:hover:border-zinc-700 shadow-xs'
             } ${className}`}
             {...props}
           />
@@ -80,9 +80,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           )}
         </div>
         {error ? (
-          <p className="text-xs font-medium text-rose-400">{error}</p>
+          <p className="text-xs font-medium text-rose-600 dark:text-rose-400">{error}</p>
         ) : helperText ? (
-          <p className="text-xs text-zinc-400">{helperText}</p>
+          <p className="text-xs text-slate-500 dark:text-zinc-400">{helperText}</p>
         ) : null}
       </div>
     );

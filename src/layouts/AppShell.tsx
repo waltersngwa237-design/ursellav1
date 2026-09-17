@@ -283,7 +283,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
   return (
     <div
-      className={`bg-zinc-950 text-zinc-100 flex flex-col md:flex-row ${
+      className={`bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 flex flex-col md:flex-row ${
         currentRoute === 'ai' ? 'h-screen md:h-screen overflow-hidden' : 'min-h-screen'
       }`}
       style={{
@@ -294,16 +294,16 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* ========================================================================= */}
       {/* DESKTOP SIDEBAR (Visible on md: screens and above)                        */}
       {/* ========================================================================= */}
-      <aside className="hidden md:flex flex-col w-64 lg:w-72 bg-zinc-900/90 border-r border-zinc-800/80 shrink-0 h-screen sticky top-0 z-30">
+      <aside className="hidden md:flex flex-col w-64 lg:w-72 bg-white dark:bg-zinc-900/90 border-r border-slate-200 dark:border-zinc-800/80 shrink-0 h-screen sticky top-0 z-30">
         {/* Brand Header */}
-        <div className="p-5 pb-4 border-b border-zinc-800/80 flex items-center justify-between">
+        <div className="p-5 pb-4 border-b border-slate-200 dark:border-zinc-800/80 flex items-center justify-between">
           <UrsellaLogo size="md" showBetaBadge={true} />
           <LanguageToggle variant="pill" />
         </div>
 
         {/* Business Switcher */}
-        <div className="p-4 border-b border-zinc-800/80">
-          <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 px-1">
+        <div className="p-4 border-b border-slate-200 dark:border-zinc-800/80">
+          <div className="text-[11px] font-semibold text-slate-400 dark:text-zinc-400 uppercase tracking-wider mb-2 px-1">
             {language === 'fr' ? 'Commerce Actif' : 'Active Tenant'}
           </div>
           <BusinessSwitcher
@@ -313,7 +313,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
         {/* Navigation Items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2.5 px-3">
+          <div className="text-[11px] font-semibold text-slate-400 dark:text-zinc-400 uppercase tracking-wider mb-2.5 px-3">
             {language === 'fr' ? 'Modules Principaux' : 'Core Modules'}
           </div>
           {navItems.map((item) => {
@@ -324,14 +324,14 @@ export const AppShell: React.FC<AppShellProps> = ({
                 onClick={() => onNavigate(item.route)}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group relative active:scale-[0.99] ${
                   isActive
-                    ? 'bg-blue-600/15 text-blue-200 border border-blue-500/25 shadow-xs'
-                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 border border-transparent'
+                    ? 'bg-emerald-50 text-emerald-900 border border-emerald-200/80 dark:bg-emerald-500/15 dark:text-emerald-200 dark:border-emerald-500/25 shadow-xs'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800/60 border border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`transition-colors ${
-                      isActive ? 'text-blue-400' : 'text-zinc-400 group-hover:text-zinc-200'
+                      isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-zinc-400 group-hover:text-slate-900 dark:group-hover:text-zinc-200'
                     }`}
                   >
                     {item.icon}
@@ -339,7 +339,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                   <span>{item.label}</span>
                 </div>
                 {isActive && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-sm shadow-blue-400/80" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 shadow-xs" />
                 )}
               </button>
             );
@@ -352,17 +352,17 @@ export const AppShell: React.FC<AppShellProps> = ({
         </div>
 
         {/* User Footer Profile & Sign Out */}
-        <div className="p-4 border-t border-zinc-800/80 bg-zinc-950/40">
+        <div className="p-4 border-t border-slate-200 dark:border-zinc-800/80 bg-slate-50/50 dark:bg-zinc-950/40">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-zinc-700 to-zinc-600 flex items-center justify-center text-xs font-bold text-white shrink-0 border border-zinc-600">
+              <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-bold text-slate-700 dark:text-white shrink-0 border border-slate-300 dark:border-zinc-600">
                 {profile?.full_name?.charAt(0) || user?.email?.charAt(0).toUpperCase() || 'U'}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-zinc-100 truncate">
+                <p className="text-xs font-bold text-slate-900 dark:text-zinc-100 truncate">
                   {profile?.full_name || 'Business User'}
                 </p>
-                <p className="text-[10px] text-zinc-400 truncate">
+                <p className="text-[10px] text-slate-500 dark:text-zinc-400 truncate">
                   {user?.email}
                 </p>
               </div>
@@ -370,7 +370,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             <button
               onClick={() => signOut()}
               title="Sign Out"
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:text-zinc-400 dark:hover:text-rose-400 dark:hover:bg-rose-950/30 transition-colors"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -393,7 +393,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       >
         {/* Mobile Top Bar - Solid, pinned at top, safe for iPhone dynamic island and notch; never disappears */}
         <header 
-          className="md:hidden shrink-0 w-full z-30 bg-zinc-950 border-b border-zinc-800 px-3.5 py-2.5 flex items-center justify-between select-none"
+          className="md:hidden shrink-0 w-full z-30 bg-white dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800 px-3.5 py-2.5 flex items-center justify-between select-none"
           style={{
             paddingTop: 'max(0.625rem, calc(0.375rem + env(safe-area-inset-top, 0px)))',
           }}
@@ -401,26 +401,26 @@ export const AppShell: React.FC<AppShellProps> = ({
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 active:scale-95 transition-all shrink-0"
+              className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0"
               title="Open Navigation Menu"
               aria-label="Open Navigation Menu"
             >
-              <Menu className="w-5 h-5 text-zinc-300" />
+              <Menu className="w-5 h-5" />
             </button>
 
             {currentRoute === 'ai' ? (
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-sky-500/30 flex items-center justify-center shrink-0 shadow-xs shadow-sky-950/30">
+                <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-zinc-900 border border-indigo-500/30 flex items-center justify-center shrink-0 shadow-xs">
                   <UrsellaAIGlyph sizeClass="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs sm:text-sm font-bold text-white tracking-tight truncate">
+                    <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white tracking-tight truncate">
                       Ursella AI
                     </span>
                   </div>
                   {activeBusiness?.name && (
-                    <p className="text-[10px] text-zinc-400 truncate max-w-[140px] sm:max-w-[200px]">
+                    <p className="text-[10px] text-slate-500 dark:text-zinc-400 truncate max-w-[140px] sm:max-w-[200px]">
                       {activeBusiness.name}
                     </p>
                   )}
@@ -436,15 +436,15 @@ export const AppShell: React.FC<AppShellProps> = ({
             <div className="flex items-center gap-1 shrink-0">
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('ursella_ai_toggle_history'))}
-                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 active:scale-95 transition-all"
+                className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all"
                 title="Chat History"
                 aria-label="Chat History"
               >
-                <History className="w-4 h-4 text-zinc-300" />
+                <History className="w-4 h-4 text-slate-600 dark:text-zinc-300" />
               </button>
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('ursella_ai_new_chat'))}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-all active:scale-95 shadow-xs shadow-emerald-500/20"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all active:scale-95 shadow-xs"
                 title="New Chat"
                 aria-label="New Chat"
               >
@@ -453,11 +453,11 @@ export const AppShell: React.FC<AppShellProps> = ({
               </button>
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('ursella_ai_toggle_options'))}
-                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 active:scale-95 transition-all"
+                className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all"
                 title="Chat Options"
                 aria-label="Chat Options"
               >
-                <MoreVertical className="w-4 h-4 text-zinc-300" />
+                <MoreVertical className="w-4 h-4 text-slate-600 dark:text-zinc-300" />
               </button>
             </div>
           ) : (
@@ -465,19 +465,19 @@ export const AppShell: React.FC<AppShellProps> = ({
               <OfflineSyncIndicator />
               <button
                 onClick={() => setIsFeedbackModalOpen(true)}
-                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                 title="Beta Feedback"
               >
                 <MessageSquare className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setIsNotificationDrawerOpen(true)}
-                className="relative p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                className="relative p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                 title="Notifications"
               >
                 <Bell className="w-4 h-4" />
                 {unreadNotifCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-zinc-950" />
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-zinc-950" />
                 )}
               </button>
             </div>
@@ -486,21 +486,21 @@ export const AppShell: React.FC<AppShellProps> = ({
 
         {/* Desktop Top Header Bar for Notifications & Feedback - Hidden on AI route for full vertical canvas */}
         {currentRoute !== 'ai' && (
-          <div className="hidden md:flex items-center justify-end px-8 py-3 border-b border-zinc-800/60 bg-zinc-950/40 shrink-0">
+          <div className="hidden md:flex items-center justify-end px-8 py-3 border-b border-slate-200 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-950/40 shrink-0">
             <div className="flex items-center gap-2.5">
               <OfflineSyncIndicator />
               <PWAInstallButton variant="outline" />
               <button
                 onClick={() => setIsFeedbackModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors border border-zinc-800"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800/80 transition-colors border border-slate-200 dark:border-zinc-800"
                 title="Beta Feedback"
               >
-                <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>Feedback</span>
               </button>
               <button
                 onClick={() => setIsNotificationDrawerOpen(true)}
-                className="relative p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors border border-zinc-800"
+                className="relative p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800/80 transition-colors border border-slate-200 dark:border-zinc-800"
                 title="Notifications"
               >
                 <Bell className="w-4 h-4" />
@@ -571,7 +571,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* MOBILE BOTTOM NAVIGATION: 5 Essential Tabs (Comfortable 64px Touch Area)  */}
       {/* ========================================================================= */}
       <nav 
-        className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-900/95 backdrop-blur-lg border-t border-zinc-800/90 px-1 py-1.5 flex items-center justify-around shadow-2xl safe-area-bottom transition-all duration-200 ${
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-lg border-t border-slate-200/90 dark:border-zinc-800/90 px-1 py-1.5 flex items-center justify-around shadow-lg dark:shadow-2xl safe-area-bottom transition-all duration-200 ${
           isKeyboardVisible && currentRoute === 'ai' ? 'translate-y-full pointer-events-none opacity-0' : 'translate-y-0 opacity-100'
         }`}
         style={{
@@ -585,11 +585,11 @@ export const AppShell: React.FC<AppShellProps> = ({
           onClick={() => handleNavWithHaptic('home')}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             currentRoute === 'home'
-              ? 'text-blue-400 font-bold'
-              : 'text-zinc-400 hover:text-zinc-200'
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
           }`}
         >
-          <div className={`p-1 rounded-lg ${currentRoute === 'home' ? 'bg-blue-500/10' : ''}`}>
+          <div className={`p-1 rounded-lg ${currentRoute === 'home' ? 'bg-emerald-50 dark:bg-emerald-500/10' : ''}`}>
             <Home className="w-5 h-5" />
           </div>
           <span className="text-[10px] mt-0.5 leading-none">Home</span>
@@ -600,11 +600,11 @@ export const AppShell: React.FC<AppShellProps> = ({
           onClick={() => handleNavWithHaptic('sell')}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             currentRoute === 'sell'
-              ? 'text-emerald-400 font-bold'
-              : 'text-zinc-400 hover:text-zinc-200'
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
           }`}
         >
-          <div className={`p-1 rounded-lg ${currentRoute === 'sell' ? 'bg-emerald-500/10' : ''}`}>
+          <div className={`p-1 rounded-lg ${currentRoute === 'sell' ? 'bg-emerald-50 dark:bg-emerald-500/10' : ''}`}>
             <ShoppingCart className="w-5 h-5" />
           </div>
           <span className="text-[10px] mt-0.5 leading-none">Sell (POS)</span>
@@ -621,10 +621,10 @@ export const AppShell: React.FC<AppShellProps> = ({
           className="flex-1 flex flex-col items-center justify-center -mt-3 relative group"
           aria-label="Quick Business Actions"
         >
-          <div className="w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-600/30 border-2 border-zinc-950 dark:border-zinc-900 ring-2 ring-blue-500/20 group-active:scale-95 transition-all">
+          <div className="w-11 h-11 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-md shadow-emerald-600/25 border-2 border-white dark:border-zinc-900 ring-2 ring-emerald-500/20 group-active:scale-95 transition-all">
             <Plus className="w-5 h-5 stroke-[2.5]" />
           </div>
-          <span className="text-[10px] mt-0.5 leading-none font-semibold text-blue-400">Actions</span>
+          <span className="text-[10px] mt-0.5 leading-none font-semibold text-emerald-700 dark:text-emerald-400">Actions</span>
         </button>
 
         {/* 4. AI Advisor / Ursella AI Tab */}
@@ -632,11 +632,11 @@ export const AppShell: React.FC<AppShellProps> = ({
           onClick={() => handleNavWithHaptic('ai')}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             currentRoute === 'ai'
-              ? 'text-sky-400 font-bold'
-              : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+              ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
           }`}
         >
-          <div className={`p-1 rounded-lg ${currentRoute === 'ai' ? 'bg-sky-500/10 shadow-sm shadow-sky-500/20' : ''}`}>
+          <div className={`p-1 rounded-lg ${currentRoute === 'ai' ? 'bg-indigo-50 dark:bg-indigo-500/10' : ''}`}>
             <UrsellaAIGlyph
               sizeClass="w-5 h-5"
               theme={currentRoute === 'ai' ? 'default' : isDark ? 'mono-white' : 'mono-black'}
@@ -656,14 +656,14 @@ export const AppShell: React.FC<AppShellProps> = ({
           }}
           className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
             isMenuSectionActive
-              ? 'text-blue-400 font-bold'
-              : 'text-zinc-400 hover:text-zinc-200'
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
           }`}
         >
-          <div className={`p-1 rounded-lg relative ${isMenuSectionActive ? 'bg-blue-500/10' : ''}`}>
+          <div className={`p-1 rounded-lg relative ${isMenuSectionActive ? 'bg-emerald-50 dark:bg-emerald-500/10' : ''}`}>
             <Menu className="w-5 h-5" />
             {isMenuSectionActive && (
-              <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-blue-400" />
+              <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
             )}
           </div>
           <span className="text-[10px] mt-0.5 leading-none">Menu</span>
@@ -706,46 +706,46 @@ export const AppShell: React.FC<AppShellProps> = ({
         <div className="grid grid-cols-2 gap-3 py-2">
           <button
             onClick={() => handleQuickAction('sell')}
-            className="flex flex-col items-center text-center p-4 rounded-xl bg-zinc-800/70 hover:bg-emerald-500/10 hover:border-emerald-500/30 border border-zinc-700/60 transition-all group"
+            className="flex flex-col items-center text-center p-4 rounded-xl bg-slate-50 dark:bg-zinc-800/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:border-emerald-300 dark:hover:border-emerald-500/30 border border-slate-200 dark:border-zinc-700/60 transition-all group"
           >
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
               <ShoppingCart className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold text-zinc-100">New Sale (POS)</span>
-            <span className="text-[10px] text-zinc-400 mt-0.5">Record customer order</span>
+            <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">New Sale (POS)</span>
+            <span className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5">Record customer order</span>
           </button>
 
           <button
             onClick={() => handleQuickAction('business')}
-            className="flex flex-col items-center text-center p-4 rounded-xl bg-zinc-800/70 hover:bg-blue-500/10 hover:border-blue-500/30 border border-zinc-700/60 transition-all group"
+            className="flex flex-col items-center text-center p-4 rounded-xl bg-slate-50 dark:bg-zinc-800/70 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:border-blue-300 dark:hover:border-blue-500/30 border border-slate-200 dark:border-zinc-700/60 transition-all group"
           >
-            <div className="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
               <Package className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold text-zinc-100">Add Product</span>
-            <span className="text-[10px] text-zinc-400 mt-0.5">Update inventory list</span>
+            <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">Add Product</span>
+            <span className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5">Update inventory list</span>
           </button>
 
           <button
             onClick={() => handleQuickAction('expenses')}
-            className="flex flex-col items-center text-center p-4 rounded-xl bg-zinc-800/70 hover:bg-amber-500/10 hover:border-amber-500/30 border border-zinc-700/60 transition-all group"
+            className="flex flex-col items-center text-center p-4 rounded-xl bg-slate-50 dark:bg-zinc-800/70 hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:border-amber-300 dark:hover:border-amber-500/30 border border-slate-200 dark:border-zinc-700/60 transition-all group"
           >
-            <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
               <Receipt className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold text-zinc-100">Add Expense</span>
-            <span className="text-[10px] text-zinc-400 mt-0.5">Track outgoing cash</span>
+            <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">Add Expense</span>
+            <span className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5">Track outgoing cash</span>
           </button>
 
           <button
             onClick={() => handleQuickAction('customers')}
-            className="flex flex-col items-center text-center p-4 rounded-xl bg-zinc-800/70 hover:bg-purple-500/10 hover:border-purple-500/30 border border-zinc-700/60 transition-all group"
+            className="flex flex-col items-center text-center p-4 rounded-xl bg-slate-50 dark:bg-zinc-800/70 hover:bg-purple-50 dark:hover:bg-purple-500/10 hover:border-purple-300 dark:hover:border-purple-500/30 border border-slate-200 dark:border-zinc-700/60 transition-all group"
           >
-            <div className="w-10 h-10 rounded-xl bg-purple-500/15 text-purple-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
               <UserPlus className="w-5 h-5" />
             </div>
-            <span className="text-xs font-bold text-zinc-100">New Customer</span>
-            <span className="text-[10px] text-zinc-400 mt-0.5">Add debt & contact</span>
+            <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">New Customer</span>
+            <span className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5">Add debt & contact</span>
           </button>
         </div>
       </Modal>

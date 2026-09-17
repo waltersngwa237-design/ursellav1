@@ -190,13 +190,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               {greeting}, {displayName}
             </h1>
           </div>
-          <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
             {t.dashboard.overviewSubtitle}{' '}
-            <span className="font-semibold text-zinc-200">{activeBusiness?.name}</span>
+            <span className="font-semibold text-slate-800 dark:text-zinc-200">{activeBusiness?.name}</span>
           </p>
         </div>
 
@@ -209,9 +209,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             variant="outline"
             size="sm"
             onClick={() => onNavigate('analytics')}
-            className="text-xs flex items-center gap-1.5 cursor-pointer"
+            className="text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
-            <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+            <BarChart3 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>{t.dashboard.fullAnalyticsBtn}</span>
           </Button>
         </div>
@@ -241,19 +241,19 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       {/* ========================================================================= */}
       {/* 2.2 BUSINESS INFO HEADER & TIMEFRAME SELECTOR                             */}
       {/* ========================================================================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-zinc-900/60 border border-slate-200/90 dark:border-zinc-800 shadow-xs">
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <Badge variant="zinc" className="text-zinc-300 border-zinc-700 bg-zinc-800/60">
+          <Badge variant="zinc" className="text-slate-700 dark:text-zinc-300 border-slate-300 dark:border-zinc-700 bg-slate-100 dark:bg-zinc-800/60 font-medium">
             {activeBusiness?.business_type || (language === 'fr' ? 'Commerce' : 'Retail')}
           </Badge>
-          <span className="text-zinc-500">•</span>
-          <span className="text-zinc-400 font-medium">{language === 'fr' ? 'Devise' : 'Currency'}: {currencyConfig.code} ({currencyConfig.symbol})</span>
-          <span className="text-zinc-500">•</span>
-          <span className="text-zinc-400 font-medium">{language === 'fr' ? 'Rôle' : 'Role'}: {activeRole || (language === 'fr' ? 'Propriétaire' : 'Owner')}</span>
+          <span className="text-slate-400 dark:text-zinc-500">•</span>
+          <span className="text-slate-600 dark:text-zinc-400 font-medium">{language === 'fr' ? 'Devise' : 'Currency'}: {currencyConfig.code} ({currencyConfig.symbol})</span>
+          <span className="text-slate-400 dark:text-zinc-500">•</span>
+          <span className="text-slate-600 dark:text-zinc-400 font-medium">{language === 'fr' ? 'Rôle' : 'Role'}: {activeRole || (language === 'fr' ? 'Propriétaire' : 'Owner')}</span>
         </div>
 
         {/* Timeframe Presets */}
-        <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800 self-start sm:self-auto overflow-x-auto max-w-full">
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-950 p-1 rounded-xl border border-slate-200 dark:border-zinc-800 self-start sm:self-auto overflow-x-auto max-w-full">
           {(
             [
               { id: 'today', label: timeframeLabels.today },
@@ -267,8 +267,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               onClick={() => setPreset(timePreset.id)}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 preset === timePreset.id
-                  ? 'bg-emerald-500 text-zinc-950 font-bold shadow-xs'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  ? 'bg-emerald-600 dark:bg-emerald-500 text-white dark:text-zinc-950 font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
               }`}
             >
               {timePreset.label}
@@ -308,7 +308,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             title={`${t.dashboard.salesRevenue} (${analytics.window.label})`}
             comparison={analytics.comparison.revenue}
             currencyConfig={currencyConfig}
-            icon={<TrendingUp className="w-4 h-4 text-emerald-400" />}
+            icon={<TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
             tooltip={language === 'fr' ? 'Chiffre d’affaires total encaissé sur cette période' : 'Total completed invoice revenue in this window'}
           />
 
@@ -317,7 +317,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             title={`${t.dashboard.grossProfit} (${(analytics.financialOverview.grossMargin ?? 0).toFixed(1)}% margin)`}
             comparison={analytics.comparison.grossProfit}
             currencyConfig={currencyConfig}
-            icon={<DollarSign className="w-4 h-4 text-cyan-400" />}
+            icon={<DollarSign className="w-4 h-4 text-teal-600 dark:text-cyan-400" />}
             tooltip={language === 'fr' ? 'Chiffre d’affaires moins le coût réel d’achat PEPS (FIFO)' : 'Revenue minus historical Cost of Goods Sold'}
           />
 
@@ -327,7 +327,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             comparison={analytics.comparison.operatingExpenses}
             currencyConfig={currencyConfig}
             invertColors={true}
-            icon={<PieChart className="w-4 h-4 text-rose-400" />}
+            icon={<PieChart className="w-4 h-4 text-rose-600 dark:text-rose-400" />}
             tooltip={language === 'fr' ? 'Total des charges enregistrées sur la période' : 'Total expenses in period'}
           />
 
@@ -336,7 +336,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             title={t.dashboard.estimatedNetProfit}
             comparison={analytics.comparison.estimatedNetProfit}
             currencyConfig={currencyConfig}
-            icon={<ShieldCheck className="w-4 h-4 text-amber-400" />}
+            icon={<ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
             tooltip={language === 'fr' ? 'Marge brute diminuée des charges d’exploitation' : 'Gross Profit minus Operating Expenses'}
           />
         </div>
@@ -346,59 +346,59 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       {/* 4. QUICK ACTIONS & SHORTCUTS                                              */}
       {/* ========================================================================= */}
       <div>
-        <h3 className="text-xs font-bold text-zinc-400 mb-3 uppercase tracking-wider">
+        <h3 className="text-xs font-bold text-slate-500 dark:text-zinc-400 mb-3 uppercase tracking-wider">
           {t.dashboard.quickShortcuts}
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <button
             onClick={() => onNavigate('sell')}
-            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+            className="flex items-center gap-3 p-3.5 rounded-xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border border-slate-200/90 dark:border-zinc-800 transition-all text-left group cursor-pointer shadow-xs"
           >
-            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
               <ShoppingCart className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-bold text-zinc-100 block">{t.dashboard.newSaleTitle}</span>
-              <span className="text-[10px] text-zinc-400">{t.dashboard.newSaleDesc}</span>
+              <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 block">{t.dashboard.newSaleTitle}</span>
+              <span className="text-[10px] text-slate-500 dark:text-zinc-400">{t.dashboard.newSaleDesc}</span>
             </div>
           </button>
 
           <button
             onClick={() => onNavigate('business')}
-            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+            className="flex items-center gap-3 p-3.5 rounded-xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border border-slate-200/90 dark:border-zinc-800 transition-all text-left group cursor-pointer shadow-xs"
           >
-            <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Package className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-bold text-zinc-100 block">{t.dashboard.inventoryTitle}</span>
-              <span className="text-[10px] text-zinc-400">{t.dashboard.inventoryDesc}</span>
+              <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 block">{t.dashboard.inventoryTitle}</span>
+              <span className="text-[10px] text-slate-500 dark:text-zinc-400">{t.dashboard.inventoryDesc}</span>
             </div>
           </button>
 
           <button
             onClick={() => onNavigate('customers')}
-            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+            className="flex items-center gap-3 p-3.5 rounded-xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border border-slate-200/90 dark:border-zinc-800 transition-all text-left group cursor-pointer shadow-xs"
           >
-            <div className="w-9 h-9 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-bold text-zinc-100 block">{t.dashboard.customersTitle}</span>
-              <span className="text-[10px] text-zinc-400">{t.dashboard.customersDesc}</span>
+              <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 block">{t.dashboard.customersTitle}</span>
+              <span className="text-[10px] text-slate-500 dark:text-zinc-400">{t.dashboard.customersDesc}</span>
             </div>
           </button>
 
           <button
             onClick={() => onNavigate('analytics')}
-            className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-800 transition-all text-left group cursor-pointer"
+            className="flex items-center gap-3 p-3.5 rounded-xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border border-slate-200/90 dark:border-zinc-800 transition-all text-left group cursor-pointer shadow-xs"
           >
-            <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
               <BarChart3 className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-bold text-zinc-100 block">{t.dashboard.analyticsTitle}</span>
-              <span className="text-[10px] text-zinc-400">{t.dashboard.analyticsDesc}</span>
+              <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 block">{t.dashboard.analyticsTitle}</span>
+              <span className="text-[10px] text-slate-500 dark:text-zinc-400">{t.dashboard.analyticsDesc}</span>
             </div>
           </button>
         </div>
@@ -410,8 +410,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-              <Package className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+              <Package className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               {t.dashboard.topProductsTitle} ({analytics?.window.label})
             </h3>
             <Button
@@ -419,7 +419,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               size="sm"
               onClick={() => onNavigate('analytics')}
               rightIcon={<ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-0.5" />}
-              className="text-xs text-zinc-400 hover:text-white cursor-pointer group"
+              className="text-xs text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white cursor-pointer group"
             >
               {t.dashboard.viewAllProducts}
             </Button>
@@ -430,20 +430,20 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               {analytics.topProducts.slice(0, 5).map((p) => (
                 <div
                   key={p.id}
-                  className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800/80 flex items-center justify-between gap-3 hover:border-zinc-700 transition-colors"
+                  className="p-3.5 rounded-xl bg-white dark:bg-zinc-900/80 border border-slate-200/80 dark:border-zinc-800/80 flex items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-zinc-700 transition-colors shadow-xs"
                 >
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-zinc-100 truncate">{p.name}</p>
-                    <p className="text-[11px] text-zinc-400 truncate">
+                    <p className="text-xs font-bold text-slate-900 dark:text-zinc-100 truncate">{p.name}</p>
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 truncate">
                       {p.unitsSold ?? 0} {t.dashboard.unitsSold} • {language === 'fr' ? 'Marge' : 'Margin'}: {(p.grossMargin ?? 0).toFixed(1)}%
                     </p>
                   </div>
 
                   <div className="text-right shrink-0">
-                    <p className="text-xs font-bold text-emerald-400">
+                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
                       {currencyConfig.format(p.revenue ?? 0)}
                     </p>
-                    <span className="text-[10px] text-zinc-500">
+                    <span className="text-[10px] text-slate-500 dark:text-zinc-500">
                       {t.dashboard.profit}: {currencyConfig.format(p.grossProfit ?? 0)}
                     </span>
                   </div>
@@ -452,7 +452,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             </div>
           ) : (
             <EmptyState
-              icon={<ShoppingCart className="w-6 h-6 text-zinc-400" />}
+              icon={<ShoppingCart className="w-6 h-6 text-slate-400 dark:text-zinc-400" />}
               title={t.dashboard.noSalesPeriod}
               description={t.dashboard.noSalesPeriodDesc}
               actionLabel={t.dashboard.launchPosBtn}
@@ -463,21 +463,21 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
 
         {/* AI Assistant Card */}
         <div className="space-y-3">
-          <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-emerald-400" />
+          <h3 className="text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             {t.dashboard.aiOperatingLayer}
           </h3>
 
           <Card
             variant="glass"
-            className="space-y-3.5 border-emerald-500/20 bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/20"
+            className="space-y-3.5 border-indigo-200 dark:border-indigo-500/20 bg-gradient-to-br from-indigo-50/50 via-white to-emerald-50/30 dark:from-zinc-900 dark:via-zinc-900 dark:to-emerald-950/20 shadow-xs"
           >
-            <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
               {t.dashboard.aiLiveConnected}
             </div>
 
-            <p className="text-xs text-zinc-300 leading-relaxed">
+            <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed">
               {t.dashboard.aiLayerDesc}
             </p>
 
@@ -485,7 +485,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               variant="outline"
               size="sm"
               rightIcon={<ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-0.5" />}
-              className="w-full text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 cursor-pointer group"
+              className="w-full text-xs border-indigo-300 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 cursor-pointer group"
               onClick={() => onNavigate('ai', language === 'fr' ? 'Fais-moi un bilan de mes ventes du jour et de mes meilleures marges.' : 'Give me an overview of today’s store performance and top margin items.')}
             >
               {t.dashboard.chatWithAiBtn}
@@ -505,14 +505,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             </div>
 
             <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-between gap-3">
+              <div className="p-4 rounded-xl bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3 shadow-xs">
                 <div>
-                  <span className="text-xs text-zinc-400 font-medium">{t.dashboard.stockAlertsTitle}</span>
-                  <div className="text-lg font-bold text-white mt-0.5">
+                  <span className="text-xs text-slate-500 dark:text-zinc-400 font-medium">{t.dashboard.stockAlertsTitle}</span>
+                  <div className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
                     {analytics.inventorySummary.lowStockCount}{' '}
-                    <span className="text-xs font-normal text-zinc-400">{t.dashboard.lowStock} / </span>
+                    <span className="text-xs font-normal text-slate-500 dark:text-zinc-400">{t.dashboard.lowStock} / </span>
                     {analytics.inventorySummary.outOfStockCount}{' '}
-                    <span className="text-xs font-normal text-zinc-400">{t.dashboard.outOfStock}</span>
+                    <span className="text-xs font-normal text-slate-500 dark:text-zinc-400">{t.dashboard.outOfStock}</span>
                   </div>
                 </div>
                 <Button
@@ -520,16 +520,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                   size="sm"
                   onClick={() => onNavigate('business')}
                   rightIcon={<ArrowRight className="w-3 h-3 ml-1" />}
-                  className="text-xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10 cursor-pointer"
+                  className="text-xs text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-500/20 hover:bg-rose-50 dark:hover:bg-rose-500/10 cursor-pointer"
                 >
                   {t.dashboard.stockListBtn}
                 </Button>
               </div>
 
-              <div className="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-between gap-3">
+              <div className="p-4 rounded-xl bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3 shadow-xs">
                 <div>
-                  <span className="text-xs text-zinc-400 font-medium">{t.dashboard.customerReceivablesTitle}</span>
-                  <div className="text-lg font-bold text-rose-400 mt-0.5">
+                  <span className="text-xs text-slate-500 dark:text-zinc-400 font-medium">{t.dashboard.customerReceivablesTitle}</span>
+                  <div className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-0.5">
                     {currencyConfig.format(analytics.financialOverview.outstandingReceivables ?? 0)}
                   </div>
                 </div>
@@ -538,7 +538,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                   size="sm"
                   onClick={() => onNavigate('customers')}
                   rightIcon={<ArrowRight className="w-3 h-3 ml-1" />}
-                  className="text-xs text-amber-400 border-amber-500/20 hover:bg-amber-500/10 cursor-pointer"
+                  className="text-xs text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20 hover:bg-amber-50 dark:hover:bg-amber-500/10 cursor-pointer"
                 >
                   {t.dashboard.ledgersBtn}
                 </Button>

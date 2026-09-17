@@ -23,8 +23,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {
       // ignore
     }
-    // Default strictly to dark theme
-    return 'dark';
+    // Default to calm, premium SaaS light theme
+    return 'light';
   });
 
   useEffect(() => {

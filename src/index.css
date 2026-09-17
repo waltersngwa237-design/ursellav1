@@ -2,54 +2,57 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
-    --ursella-bg: #070809;
-    --ursella-surface: #111214;
-    --ursella-surface-elevated: #17191C;
-    --ursella-border: #272A2F;
-    --ursella-primary: #2563EB;
-    --ursella-primary-dark: #1D4ED8;
-    --ursella-primary-light: #3B82F6;
-    --ursella-brand-navy: #0F172A;
-    --ursella-brand-cyan: #06B6D4;
-    --ursella-ai-blue: #2563EB;
-    --ursella-ai-cyan: #38BDF8;
-    --ursella-semantic-success: #10B981;
-    --ursella-semantic-danger: #EF4444;
-    --ursella-warning: #F59E0B;
-    --ursella-text-primary: #F8FAFC;
-    --ursella-text-secondary: #A1A1AA;
-    --ursella-text-muted: #71717A;
-  }
-
-  html.light {
     color-scheme: light;
     --ursella-bg: #F8FAFC;
     --ursella-surface: #FFFFFF;
     --ursella-surface-elevated: #F1F5F9;
     --ursella-border: #E2E8F0;
-    --ursella-primary: #2563EB;
-    --ursella-primary-dark: #1D4ED8;
+    --ursella-primary: #059669;
+    --ursella-primary-dark: #047857;
+    --ursella-primary-light: #10B981;
+    --ursella-brand-navy: #0F172A;
+    --ursella-brand-indigo: #4F46E5;
+    --ursella-ai-indigo: #6366F1;
+    --ursella-ai-cyan: #0EA5E9;
+    --ursella-semantic-success: #059669;
+    --ursella-semantic-danger: #E11D48;
+    --ursella-warning: #D97706;
     --ursella-text-primary: #0F172A;
     --ursella-text-secondary: #475569;
     --ursella-text-muted: #64748B;
   }
 
+  html.dark {
+    color-scheme: dark;
+    --ursella-bg: #090D16;
+    --ursella-surface: #111726;
+    --ursella-surface-elevated: #1A2234;
+    --ursella-border: #242E42;
+    --ursella-primary: #10B981;
+    --ursella-primary-dark: #059669;
+    --ursella-primary-light: #34D399;
+    --ursella-brand-navy: #0F172A;
+    --ursella-brand-indigo: #6366F1;
+    --ursella-text-primary: #F8FAFC;
+    --ursella-text-secondary: #94A3B8;
+    --ursella-text-muted: #64748B;
+  }
+
   body {
-    background-color: #070809;
-    color: #F8FAFC;
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--ursella-bg);
+    color: var(--ursella-text-primary);
+    font-family: 'Satoshi', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     transition: background-color 0.2s ease, color 0.2s ease;
     touch-action: pan-x pan-y;
     -webkit-text-size-adjust: 100%;
     overscroll-behavior-y: contain;
     -webkit-tap-highlight-color: transparent;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    scrollbar-color: rgba(100, 116, 139, 0.2) transparent;
   }
 
-  html.light body {
-    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  html.dark body {
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
   }
 
   /* Cross-browser momentum touch scrolling for scrollable containers */

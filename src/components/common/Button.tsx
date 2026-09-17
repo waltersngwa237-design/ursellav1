@@ -32,15 +32,15 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variantClasses = {
       primary:
-        'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white shadow-xs shadow-emerald-950/40 border border-emerald-500/30 hover:border-emerald-400/50 focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 focus-visible:outline-none',
+        'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-xs border border-emerald-600 hover:border-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 focus-visible:outline-hidden',
       secondary:
-        'bg-zinc-800/90 hover:bg-zinc-700 active:bg-zinc-900 text-zinc-100 border border-zinc-700/70 shadow-xs focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 focus-visible:outline-none',
+        'bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 dark:bg-zinc-800 dark:hover:bg-zinc-700/80 dark:text-zinc-100 border border-slate-200 dark:border-zinc-700 shadow-xs focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:outline-hidden',
       outline:
-        'bg-transparent hover:bg-zinc-800/70 active:bg-zinc-800 text-zinc-200 border border-zinc-700/80 hover:border-zinc-600 focus-visible:ring-2 focus-visible:ring-zinc-500 focus-visible:outline-none',
+        'bg-transparent hover:bg-slate-100 active:bg-slate-200/80 text-slate-700 dark:hover:bg-zinc-800 dark:text-zinc-200 border border-slate-300 dark:border-zinc-700 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:outline-hidden',
       ghost:
-        'bg-transparent hover:bg-zinc-800/60 active:bg-zinc-800 text-zinc-300 hover:text-white border border-transparent focus-visible:ring-2 focus-visible:ring-zinc-600 focus-visible:outline-none',
+        'bg-transparent hover:bg-slate-100 active:bg-slate-200/80 text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:outline-hidden',
       danger:
-        'bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white shadow-xs shadow-rose-950/40 border border-rose-500/30 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-950 focus-visible:outline-none',
+        'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-xs border border-rose-600 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 focus-visible:outline-hidden',
     };
 
     return (
