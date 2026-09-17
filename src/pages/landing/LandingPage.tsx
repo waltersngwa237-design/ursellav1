@@ -104,8 +104,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Preferences Group */}
             <div className="flex items-center gap-1 shrink-0">
-              <LanguageToggle variant="compact" className="sm:hidden" />
-              <LanguageToggle variant="pill" className="hidden sm:inline-flex" />
+              <LanguageToggle variant="pill" className="shrink-0" />
               <ThemeToggle
                 variant="icon"
                 className="shrink-0 h-7 w-7 sm:h-8 sm:w-8 p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
