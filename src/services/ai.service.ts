@@ -69,7 +69,18 @@ export class AIService {
     businessId: string,
     conversationId: string,
     message: string,
-    language: 'en' | 'fr' | string = 'en'
+    language: 'en' | 'fr' | string = 'en',
+    businessContext?: {
+      businessName?: string;
+      businessType?: string;
+      currency?: string;
+      currencySymbol?: string;
+      timezone?: string;
+      ownerName?: string;
+      address?: string;
+      taxRate?: number;
+      country?: string;
+    }
   ): Promise<{ content: string; metadata?: any }> {
     const validLang: 'en' | 'fr' = language === 'fr' ? 'fr' : 'en';
     const result = await this.sendChatMessage({
@@ -77,6 +88,7 @@ export class AIService {
       conversationId,
       message,
       language: validLang,
+      businessContext,
     });
     return {
       content: result.response?.answer || (validLang === 'fr' ? 'Analyse indisponible pour le moment.' : 'Intelligence temporarily unavailable.'),

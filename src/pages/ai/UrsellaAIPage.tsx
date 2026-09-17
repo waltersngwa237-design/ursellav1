@@ -47,7 +47,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   onOpenMobileMenu,
 }) => {
   const { user } = useAuth();
-  const { activeBusiness, currency } = useBusiness();
+  const { activeBusiness, activeSettings, currency } = useBusiness();
   const { isDark } = useTheme();
   const { language, t } = useLanguage();
   const isFr = language === 'fr';
@@ -308,12 +308,24 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     setError(null);
 
     try {
-      // Stream or generate AI response
+      // Stream or generate AI response with active business metadata & currency
+      const activeCurrency = activeBusiness.currency || currency || 'XAF';
       const aiResponse = await AIService.generateResponse(
         activeBusiness.id,
         convId,
         textToSend,
-        language
+        language,
+        {
+          businessName: activeBusiness.name,
+          businessType: activeBusiness.business_type || undefined,
+          currency: activeCurrency,
+          currencySymbol: activeCurrency,
+          timezone: activeBusiness.timezone || activeSettings?.timezone || 'Africa/Douala',
+          ownerName: user?.user_metadata?.full_name || user?.email || undefined,
+          address: undefined,
+          taxRate: activeSettings?.tax_rate,
+          country: activeBusiness.country || undefined,
+        }
       );
 
       const assistantMsgId = generateUUID();
@@ -403,6 +415,11 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   const executeDeleteConversation = async (convId: string) => {
     if (!activeBusiness?.id) return;
 
+    // Immediately flush local messages to provide instant feedback
+    if (activeConversationId === convId || !activeConversationId) {
+      setMessages([]);
+    }
+
     await AIService.deleteConversation(activeBusiness.id, convId);
 
     const remaining = conversations.filter((c) => c.id !== convId);
@@ -410,7 +427,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     setDeleteConfirmConv(null);
     setShowOptionsMenu(false);
 
-    if (activeConversationId === convId) {
+    if (activeConversationId === convId || !activeConversationId) {
       if (remaining.length > 0) {
         setActiveConversationId(remaining[0].id);
       } else {
@@ -848,11 +865,20 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                     </button>
                   )}
 
-                  {activeConv && (
+                  {(activeConv || activeConversationId || messages.length > 0) && (
                     <button
                       onClick={() => {
                         setShowOptionsMenu(false);
-                        setDeleteConfirmConv(activeConv);
+                        const targetConv = activeConv || {
+                          id: activeConversationId || 'current',
+                          business_id: activeBusiness.id,
+                          user_id: user?.id || 'user',
+                          title: isFr ? 'Discussion active' : 'Current Chat',
+                          context_type: 'general',
+                          created_at: new Date().toISOString(),
+                          updated_at: new Date().toISOString(),
+                        };
+                        setDeleteConfirmConv(targetConv);
                       }}
                       className="w-full px-3 py-2 text-left text-xs text-rose-500 hover:bg-rose-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
                     >
@@ -1040,11 +1066,20 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                   </button>
                 )}
 
-                {activeConv && (
+                {(activeConv || activeConversationId || messages.length > 0) && (
                   <button
                     onClick={() => {
                       setShowOptionsMenu(false);
-                      setDeleteConfirmConv(activeConv);
+                      const targetConv = activeConv || {
+                        id: activeConversationId || 'current',
+                        business_id: activeBusiness.id,
+                        user_id: user?.id || 'user',
+                        title: isFr ? 'Discussion active' : 'Current Chat',
+                        context_type: 'general',
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                      };
+                      setDeleteConfirmConv(targetConv);
                     }}
                     className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-rose-500 hover:bg-rose-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
                   >

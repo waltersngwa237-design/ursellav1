@@ -195,8 +195,8 @@ app.post('/api/ai/chat', async (req, res) => {
     // 2. Resolve Business Metadata & User Preferences
     let businessName = businessContext?.businessName || 'My Business';
     let businessType = businessContext?.businessType || 'Retail';
-    let currency = businessContext?.currency || businessContext?.currencySymbol || 'USD';
-    let timezone = businessContext?.timezone || 'UTC';
+    let currency = businessContext?.currency || businessContext?.currencySymbol || 'XAF';
+    let timezone = businessContext?.timezone || 'Africa/Douala';
     let ownerName = businessContext?.ownerName || '';
     let address = businessContext?.address || '';
     let taxRate = businessContext?.taxRate !== undefined ? businessContext.taxRate : 0;
@@ -432,8 +432,8 @@ app.post('/api/ai/daily-brief', async (req, res) => {
 
     let businessName = businessContext?.businessName || inputName || 'My Business';
     let businessType = businessContext?.businessType || 'Retail';
-    let currency = businessContext?.currency || inputCurrency || 'USD';
-    let timezone = businessContext?.timezone || inputTz || 'UTC';
+    let currency = businessContext?.currency || inputCurrency || 'XAF';
+    let timezone = businessContext?.timezone || inputTz || 'Africa/Douala';
     let ownerName = businessContext?.ownerName || '';
     let address = businessContext?.address || '';
     let taxRate = businessContext?.taxRate !== undefined ? businessContext.taxRate : 0;
