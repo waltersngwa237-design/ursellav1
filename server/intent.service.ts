@@ -312,10 +312,140 @@ export function classifyBusinessQuery(
   }
 
   // =========================================================================
-  // 5. PRODUCT CREATION / RESTOCK / ACTION INTENTS
-  // Only product/inventory lookup needed to validate whether product exists.
+  // 5. AGENT ACTION INTENTS (HUMAN-IN-THE-LOOP TASK PROPOSALS)
+  // Detects explicit requests to perform a task: expenses, restock, catalog,
+  // debt payments, customer reminders, and business tasks.
   // =========================================================================
-  if (
+
+  // 5a. Expense Logging
+  const isExpenseAction =
+    q.startsWith('spent ') ||
+    q.startsWith('pay ') ||
+    q.startsWith('paid ') ||
+    q.startsWith('dépensé ') ||
+    q.startsWith('depense ') ||
+    q.startsWith('payé ') ||
+    q.startsWith('payer ') ||
+    q.includes('log expense') ||
+    q.includes('record expense') ||
+    q.includes('add expense') ||
+    q.includes('new expense') ||
+    q.includes('expense of') ||
+    q.includes('enregistrer une dépense') ||
+    q.includes('enregistrer dépense') ||
+    q.includes('noter une dépense') ||
+    q.includes('noter dépense') ||
+    q.includes('ajouter une dépense') ||
+    q.includes('ajouter dépense') ||
+    q.includes('dépense de');
+
+  if (isExpenseAction) {
+    return {
+      intent: 'action_proposal',
+      domain: 'expenses',
+      timePeriod: 'today',
+      requiredTools: ['get_expense_summary', 'get_today_sales_summary'],
+      suggestedTimeHorizonDays: 1,
+      confidence: 0.98,
+      isEntitySpecific: false,
+      primaryGoal: 'Parse expense amount, category, payment method, description, and prepare proposedAction for merchant confirmation.',
+    };
+  }
+
+  // 5b. Customer Payment / Debt Settlement
+  const isPaymentAction =
+    q.includes('record payment') ||
+    q.includes('received payment') ||
+    q.includes('settle debt') ||
+    q.includes('paid debt') ||
+    q.includes('paid balance') ||
+    q.includes('paid their balance') ||
+    q.includes('paid part of') ||
+    q.includes('customer paid') ||
+    q.includes('paid me') ||
+    q.includes('enregistrer le paiement') ||
+    q.includes('enregistrer un paiement') ||
+    q.includes('reçu le paiement') ||
+    q.includes('reçu un paiement') ||
+    q.includes('a payé sa dette') ||
+    q.includes('a réglé') ||
+    q.includes('régler la dette') ||
+    q.includes('regler sa dette') ||
+    q.includes('verser un acompte');
+
+  if (isPaymentAction) {
+    return {
+      intent: 'action_proposal',
+      domain: 'debtors',
+      timePeriod: 'all_time',
+      requiredTools: ['get_customer_balances', 'get_today_sales_summary'],
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.98,
+      isEntitySpecific: true,
+      primaryGoal: 'Match customer from debtor ledger, extract payment amount, and prepare proposedAction for debt payment record.',
+    };
+  }
+
+  // 5c. Customer Follow-up / WhatsApp Payment Reminder
+  const isCustomerReminderAction =
+    q.startsWith('send reminder') ||
+    q.startsWith('remind customer') ||
+    q.startsWith('message customer') ||
+    q.includes('send reminder to') ||
+    q.includes('whatsapp reminder') ||
+    q.includes('draft reminder') ||
+    q.includes('remind customer') ||
+    q.includes('envoyer un rappel') ||
+    q.includes('rappeler à') ||
+    q.includes('rappeler au client') ||
+    q.includes('relancer le client') ||
+    q.includes('relancer ') ||
+    q.includes('message de rappel pour');
+
+  if (isCustomerReminderAction) {
+    return {
+      intent: 'action_proposal',
+      domain: 'customers',
+      timePeriod: 'all_time',
+      requiredTools: ['get_customer_balances'],
+      suggestedTimeHorizonDays: 30,
+      confidence: 0.98,
+      isEntitySpecific: true,
+      primaryGoal: 'Retrieve customer contact and unpaid balance, draft polite reminder text, and prepare proposedAction for WhatsApp follow-up.',
+    };
+  }
+
+  // 5d. Business Reminders & Tasks
+  const isReminderAction =
+    q.startsWith('remind me') ||
+    q.startsWith('set reminder') ||
+    q.startsWith('create reminder') ||
+    q.startsWith('create task') ||
+    q.startsWith('add task') ||
+    q.startsWith('rappelle-moi') ||
+    q.startsWith('rappelle moi') ||
+    q.startsWith('mettre un rappel') ||
+    q.startsWith('créer un rappel') ||
+    q.startsWith('créer une tâche') ||
+    q.includes('remind me to') ||
+    q.includes('set a reminder') ||
+    q.includes('create a reminder');
+
+  if (isReminderAction) {
+    return {
+      intent: 'action_proposal',
+      domain: 'store_info',
+      timePeriod: 'today',
+      requiredTools: ['get_today_sales_summary'],
+      suggestedTimeHorizonDays: 7,
+      confidence: 0.98,
+      isEntitySpecific: false,
+      primaryGoal: 'Extract task title, target deadline, priority, and prepare proposedAction for business reminder creation.',
+    };
+  }
+
+  // 5e. Product Creation, Restock, Inventory Adjustment
+  const isProductOrStockAction =
     q.startsWith('add ') ||
     q.startsWith('create ') ||
     q.startsWith('register ') ||
@@ -330,8 +460,14 @@ export function classifyBusinessQuery(
     q.includes('add to catalog') ||
     q.includes('add stock') ||
     q.includes('restock') ||
-    q.includes('reapprovisionner')
-  ) {
+    q.includes('reapprovisionner') ||
+    q.includes('adjust stock') ||
+    q.includes('write off') ||
+    q.includes('damaged stock') ||
+    q.includes('abîmé') ||
+    q.includes('perte');
+
+  if (isProductOrStockAction) {
     // Extract entity name if possible (e.g. "Add 20 units of Milo" -> Milo)
     let extractedEntity: string | undefined;
     const addUnitsMatch = q.match(/add\s+\d+\s*(?:units?|pcs?|items?|bags?|cartons?|kg|bottles?|pieces?)?\s*(?:of\s+)?([a-z0-9\s_-]+)/i);
@@ -346,9 +482,9 @@ export function classifyBusinessQuery(
       requiredTools: ['get_product_performance'], // Only product catalog needed!
       suggestedTimeHorizonDays: 30,
       confidence: 0.98,
-      isEntitySpecific: true,
+      isEntitySpecific: Boolean(extractedEntity),
       entityHint: extractedEntity,
-      primaryGoal: 'Validate product catalog entry, check existing stock, and prepare proposed action for confirmation.',
+      primaryGoal: 'Validate product catalog entry, check existing stock or price parameters, and prepare proposedAction for confirmation.',
     };
   }
 

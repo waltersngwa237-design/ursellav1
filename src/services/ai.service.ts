@@ -100,6 +100,7 @@ export class AIService {
         recommendations: result.response?.recommendations,
         followUpSuggestions: result.response?.followUpSuggestions,
         chartData: (result.response as any)?.chartData,
+        proposedAction: result.response?.proposedAction,
         structured: result.response,
       },
     };

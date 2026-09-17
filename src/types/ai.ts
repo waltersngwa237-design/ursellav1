@@ -53,8 +53,8 @@ export interface AIProposedAction {
   actionType: string;
   title: string;
   description: string;
-  category: 'inventory_restock' | 'debt_reminder' | 'expense_review' | 'pricing_update' | 'marketing' | 'product_creation';
-  payload?: Record<string, unknown>;
+  category: 'inventory_restock' | 'debt_reminder' | 'expense_review' | 'pricing_update' | 'marketing' | 'product_creation' | 'task_creation' | 'general';
+  payload?: Record<string, any>;
   phaseStatus: 'phase4_preview_only' | 'ready_for_execution';
 }
 
@@ -102,6 +102,7 @@ export interface AIChatMessage {
     tokensUsed?: number;
     responseSource?: AIResponseSource;
     error?: string;
+    proposedAction?: AIProposedAction;
   };
   created_at: string;
 }

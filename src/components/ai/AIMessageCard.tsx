@@ -6,6 +6,7 @@ import {
 } from '../../types/ai.ts';
 import { UrsellaAIGlyph } from '../common/UrsellaLogo.tsx';
 import { sanitizeFollowUpSuggestions } from '../../utils/ai-prompt.utils.ts';
+import { AIActionProposalCard } from './AIActionProposalCard.tsx';
 import {
   Check,
   Copy,
@@ -24,6 +25,7 @@ interface AIMessageCardProps {
   onInsertPrompt?: (prompt: string) => void;
   onRetry?: () => void;
   onDeleteMessage?: (messageId: string) => void;
+  onActionExecuted?: (result: any) => void;
 }
 
 function copyToClipboardWithFallback(text: string): Promise<boolean> {
@@ -59,12 +61,14 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
   onInsertPrompt,
   onRetry,
   onDeleteMessage,
+  onActionExecuted,
 }) => {
   const { isDark } = useTheme();
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
   const structured: any = message.metadata?.structured || message.metadata;
   const isError = Boolean(message.metadata?.error);
+  const proposedAction = message.metadata?.proposedAction || structured?.proposedAction;
 
   const handleCopy = async () => {
     await copyToClipboardWithFallback(message.content);
@@ -334,6 +338,15 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
                 </div>
               ))}
             </div>
+          )}
+
+          {/* Ursella Agent Proposed Action Card (Human-in-the-loop task execution) */}
+          {proposedAction && (
+            <AIActionProposalCard
+              proposedAction={proposedAction}
+              currencySymbol={currencySymbol}
+              onExecuted={onActionExecuted}
+            />
           )}
 
           {/* Error & Retry */}

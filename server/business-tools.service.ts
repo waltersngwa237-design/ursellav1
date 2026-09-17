@@ -955,7 +955,7 @@ export class BusinessToolsService {
       const fifoSold = fifoByItem.get(item.id);
       const qty = Number(item.quantity || 0);
       const rev = Number(item.total || 0);
-      const itemCogs = fifoSold ? fifoSold.cogs : Number(item.unit_cost || 0) * qty;
+      const itemCogs = fifoSold !== undefined ? fifoSold : Number(item.unit_cost || 0) * qty;
 
       entry.unitsSold += qty;
       entry.revenue += rev;

@@ -1000,6 +1000,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
                   if (lastUser) handleSendMessage(lastUser.content);
                 }}
+                onActionExecuted={() => {
+                  // Agent task executed and store ledger synced
+                }}
               />
             ))}
 

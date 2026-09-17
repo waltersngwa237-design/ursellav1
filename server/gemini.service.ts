@@ -149,7 +149,23 @@ ${
   * Highlight the strategic relationship between unit volume and margin percentage (e.g., high-volume cash flow drivers vs. high-margin profit anchors).
   * Point out any stock risks on top-selling items so the merchant avoids stockouts.
 
-8. OUTPUT FORMAT:
+8. AGENT ACTION PROPOSALS (HUMAN-IN-THE-LOOP TASK PROPOSALS):
+You operate as both an analytical business advisor AND an intelligent task agent.
+When the merchant asks or instructs you to perform a practical store operation:
+- Logging an expense (e.g. "Spent 5,000 on generator fuel", "Paid 15,000 for electricity", "Enregistrer une dépense de 4,000 pour le transport")
+- Restocking an item (e.g. "Restock 20 units of Milo", "Ajouter 10 cartons de savon au stock")
+- Creating/adding a product to the catalog (e.g. "Add new product Ceiling Fan selling at 25,000 cost 18,000", "Créer le produit Huile Diamaor")
+- Recording a debtor payment (e.g. "Mme. Atangana paid 10,000 of her debt", "Enregistrer paiement de 5,000 de John")
+- Creating a business reminder or task (e.g. "Remind me Friday to pay shop rent", "Rappelle-moi de vérifier les stocks demain")
+- Sending or drafting a payment reminder to a customer (e.g. "Send reminder to John for his balance", "Relancer le client Paul par WhatsApp")
+
+You MUST:
+1. Explain what you prepared in a concise, reassuring, conversational Markdown statement in "answer".
+2. Include a "proposedAction" object in your JSON response adhering strictly to the schema below.
+3. The merchant will see an interactive confirmation card with "Approve & Execute" and "Dismiss" buttons. No changes are applied until the merchant confirms.
+4. If the user did NOT request a practical task (they asked for analysis, advice, questions, or greetings), set "proposedAction" to null or omit it.
+
+9. OUTPUT FORMAT:
 Respond with a JSON object strictly adhering to this schema:
 {
   "answer": "Your natural, conversational response in Markdown (or structured report if Report Mode was explicitly requested).",
@@ -165,6 +181,27 @@ Respond with a JSON object strictly adhering to this schema:
       "priority": "high" | "medium" | "low"
     }
   ],
+  "proposedAction": {
+    "actionType": "create_expense" | "create_inventory_adjustment" | "create_product" | "record_payment" | "create_reminder" | "create_customer_followup",
+    "title": "Clear action title (e.g., 'Log Fuel Expense: ${ctx.currency} 5,000')",
+    "description": "Clear explanation of what will be recorded upon confirmation",
+    "category": "expense_review" | "inventory_restock" | "debt_reminder" | "product_creation" | "task_creation",
+    "phaseStatus": "ready_for_execution",
+    "payload": {
+      // For create_expense:
+      // { "amount": 5000, "category": "fuel" | "utilities" | "rent" | "salaries" | "logistics" | "maintenance" | "supplies" | "other", "description": "Generator fuel", "paymentMethod": "cash" | "mobile_money" | "bank_transfer" }
+      // For create_inventory_adjustment (restock or damage):
+      // { "productId": "uuid if found from product catalog", "productName": "Item Name", "adjustmentQuantity": 20, "unitCost": 3500, "reason": "Restock replenishment" }
+      // For create_product:
+      // { "name": "Product Name", "selling_price": 12000, "cost_price": 8500, "stock_quantity": 10, "unit_of_measure": "piece" }
+      // For record_payment:
+      // { "customerId": "uuid if debtor found", "customerName": "Customer Name", "amount": 10000, "paymentMethod": "cash", "notes": "Debt installment" }
+      // For create_reminder:
+      // { "title": "Task title", "description": "Task details", "dueDate": "ISO string", "priority": "medium" }
+      // For create_customer_followup:
+      // { "customerId": "uuid", "customerName": "Customer Name", "customerPhone": "...", "amount": 15000, "draftMessage": "Polite reminder text for WhatsApp" }
+    }
+  },
   "confidence": "high_confidence" | "moderate_confidence" | "insufficient_data",
   "followUpSuggestions": [
     "User question or request 1",
@@ -173,7 +210,7 @@ Respond with a JSON object strictly adhering to this schema:
 }
 (Note: Include keyMetrics only if directly relevant to the question. Leave empty [] for greetings, navigation, or general concept explanations).
 
-8. FOLLOW-UP SUGGESTIONS PERSPECTIVE (CRITICAL):
+10. FOLLOW-UP SUGGESTIONS PERSPECTIVE (CRITICAL):
 The "followUpSuggestions" are buttons that the MERCHANT will click to ask Ursella what THEY need next.
 - They MUST be phrased from the USER'S perspective requesting what they need (e.g. "Check my sales from last week", "Show me products low on stock", "Who owes me money?", "Help me reorder this item", "What was my profit on cement?").
 - They MUST NEVER be phrased as the AI asking the user ("Would you like me to...", "Do you want to...", "Should I...", "Would you like...").
@@ -497,6 +534,7 @@ ${
         recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
         confidence: parsed.confidence || 'high_confidence',
         followUpSuggestions: GeminiService.sanitizeFollowUpSuggestions(parsed.followUpSuggestions),
+        proposedAction: parsed.proposedAction || undefined,
         responseSource: source,
         provider,
       };
@@ -632,6 +670,262 @@ ${
         followUpSuggestions: isFr
           ? ['Comment se portent mes ventes ?', 'Quels sont les produits en rupture de stock ?']
           : ['How are my sales today?', 'Which products are low on stock?'],
+      };
+    }
+
+    // =========================================================================
+    // 2b. AGENT ACTION PROPOSALS (Human-in-the-Loop Task Proposals)
+    // =========================================================================
+    if (ctx.parsedIntent?.intent === 'action_proposal') {
+      // 1. Expense logging
+      if (
+        ctx.parsedIntent.domain === 'expenses' ||
+        q.includes('expense') ||
+        q.includes('dépense') ||
+        q.includes('spent') ||
+        q.includes('dépensé') ||
+        q.includes('paid') ||
+        q.includes('payé')
+      ) {
+        const amountMatch = q.match(/(\d[\d\s.,]*\d|\d+)/);
+        const parsedAmount = amountMatch ? Number(amountMatch[1].replace(/[\s,]/g, '')) : 5000;
+        let category = 'operations';
+        if (q.includes('fuel') || q.includes('carburant') || q.includes('essence') || q.includes('gasoil') || q.includes('generator') || q.includes('groupe')) {
+          category = 'fuel';
+        } else if (q.includes('rent') || q.includes('loyer')) {
+          category = 'rent';
+        } else if (q.includes('light') || q.includes('electricity') || q.includes('électricité') || q.includes('eneoc') || q.includes('water') || q.includes('eau')) {
+          category = 'utilities';
+        } else if (q.includes('transport') || q.includes('taxi') || q.includes('shipping') || q.includes('livraison')) {
+          category = 'logistics';
+        } else if (q.includes('salary') || q.includes('salaire') || q.includes('staff')) {
+          category = 'salaries';
+        } else if (q.includes('repair') || q.includes('réparation') || q.includes('maintenance')) {
+          category = 'maintenance';
+        }
+
+        const desc = isFr
+          ? `Dépense ${category} enregistrée via Ursella IA`
+          : `${category.charAt(0).toUpperCase() + category.slice(1)} operational expense`;
+
+        return {
+          answer: isFr
+            ? `J'ai préparé l'enregistrement de cette dépense de **${fmtCur(parsedAmount)}** sous la catégorie **${category}**.\n\nVeuillez vérifier les détails ci-dessous et cliquer sur **Approuver & Exécuter** pour la comptabiliser dans votre journal de caisse.`
+            : `I have prepared the expense entry for **${fmtCur(parsedAmount)}** under **${category}**.\n\nPlease review the details below and tap **Approve & Execute** to record it in your financial ledger.`,
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          keyMetrics: [
+            { label: isFr ? 'Montant Dépense' : 'Expense Amount', value: parsedAmount, formattedValue: fmtCur(parsedAmount), trend: 'neutral' },
+          ],
+          proposedAction: {
+            actionType: 'create_expense',
+            title: isFr ? `Enregistrer dépense: ${fmtCur(parsedAmount)}` : `Record Expense: ${fmtCur(parsedAmount)}`,
+            description: isFr ? `Enregistrement de ${fmtCur(parsedAmount)} (${category}) dans la comptabilité.` : `Record ${fmtCur(parsedAmount)} (${category}) into store financial expenses.`,
+            category: 'expense_review',
+            phaseStatus: 'ready_for_execution',
+            payload: {
+              amount: parsedAmount,
+              category,
+              description: desc,
+              paymentMethod: 'cash',
+            },
+          },
+          followUpSuggestions: isFr
+            ? ['Voir le résumé des dépenses', 'Quel est mon solde de caisse ?']
+            : ['View expense summary', 'What is my current cash balance?'],
+        };
+      }
+
+      // 2. Customer Debt Payment
+      if (
+        ctx.parsedIntent.domain === 'receivables' ||
+        q.includes('payment') ||
+        q.includes('paiement') ||
+        q.includes('paid debt') ||
+        q.includes('settle') ||
+        q.includes('a réglé')
+      ) {
+        const amountMatch = q.match(/(\d[\d\s.,]*\d|\d+)/);
+        const parsedAmount = amountMatch ? Number(amountMatch[1].replace(/[\s,]/g, '')) : 5000;
+        const debtorsList = Array.isArray(debtors) ? debtors : (debtors.debtors || []);
+        const matchedDebtor = debtorsList[0] || null;
+        const customerName = matchedDebtor?.customer_name || matchedDebtor?.name || 'Customer';
+        const customerId = matchedDebtor?.customer_id || matchedDebtor?.id || undefined;
+
+        return {
+          answer: isFr
+            ? `J'ai préparé l'encaissement de **${fmtCur(parsedAmount)}** pour **${customerName}**.\n\nVérifiez l'ajustement ci-dessous pour déduire ce montant de sa dette active.`
+            : `I have prepared the debt payment of **${fmtCur(parsedAmount)}** for **${customerName}**.\n\nPlease confirm to credit this against their outstanding customer balance.`,
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          keyMetrics: [
+            { label: isFr ? 'Règlement' : 'Payment', value: parsedAmount, formattedValue: fmtCur(parsedAmount), trend: 'positive' },
+          ],
+          proposedAction: {
+            actionType: 'record_payment',
+            title: isFr ? `Encaisser ${fmtCur(parsedAmount)} de ${customerName}` : `Record Payment: ${fmtCur(parsedAmount)} from ${customerName}`,
+            description: isFr ? `Déduire ${fmtCur(parsedAmount)} de la créance client.` : `Deduct ${fmtCur(parsedAmount)} from outstanding debtor balance.`,
+            category: 'debt_reminder',
+            phaseStatus: 'ready_for_execution',
+            payload: {
+              customerId,
+              customerName,
+              amount: parsedAmount,
+              paymentMethod: 'cash',
+              notes: isFr ? 'Règlement enregistré via Ursella IA' : 'Payment registered via Ursella AI Agent',
+            },
+          },
+          followUpSuggestions: isFr
+            ? ['Qui me doit encore de l\'argent ?', 'Voir les ventes du jour']
+            : ['Who owes me money?', 'Check today\'s sales'],
+        };
+      }
+
+      // 3. Customer WhatsApp Reminder
+      if (
+        ctx.parsedIntent.domain === 'customers' ||
+        q.includes('reminder to') ||
+        q.includes('rappel à') ||
+        q.includes('relancer')
+      ) {
+        const debtorsList = Array.isArray(debtors) ? debtors : (debtors.debtors || []);
+        const matchedDebtor = debtorsList[0] || null;
+        const customerName = matchedDebtor?.customer_name || matchedDebtor?.name || 'Valued Customer';
+        const customerPhone = matchedDebtor?.phone || '';
+        const outstanding = Number(matchedDebtor?.balance || matchedDebtor?.total_debt || 10000);
+        const draftMessage = isFr
+          ? `Bonjour ${customerName}, petit rappel de courtoisie concernant votre solde de ${fmtCur(outstanding)} chez ${ctx.businessName}. Merci de nous contacter pour votre règlement.`
+          : `Hello ${customerName}, gentle reminder regarding your outstanding balance of ${fmtCur(outstanding)} with ${ctx.businessName}. Thank you for your continued partnership.`;
+
+        return {
+          answer: isFr
+            ? `J'ai rédigé un message de rappel de créance pour **${customerName}** (${fmtCur(outstanding)}).\n\nVous pouvez le valider pour l'envoyer directement via WhatsApp.`
+            : `I have drafted a courtesy debt reminder for **${customerName}** (${fmtCur(outstanding)}).\n\nYou can review and open WhatsApp directly with the pre-filled message.`,
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          proposedAction: {
+            actionType: 'create_customer_followup',
+            title: isFr ? `Rappel WhatsApp pour ${customerName}` : `WhatsApp Reminder for ${customerName}`,
+            description: isFr ? `Message de courtoisie pour solde de ${fmtCur(outstanding)}` : `Friendly debt reminder for ${fmtCur(outstanding)} balance`,
+            category: 'debt_reminder',
+            phaseStatus: 'ready_for_execution',
+            payload: {
+              customerName,
+              customerPhone,
+              amount: outstanding,
+              draftMessage,
+            },
+          },
+          followUpSuggestions: isFr
+            ? ['Qui d\'autre a des dettes en retard ?', 'Total des créances']
+            : ['Who else has overdue balances?', 'Total outstanding receivables'],
+        };
+      }
+
+      // 4. Business Reminder / Watchdog Task
+      if (
+        ctx.parsedIntent.domain === 'general_overview' ||
+        q.includes('remind me') ||
+        q.includes('rappel') ||
+        q.includes('tâche') ||
+        q.includes('task')
+      ) {
+        const titleMatch = q.replace(/^(remind me to|set reminder to|create task|create reminder|rappelle-moi de|rappelle moi de)\s+/i, '').trim();
+        const taskTitle = titleMatch ? titleMatch.charAt(0).toUpperCase() + titleMatch.slice(1) : (isFr ? 'Vérifier la caisse et les stocks' : 'Check store cash and stock');
+
+        return {
+          answer: isFr
+            ? `J'ai préparé la tâche suivante : **"${taskTitle}"**.\n\nVoulez-vous l'ajouter à vos rappels professionnels ?`
+            : `I have prepared the task: **"${taskTitle}"**.\n\nWould you like to register this in your store reminders?`,
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          proposedAction: {
+            actionType: 'create_reminder',
+            title: taskTitle,
+            description: isFr ? 'Rappel programmé par Ursella IA' : 'Business reminder scheduled via Ursella AI',
+            category: 'task_creation',
+            phaseStatus: 'ready_for_execution',
+            payload: {
+              title: taskTitle,
+              priority: 'medium',
+              dueDate: new Date(Date.now() + 86400000).toISOString(),
+            },
+          },
+          followUpSuggestions: isFr
+            ? ['Comment se portent mes ventes ?', 'Voir mes alertes de stock']
+            : ['How are my sales today?', 'Show stock alerts'],
+        };
+      }
+
+      // 5. Product creation or Restock
+      const unitsMatch = q.match(/(\d+)\s*(?:units?|pcs?|items?|cartons?|bags?|sacs?|pièces?)/i) || q.match(/(\d+)/);
+      const restockQty = unitsMatch ? Number(unitsMatch[1]) : 10;
+      const matchedProduct = products.find((p) =>
+        ctx.parsedIntent?.entityHint ? p.product_name?.toLowerCase().includes(ctx.parsedIntent.entityHint.toLowerCase()) : false
+      ) || products[0] || null;
+
+      const prodName = ctx.parsedIntent?.entityHint || matchedProduct?.product_name || 'Item';
+      const isAddCatalog = q.includes('create product') || q.includes('new product') || q.includes('créer le produit') || q.includes('ajouter le produit');
+
+      if (isAddCatalog) {
+        return {
+          answer: isFr
+            ? `J'ai préparé l'ajout du nouveau produit **${prodName}** au catalogue de votre boutique.\n\nVérifiez les paramètres ci-dessous avant création.`
+            : `I have prepared the catalog registration for new product **${prodName}**.\n\nPlease confirm to add it to your live catalog.`,
+          confidence: 'high_confidence',
+          responseSource: 'DETERMINISTIC_FALLBACK',
+          provider: 'deterministic_fallback',
+          proposedAction: {
+            actionType: 'create_product',
+            title: isFr ? `Ajouter produit : ${prodName}` : `Create Product: ${prodName}`,
+            description: isFr ? `Création de l'article dans le catalogue avec stock initial.` : `Add item to catalog and establish initial stock.`,
+            category: 'product_creation',
+            phaseStatus: 'ready_for_execution',
+            payload: {
+              name: prodName,
+              selling_price: 10000,
+              cost_price: 7000,
+              stock_quantity: restockQty,
+              unit_of_measure: 'piece',
+            },
+          },
+          followUpSuggestions: isFr
+            ? ['Voir tous les produits', 'Consulter le stock actuel']
+            : ['View full catalog', 'Check current stock'],
+        };
+      }
+
+      return {
+        answer: isFr
+          ? `J'ai préparé le réapprovisionnement de **+${restockQty} unités** pour **${prodName}**.\n\nApprouvez cette opération pour ajuster le stock et enregistrer le mouvement d'inventaire.`
+          : `I have prepared an inventory replenishment of **+${restockQty} units** for **${prodName}**.\n\nPlease approve to update stock levels and log the movement.`,
+        confidence: 'high_confidence',
+        responseSource: 'DETERMINISTIC_FALLBACK',
+        provider: 'deterministic_fallback',
+        keyMetrics: [
+          { label: isFr ? 'Quantité à ajouter' : 'Restock Quantity', value: restockQty, formattedValue: `+${restockQty}`, trend: 'positive' },
+        ],
+        proposedAction: {
+          actionType: 'create_inventory_adjustment',
+          title: isFr ? `Réapprovisionner ${prodName} (+${restockQty})` : `Restock ${prodName} (+${restockQty})`,
+          description: isFr ? `Augmenter le stock de ${restockQty} unités.` : `Replenish stock by ${restockQty} units.`,
+          category: 'inventory_restock',
+          phaseStatus: 'ready_for_execution',
+          payload: {
+            productId: matchedProduct?.product_id,
+            productName: prodName,
+            adjustmentQuantity: restockQty,
+            unitCost: matchedProduct?.unit_cost || 0,
+            reason: isFr ? 'Réapprovisionnement via Ursella IA' : 'Restock via Ursella AI Agent',
+          },
+        },
+        followUpSuggestions: isFr
+          ? ['Quels autres produits sont en rupture ?', 'Voir mes marges par produit']
+          : ['Which other items are low on stock?', 'Check margins by product'],
       };
     }
 
