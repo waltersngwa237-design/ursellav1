@@ -41,6 +41,8 @@ import {
   MessageSquare,
   History,
   MoreVertical,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -56,7 +58,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 }) => {
   const { user, profile, signOut } = useAuth();
   const { activeBusiness } = useBusiness();
-  const { isDark } = useTheme();
+  const { isDark, toggleTheme } = useTheme();
   const { language, t } = useLanguage();
 
   const [isNewBusinessModalOpen, setIsNewBusinessModalOpen] = useState(false);
@@ -298,7 +300,6 @@ export const AppShell: React.FC<AppShellProps> = ({
         {/* Brand Header */}
         <div className="p-5 pb-4 border-b border-slate-200 dark:border-zinc-800/80 flex items-center justify-between">
           <UrsellaLogo size="md" showBetaBadge={true} />
-          <LanguageToggle variant="pill" />
         </div>
 
         {/* Business Switcher */}
@@ -351,16 +352,34 @@ export const AppShell: React.FC<AppShellProps> = ({
           <PWAInstallButton variant="sidebar" />
         </div>
 
-        {/* User Footer Profile & Sign Out */}
-        <div className="p-4 border-t border-slate-200 dark:border-zinc-800/80 bg-slate-50/50 dark:bg-zinc-950/40">
-          <div className="flex items-center justify-between gap-3">
+        {/* User Footer Profile & Settings Bar */}
+        <div className="p-3.5 border-t border-slate-200 dark:border-zinc-800/80 bg-slate-50/60 dark:bg-zinc-950/40 space-y-2.5">
+          {/* Quick preferences row: Language & Theme Toggle */}
+          <div className="flex items-center justify-between px-1">
+            <LanguageToggle variant="pill" />
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              title={isDark ? 'Switch to Light Mode' : 'Passer en Mode Sombre'}
+              aria-label="Toggle theme"
+            >
+              {isDark ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-slate-700" />
+              )}
+            </button>
+          </div>
+
+          {/* Profile info and sign out */}
+          <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-200/60 dark:border-zinc-800/60">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-bold text-slate-700 dark:text-white shrink-0 border border-slate-300 dark:border-zinc-600">
                 {profile?.full_name?.charAt(0) || user?.email?.charAt(0).toUpperCase() || 'U'}
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-slate-900 dark:text-zinc-100 truncate">
-                  {profile?.full_name || 'Business User'}
+                  {profile?.full_name || (language === 'fr' ? 'Gérant' : 'Business User')}
                 </p>
                 <p className="text-[10px] text-slate-500 dark:text-zinc-400 truncate">
                   {user?.email}
@@ -369,8 +388,8 @@ export const AppShell: React.FC<AppShellProps> = ({
             </div>
             <button
               onClick={() => signOut()}
-              title="Sign Out"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:text-zinc-400 dark:hover:text-rose-400 dark:hover:bg-rose-950/30 transition-colors"
+              title={t.navigation.logout}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:text-zinc-400 dark:hover:text-rose-400 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
             </button>

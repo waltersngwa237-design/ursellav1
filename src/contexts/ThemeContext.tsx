@@ -23,23 +23,31 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {
       // ignore
     }
-    // Default to calm, premium SaaS light theme
-    return 'light';
+    // Default to dark theme as requested
+    return 'dark';
   });
 
   useEffect(() => {
     try {
       const root = document.documentElement;
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+      
       if (theme === 'light') {
         root.classList.remove('dark');
         root.classList.add('light');
         document.body.classList.remove('bg-zinc-950', 'text-zinc-100');
         document.body.classList.add('bg-slate-50', 'text-slate-900');
+        if (metaThemeColor) {
+          metaThemeColor.setAttribute('content', '#f8fafc');
+        }
       } else {
         root.classList.remove('light');
         root.classList.add('dark');
         document.body.classList.remove('bg-slate-50', 'text-slate-900');
         document.body.classList.add('bg-zinc-950', 'text-zinc-100');
+        if (metaThemeColor) {
+          metaThemeColor.setAttribute('content', '#090D16');
+        }
       }
       localStorage.setItem(THEME_STORAGE_KEY, theme);
     } catch (e) {

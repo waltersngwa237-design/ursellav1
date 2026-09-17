@@ -974,6 +974,104 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           </div>
         )}
 
+        {/* Mobile Options Popover / Action Menu (triggered by top navbar 3 dots) */}
+        {showOptionsMenu && (
+          <div className="fixed inset-0 z-50 md:hidden flex flex-col justify-start items-end p-3 pt-14">
+            <div 
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+              onClick={() => setShowOptionsMenu(false)}
+            />
+            
+            <div 
+              className={`relative w-64 max-w-[calc(100vw-1.5rem)] rounded-2xl border shadow-2xl p-1.5 z-10 animate-in fade-in zoom-in-95 duration-150 ${
+                isDark 
+                  ? 'bg-zinc-900 border-zinc-700/80 text-zinc-100 ring-1 ring-black/60' 
+                  : 'bg-white border-slate-200 text-slate-900 shadow-xl'
+              }`}
+            >
+              <div className={`px-3 py-2 border-b text-[10px] font-bold uppercase tracking-wider flex items-center justify-between ${
+                isDark ? 'border-zinc-800 text-zinc-400' : 'border-slate-100 text-slate-500'
+              }`}>
+                <span>{isFr ? 'Options Ursella AI' : 'Ursella AI Options'}</span>
+                <button 
+                  onClick={() => setShowOptionsMenu(false)}
+                  className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="py-1 space-y-0.5">
+                <button
+                  onClick={handleNewConversation}
+                  className={`w-full px-3 py-2 rounded-xl text-left text-xs font-medium flex items-center gap-2.5 transition-colors cursor-pointer ${
+                    isDark ? 'hover:bg-zinc-800 text-zinc-200 hover:text-white' : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900'
+                  }`}
+                >
+                  <Plus className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>{isFr ? 'Nouvelle discussion' : 'New Chat'}</span>
+                </button>
+
+                {messages.length > 0 && (
+                  <button
+                    onClick={handleCopyTranscript}
+                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-medium flex items-center gap-2.5 transition-colors cursor-pointer ${
+                      isDark ? 'hover:bg-zinc-800 text-zinc-200 hover:text-white' : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900'
+                    }`}
+                  >
+                    {copiedTranscript ? (
+                      <CheckCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                    ) : (
+                      <Copy className={`w-4 h-4 shrink-0 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`} />
+                    )}
+                    <span>{copiedTranscript ? (isFr ? 'Copié !' : 'Copied!') : (isFr ? 'Copier la transcription' : 'Copy Transcript')}</span>
+                  </button>
+                )}
+
+                {messages.length > 0 && (
+                  <button
+                    onClick={handleClearActiveConversation}
+                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-medium flex items-center gap-2.5 transition-colors cursor-pointer ${
+                      isDark ? 'hover:bg-zinc-800 text-zinc-200 hover:text-white' : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900'
+                    }`}
+                  >
+                    <Trash2 className={`w-4 h-4 shrink-0 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`} />
+                    <span>{isFr ? 'Effacer les messages' : 'Clear Messages'}</span>
+                  </button>
+                )}
+
+                {activeConv && (
+                  <button
+                    onClick={() => {
+                      setShowOptionsMenu(false);
+                      setDeleteConfirmConv(activeConv);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-rose-500 hover:bg-rose-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span>{isFr ? 'Supprimer la discussion' : 'Delete Chat'}</span>
+                  </button>
+                )}
+
+                {conversations.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setShowOptionsMenu(false);
+                      setShowClearAllConfirm(true);
+                    }}
+                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-medium flex items-center gap-2.5 transition-colors cursor-pointer ${
+                      isDark ? 'text-zinc-400 hover:text-rose-400 hover:bg-zinc-800' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                    <span>{isFr ? 'Effacer tout l’historique' : 'Clear All History'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ========================================================================= */}
         {/* 3. INPUT BAR - Fixed at bottom of chat workspace                          */}
         {/* ========================================================================= */}

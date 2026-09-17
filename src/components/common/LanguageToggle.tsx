@@ -18,42 +18,44 @@ export const LanguageToggle: React.FC<LanguageToggleProps> = ({
   if (variant === 'pill') {
     return (
       <div
-        className={`inline-flex items-center p-0.5 rounded-full border backdrop-blur-sm transition-colors ${
+        className={`inline-flex items-center p-0.5 rounded-lg border backdrop-blur-xs transition-colors ${
           isDark
-            ? 'bg-zinc-800/80 border-zinc-700/60'
-            : 'bg-slate-100 border-slate-300 shadow-xs'
+            ? 'bg-zinc-900 border-zinc-800'
+            : 'bg-slate-100 border-slate-200'
         } ${className}`}
         role="group"
         aria-label="Language selection"
       >
         <button
           onClick={() => setLanguage('en')}
-          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full transition-all ${
+          className={`flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
             language === 'en'
-              ? 'bg-blue-600 text-white shadow-xs font-bold'
+              ? isDark
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold'
+                : 'bg-white text-emerald-700 shadow-xs border border-slate-200 font-bold'
               : isDark
-              ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/40'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              ? 'text-zinc-400 hover:text-zinc-200'
+              : 'text-slate-500 hover:text-slate-800'
           }`}
           title="Switch to English"
           aria-pressed={language === 'en'}
         >
-          <span className="text-[11px]">🇬🇧</span>
           <span>EN</span>
         </button>
         <button
           onClick={() => setLanguage('fr')}
-          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full transition-all ${
+          className={`flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
             language === 'fr'
-              ? 'bg-blue-600 text-white shadow-xs font-bold'
+              ? isDark
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold'
+                : 'bg-white text-emerald-700 shadow-xs border border-slate-200 font-bold'
               : isDark
-              ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/40'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              ? 'text-zinc-400 hover:text-zinc-200'
+              : 'text-slate-500 hover:text-slate-800'
           }`}
           title="Passer en Français"
           aria-pressed={language === 'fr'}
         >
-          <span className="text-[11px]">🇫🇷</span>
           <span>FR</span>
         </button>
       </div>

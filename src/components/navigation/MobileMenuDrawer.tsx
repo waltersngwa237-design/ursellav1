@@ -181,30 +181,14 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
             paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))',
           }}
         >
-          <div className="flex items-center gap-2">
-            <UrsellaLogo size="sm" showBetaBadge={true} />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <LanguageToggle variant="pill" />
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              title={`Switch to ${isDark ? 'Light' : 'Dark'} Mode`}
-            >
-              {isDark ? (
-                <Sun className="w-4 h-4 text-amber-400" />
-              ) : (
-                <Moon className="w-4 h-4 text-indigo-500" />
-              )}
-            </button>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800 transition-colors"
-              title="Close menu"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <UrsellaLogo size="sm" showBetaBadge={true} />
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            title="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Tenant Switcher Section */}
@@ -265,7 +249,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
           ))}
         </div>
 
-        {/* Footer: User Profile, Language & Sign Out */}
+        {/* Footer: User Profile, Language, Theme & Sign Out */}
         <div 
           className="p-3.5 border-t border-slate-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-950/70 space-y-3"
           style={{
@@ -274,6 +258,28 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
         >
           {/* PWA Install Button */}
           <PWAInstallButton variant="sidebar" />
+
+          {/* Quick preferences row: Language & Theme Toggle */}
+          <div className="flex items-center justify-between py-1 px-1 border-t border-b border-slate-200/60 dark:border-zinc-800/60">
+            <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400">
+              {language === 'fr' ? 'Langue & Thème' : 'Language & Theme'}
+            </span>
+            <div className="flex items-center gap-2">
+              <LanguageToggle variant="pill" />
+              <button
+                onClick={toggleTheme}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                title={isDark ? 'Switch to Light Mode' : 'Passer en Mode Sombre'}
+                aria-label="Toggle theme"
+              >
+                {isDark ? (
+                  <Sun className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Moon className="w-4 h-4 text-slate-700" />
+                )}
+              </button>
+            </div>
+          </div>
 
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
