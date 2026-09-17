@@ -98,16 +98,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       >
         <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
           <div className="shrink-0 flex items-center">
-            <UrsellaLogo size="sm" className="sm:hidden" />
-            <UrsellaLogo size="md" className="hidden sm:flex" />
+            <UrsellaLogo size="sm" />
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Preferences Group */}
-            <div className="flex items-center gap-1 p-0.5 sm:p-1 rounded-xl bg-slate-100 dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 shrink-0">
-              <LanguageToggle variant="compact" className="sm:hidden text-xs py-1 px-1.5" />
+            <div className="flex items-center gap-1 shrink-0">
+              <LanguageToggle variant="compact" className="sm:hidden" />
               <LanguageToggle variant="pill" className="hidden sm:inline-flex" />
-              <ThemeToggle variant="icon" className="shrink-0" />
+              <ThemeToggle
+                variant="icon"
+                className="shrink-0 h-7 w-7 sm:h-8 sm:w-8 p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+              />
             </div>
 
             <button

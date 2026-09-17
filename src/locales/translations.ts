@@ -564,7 +564,7 @@ export const enTranslations: Translations = {
     heroTitleHighlight: 'FIFO Costing & AI Intelligence',
     heroTitleSuffix: ' for Modern Commerce',
     heroSubtitle:
-      'Ursella unites rapid POS checkout, FIFO stock audits, customer credit reminders, and daily financial intelligence in one focused workspace.',
+      'unites rapid POS checkout, FIFO stock audits, customer credit reminders, and daily financial intelligence in one focused workspace.',
     exploreDemo: 'Explore Interactive Demo',
     startFree: 'Start Free Trial',
     createAccount: 'Create Free Account',
@@ -1009,7 +1009,7 @@ export const frTranslations: Translations = {
     heroTitleHighlight: 'Méthode PEPS (FIFO) & Intelligence IA',
     heroTitleSuffix: ' pour le Commerce Moderne',
     heroSubtitle:
-      'Ursella réunit une caisse ultra-rapide, le suivi rigoureux des stocks PEPS (FIFO), les relances clients et l’intelligence financière quotidienne dans un espace unique et épuré.',
+      'réunit une caisse ultra-rapide, le suivi rigoureux des stocks PEPS (FIFO), les relances clients et l’intelligence financière quotidienne dans un espace unique et épuré.',
     exploreDemo: 'Explorer la Démo Interactive',
     startFree: 'Essai Gratuit',
     createAccount: 'Créer un Compte Gratuit',
