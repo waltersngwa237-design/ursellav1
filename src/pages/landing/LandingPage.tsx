@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { UrsellaLogo } from '../../components/common/UrsellaLogo.tsx';
 import { Button } from '../../components/common/Button.tsx';
-import { ThemeToggle } from '../../components/common/ThemeToggle.tsx';
-import { LanguageToggle } from '../../components/common/LanguageToggle.tsx';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
 import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import {
@@ -26,6 +24,8 @@ import {
   ChevronRight,
   Store,
   Layers,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 
@@ -39,8 +39,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onNavigateSignUp,
 }) => {
   const { startInstantDemo, loading } = useAuth();
-  const { isDark } = useTheme();
-  const { language, t } = useLanguage();
+  const { isDark, toggleTheme } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
   const isFr = language === 'fr';
 
   const [activeTab, setActiveTab] = useState<'pos' | 'health' | 'ai'>('pos');
@@ -96,25 +96,88 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           paddingRight: 'env(safe-area-inset-right, 0px)',
         }}
       >
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-4">
+          {/* Brand on Far Left */}
           <div className="shrink-0 flex items-center">
             <UrsellaLogo size="sm" />
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            {/* Preferences Group */}
-            <div className="flex items-center gap-1 shrink-0">
-              <LanguageToggle variant="pill" className="shrink-0" />
-              <ThemeToggle
-                variant="icon"
-                className="shrink-0 h-7 w-7 sm:h-8 sm:w-8 p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+          {/* Unified Actions on Far Right */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Unified Preferences Pill (Language + Theme) */}
+            <div
+              className={`flex items-center p-0.5 rounded-lg border text-xs select-none transition-colors h-8 ${
+                isDark
+                  ? 'border-zinc-800 bg-zinc-900/90'
+                  : 'border-slate-200 bg-slate-100/90'
+              }`}
+              role="group"
+              aria-label="Preferences"
+            >
+              <button
+                type="button"
+                onClick={() => setLanguage('en')}
+                className={`flex items-center justify-center px-2 h-7 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  language === 'en'
+                    ? isDark
+                      ? 'bg-zinc-800 text-white font-bold shadow-xs'
+                      : 'bg-white text-slate-900 font-bold shadow-xs'
+                    : isDark
+                    ? 'text-zinc-400 hover:text-zinc-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Switch to English"
+                aria-pressed={language === 'en'}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('fr')}
+                className={`flex items-center justify-center px-2 h-7 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  language === 'fr'
+                    ? isDark
+                      ? 'bg-zinc-800 text-white font-bold shadow-xs'
+                      : 'bg-white text-slate-900 font-bold shadow-xs'
+                    : isDark
+                    ? 'text-zinc-400 hover:text-zinc-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Passer en Français"
+                aria-pressed={language === 'fr'}
+              >
+                FR
+              </button>
+
+              <div
+                className={`w-[1px] h-4 mx-0.5 ${
+                  isDark ? 'bg-zinc-800' : 'bg-slate-200'
+                }`}
               />
+
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className={`w-7 h-7 flex items-center justify-center rounded-md transition-all cursor-pointer ${
+                  isDark
+                    ? 'text-zinc-400 hover:text-amber-300 hover:bg-zinc-800/80'
+                    : 'text-slate-500 hover:text-indigo-600 hover:bg-white/80'
+                }`}
+                title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {isDark ? (
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                ) : (
+                  <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                )}
+              </button>
             </div>
 
             <button
               onClick={handleQuickDemo}
               disabled={loading}
-              className={`hidden md:inline-flex text-xs font-semibold px-3.5 py-1.5 rounded-xl border transition-colors cursor-pointer ${
+              className={`hidden md:inline-flex text-xs font-semibold px-3 h-8 items-center rounded-lg border transition-colors cursor-pointer ${
                 isDark
                   ? 'text-zinc-300 hover:text-white hover:bg-zinc-800/70 border-zinc-800'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 border-slate-200'
@@ -126,7 +189,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               variant="ghost"
               size="sm"
               onClick={onNavigateSignIn}
-              className={`hidden sm:inline-flex text-xs font-medium px-2 sm:px-3 shrink-0 ${
+              className={`hidden sm:inline-flex text-xs font-medium px-2.5 sm:px-3 h-8 shrink-0 ${
                 isDark ? 'text-zinc-300 hover:text-white' : 'text-slate-700 hover:text-slate-900'
               }`}
             >
@@ -136,7 +199,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               variant="primary"
               size="sm"
               onClick={onNavigateSignUp}
-              className="text-xs font-bold shadow-xs shrink-0 whitespace-nowrap px-3 sm:px-3.5 py-1.5"
+              className="text-xs font-bold shadow-xs shrink-0 whitespace-nowrap px-3 sm:px-3.5 h-8 rounded-lg"
               rightIcon={<ArrowRight className="w-3.5 h-3.5 shrink-0" />}
             >
               {t.landing.signUp}
