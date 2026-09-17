@@ -80,7 +80,8 @@ export class AIService {
       address?: string;
       taxRate?: number;
       country?: string;
-    }
+    },
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>
   ): Promise<{ content: string; metadata?: any }> {
     const validLang: 'en' | 'fr' = language === 'fr' ? 'fr' : 'en';
     const result = await this.sendChatMessage({
@@ -89,6 +90,7 @@ export class AIService {
       message,
       language: validLang,
       businessContext,
+      history,
     });
     return {
       content: result.response?.answer || (validLang === 'fr' ? 'Analyse indisponible pour le moment.' : 'Intelligence temporarily unavailable.'),
@@ -98,6 +100,7 @@ export class AIService {
         recommendations: result.response?.recommendations,
         followUpSuggestions: result.response?.followUpSuggestions,
         chartData: (result.response as any)?.chartData,
+        structured: result.response,
       },
     };
   }

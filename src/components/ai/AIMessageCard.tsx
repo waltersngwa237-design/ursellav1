@@ -63,7 +63,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
   const { isDark } = useTheme();
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
-  const structured = message.metadata?.structured;
+  const structured: any = message.metadata?.structured || message.metadata;
   const isError = Boolean(message.metadata?.error);
 
   const handleCopy = async () => {

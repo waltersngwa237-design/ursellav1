@@ -96,13 +96,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           paddingRight: 'env(safe-area-inset-right, 0px)',
         }}
       >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <UrsellaLogo size="md" />
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+          <div className="shrink-0 flex items-center">
+            <UrsellaLogo size="sm" className="sm:hidden" />
+            <UrsellaLogo size="md" className="hidden sm:flex" />
+          </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Preferences Group */}
-            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800">
-              <LanguageToggle variant="pill" className="shrink-0" />
+            <div className="flex items-center gap-1 p-0.5 sm:p-1 rounded-xl bg-slate-100 dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 shrink-0">
+              <LanguageToggle variant="compact" className="sm:hidden text-xs py-1 px-1.5" />
+              <LanguageToggle variant="pill" className="hidden sm:inline-flex" />
               <ThemeToggle variant="icon" className="shrink-0" />
             </div>
 
@@ -121,7 +125,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               variant="ghost"
               size="sm"
               onClick={onNavigateSignIn}
-              className={`text-xs font-medium ${
+              className={`hidden sm:inline-flex text-xs font-medium px-2 sm:px-3 shrink-0 ${
                 isDark ? 'text-zinc-300 hover:text-white' : 'text-slate-700 hover:text-slate-900'
               }`}
             >
@@ -131,8 +135,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               variant="primary"
               size="sm"
               onClick={onNavigateSignUp}
-              className="text-xs font-bold shadow-xs"
-              rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+              className="text-xs font-bold shadow-xs shrink-0 whitespace-nowrap px-3 sm:px-3.5 py-1.5"
+              rightIcon={<ArrowRight className="w-3.5 h-3.5 shrink-0" />}
             >
               {t.landing.signUp}
             </Button>
@@ -201,6 +205,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             >
               {t.landing.exploreDemo}
             </Button>
+          </div>
+
+          {/* Mobile Sign In helper */}
+          <div className="mt-3.5 text-center sm:hidden">
+            <span className={`text-xs ${isDark ? 'text-zinc-400' : 'text-slate-600'}`}>
+              {isFr ? 'Déjà un compte ?' : 'Already have an account?'}{' '}
+              <button
+                onClick={onNavigateSignIn}
+                className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+              >
+                {t.landing.signIn}
+              </button>
+            </span>
           </div>
 
           {/* Trust Value Badges */}

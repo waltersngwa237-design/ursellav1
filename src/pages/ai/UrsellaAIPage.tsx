@@ -289,7 +289,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       }
     }
 
-    // Append User Message to UI
+    // Append User Message to UI and persist to history
     const userMsgId = generateUUID();
     const userMessage: AIChatMessage = {
       id: userMsgId,
@@ -300,6 +300,22 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       created_at: new Date().toISOString(),
     };
     appendUniqueMessage(userMessage);
+    AIService.saveMessage(userMessage).catch((e) => console.warn('Failed to persist user message:', e));
+
+    // Update conversation title if current title is default/generic
+    const activeConvItem = conversations.find((c) => c.id === convId);
+    if (
+      activeConvItem &&
+      (activeConvItem.title === 'Business Advisory' ||
+        activeConvItem.title === 'Conseils & Stratégie' ||
+        activeConvItem.title === 'New Business Advisory')
+    ) {
+      const newTitle = textToSend.length > 32 ? `${textToSend.substring(0, 32)}...` : textToSend;
+      AIService.renameConversation(activeBusiness.id, convId, newTitle).catch(() => {});
+      setConversations((prev) =>
+        prev.map((c) => (c.id === convId ? { ...c, title: newTitle } : c))
+      );
+    }
 
     // Scroll to user message instantly
     setTimeout(() => {
@@ -312,6 +328,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     try {
       // Stream or generate AI response with active business metadata & currency
       const activeCurrency = activeBusiness.currency || currency || 'XAF';
+      const priorHistory: Array<{ role: 'user' | 'assistant'; content: string }> = messages
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
       const aiResponse = await AIService.generateResponse(
         activeBusiness.id,
         convId,
@@ -327,7 +346,8 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           address: undefined,
           taxRate: activeSettings?.tax_rate,
           country: activeBusiness.country || undefined,
-        }
+        },
+        priorHistory
       );
 
       const assistantMsgId = generateUUID();
@@ -341,6 +361,20 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         created_at: new Date().toISOString(),
       };
       appendUniqueMessage(assistantMessage);
+      AIService.saveMessage(assistantMessage).catch((e) => console.warn('Failed to persist assistant message:', e));
+
+      // Keep conversation list timestamps up to date
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === convId
+            ? {
+                ...c,
+                updated_at: new Date().toISOString(),
+                last_message_preview: aiResponse.content.substring(0, 60),
+              }
+            : c
+        )
+      );
 
       // Scroll so assistant response is in view
       setTimeout(() => {
@@ -363,6 +397,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         created_at: new Date().toISOString(),
       };
       appendUniqueMessage(errorAssistantMsg);
+      AIService.saveMessage(errorAssistantMsg).catch(() => {});
 
       setTimeout(() => {
         scrollToMessageTop(errorMsgId);
@@ -424,18 +459,20 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     if (!activeBusiness?.id) return;
 
     // Immediately flush local messages to provide instant feedback
-    if (activeConversationId === convId || !activeConversationId) {
-      setMessages([]);
+    setMessages([]);
+
+    const actualIdToDelete = (convId && convId !== 'current') ? convId : (activeConversationId || '');
+
+    if (actualIdToDelete) {
+      await AIService.deleteConversation(activeBusiness.id, actualIdToDelete);
     }
 
-    await AIService.deleteConversation(activeBusiness.id, convId);
-
-    const remaining = conversations.filter((c) => c.id !== convId);
+    const remaining = conversations.filter((c) => c.id !== actualIdToDelete && c.id !== convId);
     setConversations(remaining);
     setDeleteConfirmConv(null);
     setShowOptionsMenu(false);
 
-    if (activeConversationId === convId || !activeConversationId) {
+    if (activeConversationId === actualIdToDelete || !activeConversationId || convId === 'current') {
       if (remaining.length > 0) {
         setActiveConversationId(remaining[0].id);
       } else {
