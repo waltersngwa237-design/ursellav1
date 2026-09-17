@@ -129,9 +129,11 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
 
-  // Close options menu when clicking outside
+  // Close options menu when clicking outside (desktop only)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // If mobile screen, the mobile modal backdrop handles closing
+      if (window.innerWidth < 768) return;
       if (optionsMenuRef.current && !optionsMenuRef.current.contains(event.target as Node)) {
         setShowOptionsMenu(false);
       }
@@ -383,7 +385,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   }, [initialPrompt, activeBusiness?.id]);
 
   // Create new conversation
-  const handleNewConversation = () => {
+  const handleNewConversation = useCallback(() => {
     setActiveConversationId(null);
     setMessages([]);
     setError(null);
@@ -392,24 +394,30 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
-  };
+  }, []);
 
-  // Listen for global AI actions dispatched from mobile top nav bar
+  // Listen to AppShell top navbar events (mobile header buttons)
   useEffect(() => {
-    const handleNewChatEvent = () => handleNewConversation();
-    const handleToggleHistoryEvent = () => setIsSidebarOpen((prev) => !prev);
-    const handleToggleOptionsEvent = () => setShowOptionsMenu((prev) => !prev);
+    const handleToggleOptions = () => {
+      setShowOptionsMenu((prev) => !prev);
+    };
+    const handleToggleHistory = () => {
+      setIsSidebarOpen((prev) => !prev);
+    };
+    const handleNewChatEvent = () => {
+      handleNewConversation();
+    };
 
+    window.addEventListener('ursella_ai_toggle_options', handleToggleOptions);
+    window.addEventListener('ursella_ai_toggle_history', handleToggleHistory);
     window.addEventListener('ursella_ai_new_chat', handleNewChatEvent);
-    window.addEventListener('ursella_ai_toggle_history', handleToggleHistoryEvent);
-    window.addEventListener('ursella_ai_toggle_options', handleToggleOptionsEvent);
 
     return () => {
+      window.removeEventListener('ursella_ai_toggle_options', handleToggleOptions);
+      window.removeEventListener('ursella_ai_toggle_history', handleToggleHistory);
       window.removeEventListener('ursella_ai_new_chat', handleNewChatEvent);
-      window.removeEventListener('ursella_ai_toggle_history', handleToggleHistoryEvent);
-      window.removeEventListener('ursella_ai_toggle_options', handleToggleOptionsEvent);
     };
-  }, []);
+  }, [handleNewConversation]);
 
   // Delete single conversation with clean state update
   const executeDeleteConversation = async (convId: string) => {
