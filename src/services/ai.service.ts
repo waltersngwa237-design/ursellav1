@@ -556,6 +556,59 @@ export class AIService {
   }
 
   /**
+   * Updates metadata of an existing message in a conversation.
+   */
+  public static async updateMessageMetadata(
+    conversationId: string,
+    messageId: string,
+    metadataUpdates: Record<string, any>
+  ): Promise<void> {
+    if (!messageId || !conversationId) return;
+
+    if (isSupabaseConfigured && isValidUUID(messageId)) {
+      try {
+        const { data } = await (supabase as any)
+          .from('ai_messages')
+          .select('metadata')
+          .eq('id', messageId)
+          .single();
+        const merged = { ...(data?.metadata || {}), ...metadataUpdates };
+        await (supabase as any)
+          .from('ai_messages')
+          .update({ metadata: merged })
+          .eq('id', messageId);
+      } catch {
+        // fallback to local
+      }
+    }
+
+    try {
+      const raw = localStorage.getItem(`${LOCAL_STORAGE_MESSAGES_KEY}_${conversationId}`);
+      if (raw) {
+        const msgs: AIChatMessage[] = JSON.parse(raw);
+        const updated = msgs.map((m) => {
+          if (m.id === messageId) {
+            return {
+              ...m,
+              metadata: {
+                ...m.metadata,
+                ...metadataUpdates,
+              },
+            };
+          }
+          return m;
+        });
+        localStorage.setItem(
+          `${LOCAL_STORAGE_MESSAGES_KEY}_${conversationId}`,
+          JSON.stringify(updated)
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
    * Deletes an individual message from a conversation.
    */
   public static async deleteMessage(

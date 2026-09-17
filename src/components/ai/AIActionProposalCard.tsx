@@ -17,6 +17,7 @@ import {
 import type { AIProposedAction } from '../../types/ai.ts';
 import type { ActionType } from '../../types/proactive.ts';
 import { ProactiveService } from '../../services/proactive.service.ts';
+import { AIService } from '../../services/ai.service.ts';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
@@ -25,12 +26,16 @@ import { useLanguage } from '../../contexts/LanguageContext.tsx';
 interface AIActionProposalCardProps {
   proposedAction: AIProposedAction;
   currencySymbol?: string;
-  onExecuted?: (result: any) => void;
+  messageId?: string;
+  conversationId?: string;
+  onExecuted?: (result: any, updatedAction?: AIProposedAction) => void;
 }
 
 export const AIActionProposalCard: React.FC<AIActionProposalCardProps> = ({
   proposedAction,
   currencySymbol = 'XAF',
+  messageId,
+  conversationId,
   onExecuted,
 }) => {
   const { isDark } = useTheme();
@@ -39,13 +44,42 @@ export const AIActionProposalCard: React.FC<AIActionProposalCardProps> = ({
   const { user } = useAuth();
   const { activeBusiness, effectiveRole } = useBusiness();
 
-  const [status, setStatus] = useState<'pending' | 'executing' | 'executed' | 'failed' | 'dismissed'>('pending');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
-
   const payload = (proposedAction.payload || {}) as Record<string, any>;
   const actionType = (proposedAction.actionType || 'create_expense') as ActionType;
+
+  // Derive initial execution state from proposedAction
+  const initialStatus = proposedAction.executionStatus || 'pending';
+  const [status, setStatus] = useState<'pending' | 'executing' | 'executed' | 'failed' | 'dismissed'>(initialStatus);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(
+    proposedAction.executionResult?.message ||
+    (initialStatus === 'executed' ? (isFr ? 'Action déjà approuvée et exécutée.' : 'Action already approved and executed.') : null)
+  );
+
+  // Derive initial WhatsApp link if present
+  const deriveInitialWhatsapp = () => {
+    if (proposedAction.executionResult?.whatsappLink) return proposedAction.executionResult.whatsappLink;
+    if (payload.customerPhone && (actionType === 'create_customer_followup' || actionType === 'send_customer_message')) {
+      const cleanPhone = String(payload.customerPhone).replace(/[^0-9]/g, '');
+      const cleanMsg = encodeURIComponent(payload.draftMessage || payload.messageText || '');
+      if (cleanPhone) return `https://wa.me/${cleanPhone}?text=${cleanMsg}`;
+    }
+    return null;
+  };
+  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(deriveInitialWhatsapp);
+
+  // Keep state synchronized if proposedAction prop updates
+  useEffect(() => {
+    if (proposedAction.executionStatus) {
+      setStatus(proposedAction.executionStatus);
+      if (proposedAction.executionResult?.message) {
+        setSuccessMessage(proposedAction.executionResult.message);
+      }
+      if (proposedAction.executionResult?.whatsappLink) {
+        setWhatsappUrl(proposedAction.executionResult.whatsappLink);
+      }
+    }
+  }, [proposedAction.executionStatus, proposedAction.executionResult]);
 
   // Icon mapping for action types
   const getActionIcon = () => {

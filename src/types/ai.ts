@@ -56,6 +56,13 @@ export interface AIProposedAction {
   category: 'inventory_restock' | 'debt_reminder' | 'expense_review' | 'pricing_update' | 'marketing' | 'product_creation' | 'task_creation' | 'general';
   payload?: Record<string, any>;
   phaseStatus: 'phase4_preview_only' | 'ready_for_execution';
+  executionStatus?: 'pending' | 'executed' | 'dismissed';
+  executedAt?: string;
+  executionResult?: {
+    message?: string;
+    whatsappLink?: string;
+    [key: string]: any;
+  };
 }
 
 export type AIResponseSource = 'GEMINI_RESPONSE' | 'GROQ_RESPONSE' | 'DETERMINISTIC_FALLBACK';
