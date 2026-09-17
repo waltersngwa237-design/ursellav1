@@ -47,7 +47,7 @@ export const MetricTrendCard: React.FC<MetricTrendCardProps> = ({
   const isUp = trend === 'positive';
   const isDown = trend === 'negative';
 
-  let badgeColor = 'bg-zinc-800 text-zinc-400 border-zinc-700';
+  let badgeColor = 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-zinc-700';
   let isGood = isUp;
   if (invertColors) {
     isGood = isDown;
@@ -55,32 +55,32 @@ export const MetricTrendCard: React.FC<MetricTrendCardProps> = ({
 
   if (percentageChange !== null && percentageChange !== undefined && !isNaN(percentageChange) && percentageChange !== 0) {
     if (isGood) {
-      badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      badgeColor = 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20';
     } else {
-      badgeColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+      badgeColor = 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20';
     }
   }
 
   return (
     <div
-      className="p-4 rounded-xl bg-zinc-900/70 border border-zinc-800/80 hover:border-zinc-700 transition-all flex flex-col justify-between"
+      className="p-4 rounded-xl bg-white dark:bg-zinc-900/70 border border-slate-200/90 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700 transition-all flex flex-col justify-between shadow-xs"
       title={tooltip}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-xs font-medium text-zinc-400 truncate">{title}</span>
-        {icon && <div className="text-zinc-500 shrink-0">{icon}</div>}
+        <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 truncate">{title}</span>
+        {icon && <div className="shrink-0">{icon}</div>}
       </div>
 
       <div className="flex items-baseline justify-between gap-2">
-        <div className="text-xl sm:text-2xl font-bold tracking-tight text-white truncate">
+        <div className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">
           {formattedCurrent}
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-zinc-800/60 text-xs">
-        <div className="flex items-center gap-1 text-zinc-400 truncate">
-          <span className="text-zinc-500">Prior:</span>
-          <span className="text-zinc-300 font-medium truncate">{formattedPrior}</span>
+      <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-100 dark:border-zinc-800/60 text-xs">
+        <div className="flex items-center gap-1 text-slate-500 dark:text-zinc-400 truncate">
+          <span className="text-slate-400 dark:text-zinc-500">Prior:</span>
+          <span className="text-slate-700 dark:text-zinc-300 font-medium truncate">{formattedPrior}</span>
         </div>
 
         {percentageChange !== null && percentageChange !== undefined && !isNaN(percentageChange) ? (

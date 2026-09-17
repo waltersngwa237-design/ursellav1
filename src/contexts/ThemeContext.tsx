@@ -35,16 +35,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (theme === 'light') {
         root.classList.remove('dark');
         root.classList.add('light');
-        document.body.classList.remove('bg-zinc-950', 'text-zinc-100');
-        document.body.classList.add('bg-slate-50', 'text-slate-900');
+        root.style.colorScheme = 'light';
+        document.body.classList.remove('bg-zinc-950', 'text-zinc-100', 'dark');
+        document.body.classList.add('bg-slate-50', 'text-slate-900', 'light');
+        document.body.style.backgroundColor = '#f8fafc';
+        document.body.style.color = '#0f172a';
         if (metaThemeColor) {
           metaThemeColor.setAttribute('content', '#f8fafc');
         }
       } else {
         root.classList.remove('light');
         root.classList.add('dark');
-        document.body.classList.remove('bg-slate-50', 'text-slate-900');
-        document.body.classList.add('bg-zinc-950', 'text-zinc-100');
+        root.style.colorScheme = 'dark';
+        document.body.classList.remove('bg-slate-50', 'text-slate-900', 'light');
+        document.body.classList.add('bg-zinc-950', 'text-zinc-100', 'dark');
+        document.body.style.backgroundColor = '#090D16';
+        document.body.style.color = '#F8FAFC';
         if (metaThemeColor) {
           metaThemeColor.setAttribute('content', '#090D16');
         }

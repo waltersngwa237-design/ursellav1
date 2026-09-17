@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     color-scheme: light;
@@ -22,7 +24,7 @@
     --ursella-text-muted: #64748B;
   }
 
-  html.dark {
+  html.dark, .dark {
     color-scheme: dark;
     --ursella-bg: #090D16;
     --ursella-surface: #111726;
@@ -38,6 +40,10 @@
     --ursella-text-muted: #64748B;
   }
 
+  html {
+    background-color: var(--ursella-bg);
+  }
+
   body {
     background-color: var(--ursella-bg);
     color: var(--ursella-text-primary);
@@ -51,7 +57,9 @@
     scrollbar-color: rgba(100, 116, 139, 0.2) transparent;
   }
 
-  html.dark body {
+  html.dark body, .dark body {
+    background-color: #090D16;
+    color: #F8FAFC;
     scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
   }
 
