@@ -253,7 +253,7 @@ app.post('/api/ai/chat', async (req, res) => {
           })
         );
       } else if (toolName === 'get_product_performance') {
-        const productFilter = intentResult.entityHint || message;
+        const productFilter = intentResult.isEntitySpecific ? intentResult.entityHint : undefined;
         toolExecutionPromises.push(
           BusinessToolsService.getProductPerformance(businessId, 50, productFilter).then((res) => {
             toolResults[toolName] = res;

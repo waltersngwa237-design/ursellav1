@@ -922,6 +922,63 @@ export class BusinessToolsService {
     const amountCollected = payments?.reduce((sum, p) => sum + Number(p.amount || 0), 0) || 0;
     const receivables = salesList.reduce((sum, s) => sum + Number(s.amount_due || 0), 0);
 
+    // Itemized product-level breakdown in this window
+    const productStatsMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        sku?: string | null;
+        unitsSold: number;
+        revenue: number;
+        cogs: number;
+        stockQuantity: number;
+      }
+    >();
+
+    for (const p of fifo.productRows) {
+      productStatsMap.set(p.id, {
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        unitsSold: 0,
+        revenue: 0,
+        cogs: 0,
+        stockQuantity: Math.max(0, Number(p.stock_quantity || 0)),
+      });
+    }
+
+    for (const item of windowItems) {
+      if (!item.product_id) continue;
+      const entry = productStatsMap.get(item.product_id);
+      if (!entry) continue;
+      const fifoSold = fifoByItem.get(item.id);
+      const qty = Number(item.quantity || 0);
+      const rev = Number(item.total || 0);
+      const itemCogs = fifoSold ? fifoSold.cogs : Number(item.unit_cost || 0) * qty;
+
+      entry.unitsSold += qty;
+      entry.revenue += rev;
+      entry.cogs += itemCogs;
+    }
+
+    const topSellingProducts = Array.from(productStatsMap.values())
+      .map((p) => {
+        const itemGrossProfit = p.revenue - p.cogs;
+        const grossMarginPct = p.revenue > 0 ? Number(((itemGrossProfit / p.revenue) * 100).toFixed(1)) : 0;
+        return {
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          unitsSold: p.unitsSold,
+          revenue: p.revenue,
+          grossProfit: itemGrossProfit,
+          grossMarginPct,
+          stockQuantity: p.stockQuantity,
+        };
+      })
+      .sort((a, b) => b.revenue - a.revenue || b.unitsSold - a.unitsSold);
+
     return {
       business_id: businessId,
       currency: business?.currency || 'USD',
@@ -947,6 +1004,10 @@ export class BusinessToolsService {
       totalCashCollected: amountCollected,
       outstanding_receivables: receivables,
       totalReceivablesOutstanding: receivables,
+      top_selling_products: topSellingProducts.slice(0, 15),
+      topSellingProducts: topSellingProducts.slice(0, 15),
+      total_active_skus: fifo.productRows.length,
+      totalActiveSKUs: fifo.productRows.length,
     };
   }
 }

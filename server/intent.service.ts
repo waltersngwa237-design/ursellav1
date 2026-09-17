@@ -128,7 +128,19 @@ export function classifyBusinessQuery(
       q.includes('dashboard') ||
       q.includes('catalog');
 
-    if (isNavigation && !q.includes('how much') && !q.includes('why') && !q.includes('what is')) {
+    const isDataInquiry =
+      q.includes('how much') ||
+      q.includes('why') ||
+      q.includes('what is') ||
+      q.includes('top') ||
+      q.includes('best') ||
+      q.includes('most') ||
+      q.includes('selling') ||
+      q.includes('profit') ||
+      q.includes('margin') ||
+      q.includes('cost');
+
+    if (isNavigation && !isDataInquiry) {
       return {
         intent: 'navigation',
         domain: 'store_info',
@@ -381,37 +393,76 @@ export function classifyBusinessQuery(
     q.includes('best selling') ||
     q.includes('best-selling') ||
     q.includes('top product') ||
+    q.includes('top products') ||
     q.includes('top selling') ||
-    q.includes('fastest selling') ||
+    q.includes('top-selling') ||
+    q.includes('best sellers') ||
+    q.includes('best-sellers') ||
     q.includes('best seller') ||
+    q.includes('best-seller') ||
+    q.includes('top seller') ||
+    q.includes('top sellers') ||
+    q.includes('top-sellers') ||
+    q.includes('top items') ||
+    q.includes('top item') ||
+    q.includes('top-selling items') ||
+    q.includes('top selling items') ||
+    q.includes('best-selling products') ||
+    q.includes('best selling products') ||
+    q.includes('fastest selling') ||
+    q.includes('fastest-selling') ||
+    q.includes('fast moving') ||
+    q.includes('fast-moving') ||
     q.includes('most sold') ||
+    q.includes('most popular') ||
+    q.includes('popular product') ||
+    q.includes('popular products') ||
     q.includes('makes me the most money') ||
     q.includes('make me the most money') ||
     q.includes('most profitable product') ||
+    q.includes('most profitable products') ||
     q.includes('highest margin product') ||
+    q.includes('highest margin products') ||
     q.includes('highest profit product') ||
+    q.includes('highest profit products') ||
     q.includes('which product') ||
     q.includes('what product') ||
+    q.includes('which products') ||
+    q.includes('what products') ||
     q.includes('product performance') ||
+    q.includes('products performance') ||
     q.includes('slow moving product') ||
+    q.includes('slow moving products') ||
+    q.includes('slow-moving product') ||
+    q.includes('slow-moving products') ||
     q.includes('meilleur produit') ||
+    q.includes('meilleurs produits') ||
     q.includes('plus vendu') ||
+    q.includes('plus vendus') ||
     q.includes('produit le plus vendu') ||
+    q.includes('produits les plus vendus') ||
     q.includes('meilleure vente') ||
+    q.includes('meilleures ventes') ||
+    q.includes('top ventes') ||
+    q.includes('top vente') ||
+    q.includes('articles les plus vendus') ||
     q.includes('plus rentable') ||
+    q.includes('plus rentables') ||
     q.includes('produit le plus rentable') ||
-    q.includes('quel produit');
+    q.includes('produits les plus rentables') ||
+    q.includes('quel produit') ||
+    q.includes('quels produits');
 
   if (isBestSellingOrProductMargin) {
     return {
       intent: 'analysis',
       domain: 'products',
       timePeriod: 'last_30_days',
-      requiredTools: ['get_product_performance'], // Products ONLY!
+      requiredTools: ['get_product_performance', 'get_today_sales_summary'],
       suggestedTimeHorizonDays: 30,
-      confidence: 0.96,
+      confidence: 0.98,
       isEntitySpecific: false,
-      primaryGoal: 'Retrieve product sales velocity, volume, and unit economics to answer top product inquiries directly.',
+      primaryGoal: 'Retrieve product sales velocity, volume, ranking, and unit economics to answer top-selling and profitable product inquiries directly with exact product names, units sold, and margins.',
     };
   }
 
@@ -830,9 +881,9 @@ export function classifyBusinessQuery(
     intent: 'conversational',
     domain: 'multi_domain',
     timePeriod: 'multi_period',
-    requiredTools: ['get_today_sales_summary', 'get_financial_ledger'],
+    requiredTools: ['get_today_sales_summary', 'get_financial_ledger', 'get_product_performance'],
     suggestedTimeHorizonDays: 30,
     confidence: 0.90,
-    primaryGoal: 'Respond naturally with complete awareness of today activity and the broader business financial state.',
+    primaryGoal: 'Respond naturally with complete awareness of today activity, the broader business financial state, and core product performance.',
   };
 }
