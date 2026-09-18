@@ -231,6 +231,7 @@ export type AppNavRoute =
   | 'sell'
   | 'business'
   | 'customers'
+  | 'notes'
   | 'analytics'
   | 'reports'
   | 'insights'
@@ -239,6 +240,29 @@ export type AppNavRoute =
   | 'billing'
   | 'more'
   | 'expenses';
+
+export type NoteCategory = 'general' | 'shift' | 'supplier' | 'customer' | 'urgent' | 'checklist';
+
+export interface NoteChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface MerchantNote {
+  id: string;
+  business_id: string;
+  title: string;
+  content: string;
+  category: NoteCategory;
+  is_pinned: boolean;
+  is_checklist: boolean;
+  checklist_items: NoteChecklistItem[];
+  color?: 'default' | 'amber' | 'emerald' | 'rose' | 'indigo' | 'cyan';
+  author_name?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface SubscriptionPlan {
   id: string;

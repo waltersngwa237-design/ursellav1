@@ -51,6 +51,7 @@ export interface Translations {
     catalog: string;
     customers: string;
     crm: string;
+    notes: string;
     analytics: string;
     reports: string;
     expenses: string;
@@ -495,6 +496,7 @@ export const enTranslations: Translations = {
     catalog: 'Products',
     customers: 'Customers & CRM',
     crm: 'Debtors Ledger',
+    notes: 'Notes & Memos',
     analytics: 'Analytics',
     reports: 'Financial Reports',
     expenses: 'Expenses',
@@ -940,6 +942,7 @@ export const frTranslations: Translations = {
     catalog: 'Produits',
     customers: 'Clients & Débiteurs',
     crm: 'Carnet de Dettes',
+    notes: 'Notes & Mémos',
     analytics: 'Statistiques',
     reports: 'Rapports Financiers',
     expenses: 'Dépenses',

@@ -30,6 +30,7 @@ import {
   Sparkles,
   Package,
   Users,
+  StickyNote,
   ShieldCheck,
   BarChart3,
   PieChart,
@@ -350,7 +351,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
         <h3 className="text-xs font-bold text-slate-500 dark:text-zinc-400 mb-3 uppercase tracking-wider">
           {t.dashboard.quickShortcuts}
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <button
             onClick={() => onNavigate('sell')}
             className="flex items-center gap-3 p-3.5 rounded-xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border border-slate-200/90 dark:border-zinc-800 transition-all text-left group cursor-pointer shadow-xs"
@@ -391,10 +392,27 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           </button>
 
           <button
-            onClick={() => onNavigate('analytics')}
+            onClick={() => onNavigate('notes')}
             className="flex items-center gap-3 p-3.5 rounded-xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border border-slate-200/90 dark:border-zinc-800 transition-all text-left group cursor-pointer shadow-xs"
           >
             <div className="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <StickyNote className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 block">
+                {language === 'fr' ? 'Notes & Mémos' : 'Store Notes'}
+              </span>
+              <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+                {language === 'fr' ? 'Checklists & consignes' : 'Checklists & handovers'}
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onNavigate('analytics')}
+            className="flex items-center gap-3 p-3.5 rounded-xl bg-white dark:bg-zinc-900/90 hover:bg-slate-50 dark:hover:bg-zinc-800/90 border border-slate-200/90 dark:border-zinc-800 transition-all text-left group cursor-pointer shadow-xs col-span-2 sm:col-span-1"
+          >
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
               <BarChart3 className="w-4 h-4" />
             </div>
             <div>

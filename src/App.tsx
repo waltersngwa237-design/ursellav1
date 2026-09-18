@@ -16,6 +16,7 @@ import { SellPage } from './pages/sell/SellPage.tsx';
 import { AnalyticsPage } from './pages/analytics/AnalyticsPage.tsx';
 import { BusinessPage } from './pages/business/BusinessPage.tsx';
 import { CustomersPage } from './pages/customers/CustomersPage.tsx';
+import { NotesPage } from './pages/notes/NotesPage.tsx';
 import { UrsellaAIPage } from './pages/ai/UrsellaAIPage.tsx';
 import { InsightsView } from './components/insights/InsightsView.tsx';
 import { ReportsPage } from './pages/reports/ReportsPage.tsx';
@@ -43,7 +44,7 @@ const MainRouter: React.FC = () => {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#/', '').replace('#', '');
-      if (['home', 'sell', 'analytics', 'reports', 'business', 'customers', 'data-io', 'billing', 'ai', 'insights', 'more', 'expenses'].includes(hash)) {
+      if (['home', 'sell', 'analytics', 'reports', 'business', 'customers', 'notes', 'data-io', 'billing', 'ai', 'insights', 'more', 'expenses'].includes(hash)) {
         // Any hash change navigation should clear one-time prompt state
         setAiPrompt(undefined);
         setCurrentRoute(hash as AppNavRoute);
@@ -149,6 +150,7 @@ const MainRouter: React.FC = () => {
         {currentRoute === 'business' && <BusinessPage initialTab="catalog" />}
         {currentRoute === 'expenses' && <BusinessPage initialTab="expenses" />}
         {currentRoute === 'customers' && <CustomersPage />}
+        {currentRoute === 'notes' && <NotesPage onNavigate={navigateTo} />}
         {currentRoute === 'data-io' && <DataImportExportPage businessId={activeBusiness.id} />}
         {currentRoute === 'billing' && <BillingPage businessId={activeBusiness.id} />}
         {currentRoute === 'insights' && <InsightsView />}

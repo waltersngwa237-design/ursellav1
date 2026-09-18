@@ -22,6 +22,7 @@ import {
   ShoppingCart,
   Store,
   Users,
+  StickyNote,
   BarChart3,
   Sparkles,
   MoreHorizontal,
@@ -256,6 +257,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     { route: 'reports', label: language === 'fr' ? 'Rapports' : 'Reports', icon: <FileText className="w-5 h-5 text-teal-400" /> },
     { route: 'business', label: language === 'fr' ? 'Stocks & Catalogue' : 'Business & Stock', icon: <Store className="w-5 h-5" /> },
     { route: 'customers', label: language === 'fr' ? 'Clients & CRM' : 'Customers & CRM', icon: <Users className="w-5 h-5" /> },
+    { route: 'notes', label: language === 'fr' ? 'Notes & Mémos' : 'Notes & Memos', icon: <StickyNote className="w-5 h-5 text-amber-400" /> },
     { route: 'data-io', label: language === 'fr' ? 'Import / Export' : 'Data Hub', icon: <Database className="w-5 h-5 text-cyan-400" /> },
     { route: 'billing', label: language === 'fr' ? 'Abonnement' : 'Billing & Plan', icon: <CreditCard className="w-5 h-5 text-amber-400" /> },
     { route: 'more', label: language === 'fr' ? 'Paramètres' : 'Settings', icon: <MoreHorizontal className="w-5 h-5" /> },
@@ -281,7 +283,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   };
 
   // Check if current route is a "menu-tier" secondary page
-  const isMenuSectionActive = ['insights', 'analytics', 'reports', 'customers', 'data-io', 'billing', 'more', 'expenses'].includes(currentRoute);
+  const isMenuSectionActive = ['insights', 'analytics', 'reports', 'customers', 'notes', 'data-io', 'billing', 'more', 'expenses'].includes(currentRoute);
 
   return (
     <div
