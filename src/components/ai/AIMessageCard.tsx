@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { useTheme } from '../../contexts/ThemeContext.tsx';
 import {
   type AIChatMessage,
+  type AIProposedAction,
 } from '../../types/ai.ts';
 import { UrsellaAIGlyph } from '../common/UrsellaLogo.tsx';
 import { sanitizeFollowUpSuggestions } from '../../utils/ai-prompt.utils.ts';
@@ -25,7 +26,7 @@ interface AIMessageCardProps {
   onInsertPrompt?: (prompt: string) => void;
   onRetry?: () => void;
   onDeleteMessage?: (messageId: string) => void;
-  onActionExecuted?: (result: any) => void;
+  onActionExecuted?: (result: any, updatedAction?: AIProposedAction) => void;
 }
 
 function copyToClipboardWithFallback(text: string): Promise<boolean> {
@@ -345,6 +346,8 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
             <AIActionProposalCard
               proposedAction={proposedAction}
               currencySymbol={currencySymbol}
+              messageId={message.id}
+              conversationId={message.conversation_id}
               onExecuted={onActionExecuted}
             />
           )}

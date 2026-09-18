@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Check,
   X,
@@ -158,8 +158,24 @@ export const AIActionProposalCard: React.FC<AIActionProposalCardProps> = ({
           }
         }
 
+        const updatedProposedAction: AIProposedAction = {
+          ...proposedAction,
+          executionStatus: 'executed',
+          executedAt: new Date().toISOString(),
+          executionResult: {
+            message: customSuccess,
+            whatsappLink: res.result?.whatsappLink || (payload.customerPhone ? `https://wa.me/${String(payload.customerPhone).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(payload.draftMessage || payload.messageText || '')}` : undefined),
+          },
+        };
+
+        if (conversationId && messageId) {
+          AIService.updateMessageMetadata(conversationId, messageId, {
+            proposedAction: updatedProposedAction,
+          }).catch(() => {});
+        }
+
         if (onExecuted) {
-          onExecuted(res);
+          onExecuted(res, updatedProposedAction);
         }
       } else {
         setStatus('failed');
@@ -173,6 +189,15 @@ export const AIActionProposalCard: React.FC<AIActionProposalCardProps> = ({
 
   const handleDismiss = () => {
     setStatus('dismissed');
+    const updatedProposedAction: AIProposedAction = {
+      ...proposedAction,
+      executionStatus: 'dismissed',
+    };
+    if (conversationId && messageId) {
+      AIService.updateMessageMetadata(conversationId, messageId, {
+        proposedAction: updatedProposedAction,
+      }).catch(() => {});
+    }
   };
 
   if (status === 'dismissed') {
