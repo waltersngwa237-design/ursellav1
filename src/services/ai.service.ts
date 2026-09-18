@@ -474,7 +474,73 @@ export class AIService {
           .order('created_at', { ascending: true });
 
         if (!error && data) {
-          return data as AIChatMessage[];
+          // Merge with local storage metadata to protect local execution statuses (executed / dismissed)
+          const rawLocal = localStorage.getItem(`${LOCAL_STORAGE_MESSAGES_KEY}_${conversationId}`);
+          const localMap = new Map<string, AIChatMessage>();
+          if (rawLocal) {
+            try {
+              const localMsgs: AIChatMessage[] = JSON.parse(rawLocal);
+              localMsgs.forEach((lm) => {
+                if (lm.id) localMap.set(lm.id, lm);
+              });
+            } catch {
+              // ignore
+            }
+          }
+
+          const mergedList: AIChatMessage[] = (data as AIChatMessage[]).map((remoteMsg) => {
+            const localMsg = localMap.get(remoteMsg.id);
+            if (!localMsg) return remoteMsg;
+
+            const localPropAction =
+              localMsg.metadata?.proposedAction || localMsg.metadata?.structured?.proposedAction;
+            const remotePropAction =
+              remoteMsg.metadata?.proposedAction || remoteMsg.metadata?.structured?.proposedAction;
+
+            // If locally executed or dismissed, guarantee it is never overwritten back to pending
+            if (
+              localPropAction?.executionStatus &&
+              localPropAction.executionStatus !== 'pending' &&
+              (!remotePropAction?.executionStatus || remotePropAction.executionStatus === 'pending')
+            ) {
+              const baseStructured = remoteMsg.metadata?.structured || localMsg.metadata?.structured;
+              return {
+                ...remoteMsg,
+                metadata: {
+                  ...(remoteMsg.metadata || {}),
+                  ...(localMsg.metadata || {}),
+                  proposedAction: localPropAction,
+                  ...(baseStructured
+                    ? {
+                        structured: {
+                          ...baseStructured,
+                          proposedAction: localPropAction,
+                        },
+                      }
+                    : {}),
+                } as any,
+              };
+            }
+
+            return {
+              ...remoteMsg,
+              metadata: {
+                ...(remoteMsg.metadata || {}),
+                ...(localMsg.metadata || {}),
+              } as any,
+            };
+          });
+
+          try {
+            localStorage.setItem(
+              `${LOCAL_STORAGE_MESSAGES_KEY}_${conversationId}`,
+              JSON.stringify(mergedList)
+            );
+          } catch {
+            // ignore
+          }
+
+          return mergedList;
         }
       } catch {
         // fallback
@@ -565,6 +631,14 @@ export class AIService {
   ): Promise<void> {
     if (!messageId || !conversationId) return;
 
+    // Harmonize nested structures if proposedAction was modified
+    const fullUpdates = { ...metadataUpdates };
+    if (metadataUpdates.proposedAction) {
+      fullUpdates.structured = {
+        proposedAction: metadataUpdates.proposedAction,
+      };
+    }
+
     if (isSupabaseConfigured && isValidUUID(messageId)) {
       try {
         const { data } = await (supabase as any)
@@ -572,7 +646,14 @@ export class AIService {
           .select('metadata')
           .eq('id', messageId)
           .single();
-        const merged = { ...(data?.metadata || {}), ...metadataUpdates };
+        const merged = {
+          ...(data?.metadata || {}),
+          ...fullUpdates,
+          structured: {
+            ...(data?.metadata?.structured || {}),
+            ...(fullUpdates.structured || {}),
+          },
+        };
         await (supabase as any)
           .from('ai_messages')
           .update({ metadata: merged })
@@ -592,7 +673,11 @@ export class AIService {
               ...m,
               metadata: {
                 ...m.metadata,
-                ...metadataUpdates,
+                ...fullUpdates,
+                structured: {
+                  ...(m.metadata?.structured || {}),
+                  ...(fullUpdates.structured || {}),
+                },
               },
             };
           }

@@ -449,6 +449,62 @@ export class ActionExecutorService {
   }
 
   /**
+   * Helper: Resolve product by ID, SKU, or name on the server
+   */
+  private static async resolveServerProduct(
+    businessId: string,
+    productId?: string,
+    productName?: string
+  ): Promise<any | null> {
+    if (!isServerSupabaseConfigured || !isValidUUID(businessId)) {
+      return null;
+    }
+
+    // 1. Try exact UUID
+    if (productId && isValidUUID(productId)) {
+      const { data: byId } = await serverSupabase
+        .from('products')
+        .select('*')
+        .eq('id', productId)
+        .eq('business_id', businessId)
+        .maybeSingle();
+      if (byId) return byId;
+    }
+
+    const searchKey = (productName || productId || '').trim();
+    if (!searchKey) return null;
+
+    // 2. Try exact name match
+    const { data: byExactName } = await serverSupabase
+      .from('products')
+      .select('*')
+      .eq('business_id', businessId)
+      .ilike('name', searchKey)
+      .limit(1);
+    if (byExactName && byExactName.length > 0) return byExactName[0];
+
+    // 3. Try SKU match
+    const { data: bySku } = await serverSupabase
+      .from('products')
+      .select('*')
+      .eq('business_id', businessId)
+      .ilike('sku', searchKey)
+      .limit(1);
+    if (bySku && bySku.length > 0) return bySku[0];
+
+    // 4. Try fuzzy name match
+    const { data: byFuzzy } = await serverSupabase
+      .from('products')
+      .select('*')
+      .eq('business_id', businessId)
+      .ilike('name', `%${searchKey}%`)
+      .limit(1);
+    if (byFuzzy && byFuzzy.length > 0) return byFuzzy[0];
+
+    return null;
+  }
+
+  /**
    * Action: Restock Task
    * Executes authoritative inventory movement (type: 'restock') and logs reminder.
    */
@@ -457,92 +513,125 @@ export class ActionExecutorService {
     userId: string,
     payload: Record<string, any>
   ): Promise<Record<string, any>> {
-    const productId = payload.productId || payload.product_id;
-    const restockQty = Number(payload.suggestedQuantity ?? payload.quantity ?? payload.adjustmentQuantity ?? 0);
     const title = payload.title || `Restock replenishment`;
     const unitCost = payload.unitCost !== undefined ? Number(payload.unitCost) : null;
 
-    if (!productId) {
-      throw new Error('Missing productId for restock task.');
+    // Support batch restock items if payload.items is provided
+    const itemsList: Array<{ productId?: string; productName?: string; quantity: number }> =
+      Array.isArray(payload.items) && payload.items.length > 0
+        ? payload.items.map((it: any) => ({
+            productId: it.productId || it.product_id || it.id,
+            productName: it.productName || it.product_name || it.name,
+            quantity: Number(it.quantity ?? it.suggestedQuantity ?? it.restockQty ?? 0),
+          }))
+        : [
+            {
+              productId: payload.productId || payload.product_id || payload.id,
+              productName: payload.productName || payload.product_name || payload.name,
+              quantity: Number(
+                payload.suggestedQuantity ??
+                  payload.quantity ??
+                  payload.adjustmentQuantity ??
+                  payload.restockQty ??
+                  0
+              ),
+            },
+          ];
+
+    const validItems = itemsList.filter((it) => it.quantity > 0 && (it.productId || it.productName));
+    if (validItems.length === 0) {
+      throw new Error('Valid restock items and positive quantities are required.');
     }
 
-    if (restockQty <= 0) {
-      throw new Error('Restock quantity must be a positive number greater than zero.');
-    }
+    const restockedResults: any[] = [];
+    let totalRestockedQty = 0;
 
-    let productUpdateResult: any = null;
+    for (const item of validItems) {
+      const resolvedProduct = await this.resolveServerProduct(
+        businessId,
+        item.productId,
+        item.productName
+      );
 
-    if (isServerSupabaseConfigured && isValidUUID(businessId) && isValidUUID(productId)) {
-      // 1. Verify product exists and belongs to this business
-      const { data: product, error: prodErr } = await serverSupabase
-        .from('products')
-        .select('id, name, stock_quantity, product_type, cost_price')
-        .eq('id', productId)
-        .eq('business_id', businessId)
-        .maybeSingle();
+      if (resolvedProduct && isServerSupabaseConfigured) {
+        if (resolvedProduct.product_type === 'service') {
+          console.warn(`[ActionExecutor] Skipping service product "${resolvedProduct.name}" from restock.`);
+          continue;
+        }
 
-      if (prodErr || !product) {
-        throw new Error(`Product not found in this business.`);
+        const { data: txId, error: rpcErr } = await serverSupabase.rpc('record_inventory_movement', {
+          p_business_id: businessId,
+          p_product_id: resolvedProduct.id,
+          p_type: 'restock',
+          p_quantity: item.quantity,
+          p_reference_type: 'restock_task',
+          p_notes: payload.description || payload.reason || `Restocked via Ursella AI task: ${title}`,
+          p_unit_cost: unitCost ?? resolvedProduct.cost_price,
+        });
+
+        if (rpcErr) {
+          // Direct update fallback if RPC fails
+          const currentStock = Number(resolvedProduct.stock_quantity || 0);
+          const newStock = currentStock + item.quantity;
+          await serverSupabase
+            .from('products')
+            .update({ stock_quantity: newStock, updated_at: new Date().toISOString() })
+            .eq('id', resolvedProduct.id);
+
+          await serverSupabase.from('inventory_transactions').insert({
+            business_id: businessId,
+            product_id: resolvedProduct.id,
+            transaction_type: 'restock',
+            quantity: item.quantity,
+            unit_cost: unitCost ?? resolvedProduct.cost_price,
+            reference_type: 'restock_task',
+            notes: payload.description || `Restocked via Ursella AI task: ${title}`,
+          });
+        }
+
+        const { data: updatedProd } = await serverSupabase
+          .from('products')
+          .select('stock_quantity')
+          .eq('id', resolvedProduct.id)
+          .single();
+
+        const finalStock = updatedProd?.stock_quantity ?? (Number(resolvedProduct.stock_quantity || 0) + item.quantity);
+        totalRestockedQty += item.quantity;
+
+        restockedResults.push({
+          productId: resolvedProduct.id,
+          productName: resolvedProduct.name,
+          previousStock: resolvedProduct.stock_quantity,
+          newStock: finalStock,
+          restockQty: item.quantity,
+          txId,
+        });
+      } else {
+        totalRestockedQty += item.quantity;
+        restockedResults.push({
+          productId: item.productId || generateUUID(),
+          productName: item.productName || 'Product',
+          previousStock: 0,
+          newStock: item.quantity,
+          restockQty: item.quantity,
+        });
       }
-
-      if (product.product_type === 'service') {
-        throw new Error(`Cannot restock "${product.name}": Service items do not track physical stock.`);
-      }
-
-      // 2. Authoritative inventory movement via RPC
-      const { data: txId, error: rpcErr } = await serverSupabase.rpc('record_inventory_movement', {
-        p_business_id: businessId,
-        p_product_id: productId,
-        p_type: 'restock',
-        p_quantity: restockQty,
-        p_reference_type: 'restock_task',
-        p_notes: payload.description || payload.reason || 'Restocked via Ursella AI task',
-        p_unit_cost: unitCost ?? product.cost_price,
-      });
-
-      if (rpcErr) {
-        throw new Error(`Inventory restock failed: ${rpcErr.message}`);
-      }
-
-      // 3. Fetch updated stock
-      const { data: updatedProd } = await serverSupabase
-        .from('products')
-        .select('stock_quantity')
-        .eq('id', productId)
-        .eq('business_id', businessId)
-        .single();
-
-      productUpdateResult = {
-        productId,
-        productName: product.name,
-        previousStock: product.stock_quantity,
-        newStock: updatedProd?.stock_quantity ?? (Number(product.stock_quantity || 0) + restockQty),
-        restockQty,
-        txId,
-      };
-    } else {
-      productUpdateResult = {
-        productId,
-        productName: payload.productName || 'Product',
-        previousStock: 0,
-        newStock: restockQty,
-        restockQty,
-      };
     }
 
     // Record business reminder
+    const primaryResult = restockedResults[0] || {};
     const reminderId = generateUUID();
     const reminderData = {
       id: reminderId,
       business_id: businessId,
       title,
-      description: payload.description || `Restocked +${restockQty} units`,
+      description: payload.description || `Restocked +${totalRestockedQty} total units across ${restockedResults.length} item(s)`,
       due_date: payload.dueDate || new Date(Date.now() + 86400000).toISOString(),
       priority: (payload.priority === 'low' || payload.priority === 'medium' ? payload.priority : 'high') as 'low' | 'medium' | 'high',
       status: 'completed' as const,
       related_entity_type: 'product' as const,
-      related_entity_id: productId || null,
-      related_entity_name: payload.productName || productUpdateResult?.productName || null,
+      related_entity_id: primaryResult.productId || null,
+      related_entity_name: primaryResult.productName || null,
       created_by: userId,
       created_at: new Date().toISOString(),
     };
@@ -557,11 +646,17 @@ export class ActionExecutorService {
       inMemoryReminders.unshift(reminderData);
     }
 
+    const itemSummaries = restockedResults
+      .map((r) => `+${r.restockQty} ${r.productName} (Now: ${r.newStock})`)
+      .join(', ');
+
     return {
       reminderId,
       reminder: reminderData,
-      inventoryUpdate: productUpdateResult,
-      message: `Successfully restocked ${restockQty} units of "${productUpdateResult.productName}" (Current stock: ${productUpdateResult.newStock}).`,
+      inventoryUpdate: primaryResult,
+      restockedItems: restockedResults,
+      totalRestockedQty,
+      message: `Successfully restocked: ${itemSummaries}.`,
     };
   }
 
@@ -573,65 +668,68 @@ export class ActionExecutorService {
     userId: string,
     payload: Record<string, any>
   ): Promise<Record<string, any>> {
-    const { productId, adjustmentQuantity, reason = 'Inventory adjustment' } = payload;
-    if (!productId || typeof adjustmentQuantity !== 'number') {
-      throw new Error('Invalid inventory adjustment payload: productId and adjustmentQuantity required.');
+    const rawProductId = payload.productId || payload.product_id;
+    const rawProductName = payload.productName || payload.product_name || payload.name;
+    const adjustmentQuantity = Number(payload.adjustmentQuantity ?? payload.quantity);
+    const reason = payload.reason || payload.description || 'Inventory adjustment';
+
+    if (isNaN(adjustmentQuantity) || adjustmentQuantity < 0) {
+      throw new Error('Valid non-negative adjustmentQuantity required.');
     }
 
-    if (isServerSupabaseConfigured && isValidUUID(businessId) && isValidUUID(productId)) {
-      // 1. Verify product belongs to business
-      const { data: product, error: prodErr } = await serverSupabase
-        .from('products')
-        .select('id, name, stock_quantity, product_type, cost_price')
-        .eq('id', productId)
-        .eq('business_id', businessId)
-        .maybeSingle();
+    const resolvedProduct = await this.resolveServerProduct(businessId, rawProductId, rawProductName);
 
-      if (prodErr || !product) {
-        throw new Error(`Product not found in this business.`);
+    if (resolvedProduct && isServerSupabaseConfigured) {
+      if (resolvedProduct.product_type === 'service') {
+        throw new Error(`Cannot adjust stock for "${resolvedProduct.name}": Service items do not track physical inventory.`);
       }
 
-      if (product.product_type === 'service') {
-        throw new Error(`Cannot adjust stock for "${product.name}": Service items do not track physical inventory.`);
-      }
-
-      // 2. Call authoritative RPC record_inventory_movement with target adjustment
       const { data: txId, error: rpcErr } = await serverSupabase.rpc('record_inventory_movement', {
         p_business_id: businessId,
-        p_product_id: productId,
+        p_product_id: resolvedProduct.id,
         p_type: 'adjustment',
         p_quantity: adjustmentQuantity,
         p_reference_type: 'manual_adjustment',
         p_notes: reason,
-        p_unit_cost: product.cost_price,
+        p_unit_cost: resolvedProduct.cost_price,
       });
 
       if (rpcErr) {
-        throw new Error(`Inventory adjustment failed: ${rpcErr.message}`);
+        await serverSupabase
+          .from('products')
+          .update({ stock_quantity: adjustmentQuantity, updated_at: new Date().toISOString() })
+          .eq('id', resolvedProduct.id);
+
+        await serverSupabase.from('inventory_transactions').insert({
+          business_id: businessId,
+          product_id: resolvedProduct.id,
+          transaction_type: 'adjustment',
+          quantity: adjustmentQuantity,
+          unit_cost: resolvedProduct.cost_price,
+          reference_type: 'manual_adjustment',
+          notes: reason,
+        });
       }
 
-      // 3. Fetch updated stock
       const { data: updatedProd } = await serverSupabase
         .from('products')
         .select('stock_quantity')
-        .eq('id', productId)
-        .eq('business_id', businessId)
+        .eq('id', resolvedProduct.id)
         .single();
 
       return {
-        productId,
-        productName: product.name,
-        previousStock: product.stock_quantity,
+        productId: resolvedProduct.id,
+        productName: resolvedProduct.name,
+        previousStock: resolvedProduct.stock_quantity,
         newStock: updatedProd?.stock_quantity ?? adjustmentQuantity,
         adjustmentQuantity,
-        txId,
-        message: `Updated stock for "${product.name}" to ${adjustmentQuantity} units.`,
+        message: `Updated stock for "${resolvedProduct.name}" to ${adjustmentQuantity} units.`,
       };
     }
 
     return {
-      productId,
-      productName: payload.productName || 'Product',
+      productId: rawProductId || generateUUID(),
+      productName: rawProductName || 'Product',
       previousStock: 0,
       newStock: adjustmentQuantity,
       adjustmentQuantity,

@@ -1005,13 +1005,21 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                     setMessages((prev) =>
                       prev.map((m) =>
                         m.id === msg.id
-                          ? {
+                          ? ({
                               ...m,
                               metadata: {
                                 ...m.metadata,
                                 proposedAction: updatedAction,
-                              },
-                            }
+                                ...(m.metadata?.structured
+                                  ? {
+                                      structured: {
+                                        ...m.metadata.structured,
+                                        proposedAction: updatedAction,
+                                      },
+                                    }
+                                  : {}),
+                              } as any,
+                            } as AIChatMessage)
                           : m
                       )
                     );

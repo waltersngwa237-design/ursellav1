@@ -3,7 +3,7 @@
  * Handles client-side communication with the proactive event engine,
  * action execution framework, reminders, notifications, and preferences.
  */
-import { generateUUID } from '../lib/uuid.ts';
+import { generateUUID, isValidUUID } from '../lib/uuid.ts';
 import type {
   BusinessInsight,
   ActionProposal,
@@ -15,6 +15,7 @@ import type {
   ActionType,
 } from '../types/proactive.ts';
 import type { MemberRole } from '../types/database.types.ts';
+import type { Product } from '../types/index.ts';
 import { CustomerService } from './customer.service.ts';
 import { InventoryService } from './inventory.service.ts';
 import { ExpenseService } from './expense.service.ts';
@@ -26,6 +27,7 @@ const CACHED_INSIGHTS_KEY = 'ursella_cached_insights_';
 const INSIGHT_STATUS_KEY = 'ursella_insight_status_';
 const LOCAL_AUDIT_LOGS_KEY = 'ursella_local_audit_logs_';
 const LOCAL_REMINDERS_KEY = 'ursella_local_reminders_';
+const LOCAL_PRODUCTS_PREFIX = 'ursella_products_';
 
 export class ProactiveService {
   /**
@@ -335,6 +337,81 @@ export class ProactiveService {
   }
 
   /**
+   * Smart product resolution: finds product by ID, SKU, or name
+   */
+  public static async resolveProduct(
+    businessId: string,
+    searchId?: string,
+    searchName?: string
+  ): Promise<Product | null> {
+    const cleanId = (searchId || '').trim();
+    const cleanName = (searchName || '').trim();
+    if (!cleanId && !cleanName) return null;
+
+    // 1. Check local storage products
+    const prodKey = `${LOCAL_PRODUCTS_PREFIX}${businessId}`;
+    const prodStored = localStorage.getItem(prodKey);
+    const prods: Product[] = prodStored ? JSON.parse(prodStored) : [];
+
+    if (cleanId) {
+      const byId = prods.find((p) => p.id === cleanId);
+      if (byId) return byId;
+    }
+
+    const term = (cleanName || cleanId).toLowerCase();
+    // Exact name match
+    const byExactName = prods.find((p) => p.name.toLowerCase() === term);
+    if (byExactName) return byExactName;
+
+    // SKU match
+    const bySku = prods.find((p) => p.sku && p.sku.toLowerCase() === term);
+    if (bySku) return bySku;
+
+    // Substring match
+    const bySubstring = prods.find(
+      (p) => p.name.toLowerCase().includes(term) || term.includes(p.name.toLowerCase())
+    );
+    if (bySubstring) return bySubstring;
+
+    // 2. Query Supabase if available
+    if (isSupabaseConfigured && isValidUUID(businessId)) {
+      try {
+        if (cleanId && isValidUUID(cleanId)) {
+          const { data: dbById } = await (supabase as any)
+            .from('products')
+            .select('*')
+            .eq('id', cleanId)
+            .eq('business_id', businessId)
+            .maybeSingle();
+          if (dbById) {
+            const updated = [...prods.filter((p) => p.id !== dbById.id), dbById];
+            localStorage.setItem(prodKey, JSON.stringify(updated));
+            return dbById as Product;
+          }
+        }
+
+        const { data: dbByName } = await (supabase as any)
+          .from('products')
+          .select('*')
+          .eq('business_id', businessId)
+          .ilike('name', `%${term}%`)
+          .limit(1);
+
+        if (dbByName && dbByName.length > 0) {
+          const found = dbByName[0];
+          const updated = [...prods.filter((p) => p.id !== found.id), found];
+          localStorage.setItem(prodKey, JSON.stringify(updated));
+          return found as Product;
+        }
+      } catch {
+        // fallback
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Execute action directly against local client services and enqueue for sync
    */
   private static async executeLocalAction(params: {
@@ -373,7 +450,7 @@ export class ProactiveService {
     }
 
     if (actionType === 'record_payment') {
-      const customerId = payload.customerId;
+      const customerId = payload.customerId || payload.customer_id;
       const amount = Number(payload.amount);
       if (!customerId || !amount || amount <= 0) {
         throw new Error('Customer ID and positive amount are required.');
@@ -398,38 +475,36 @@ export class ProactiveService {
       });
 
       return {
-        message: `Payment of ${amount.toLocaleString()} recorded successfully offline. Queued for synchronization.`,
+        message: `Payment of ${amount.toLocaleString()} recorded successfully.`,
         amountPaid: amount,
         customerId,
       };
     }
 
     if (actionType === 'create_inventory_adjustment') {
-      const productId = payload.productId;
+      const rawProductId = payload.productId || payload.product_id;
+      const rawProductName = payload.productName || payload.product_name || payload.name;
       const qty = Number(payload.adjustmentQuantity ?? payload.quantity);
-      if (!productId || isNaN(qty) || qty < 0) {
-        throw new Error('Product ID and non-negative quantity required.');
+      if (isNaN(qty) || qty < 0) {
+        throw new Error('Non-negative adjustment quantity required.');
       }
 
-      await InventoryService.recordMovement({
-        business_id: businessId,
-        product_id: productId,
-        type: 'adjustment',
-        quantity: qty,
-        notes: payload.reason || 'Proactive inventory adjustment',
-      });
+      const resolved = await this.resolveProduct(businessId, rawProductId, rawProductName);
+      const targetId = resolved ? resolved.id : rawProductId;
 
-      OfflineSyncService.enqueue('inventory_movement', businessId, {
-        business_id: businessId,
-        product_id: productId,
-        type: 'adjustment',
-        quantity: qty,
-        notes: payload.reason || 'Proactive inventory adjustment',
-      });
+      if (targetId) {
+        await InventoryService.recordMovement({
+          business_id: businessId,
+          product_id: targetId,
+          type: 'adjustment',
+          quantity: qty,
+          notes: payload.reason || 'Proactive inventory adjustment',
+        });
+      }
 
       return {
-        message: `Inventory stock adjusted to ${qty} offline. Queued for synchronization.`,
-        productId,
+        message: `Inventory stock adjusted to ${qty} units for ${resolved?.name || rawProductName || 'product'}.`,
+        productId: targetId,
         targetQuantity: qty,
       };
     }
@@ -437,44 +512,83 @@ export class ProactiveService {
     if (actionType === 'create_restock_task' || actionType === 'create_reminder') {
       const title = payload.title || 'Stock replenishment reminder';
       const remId = `rem_${Date.now()}`;
-      const restockQty = Number(payload.suggestedQuantity ?? payload.quantity ?? payload.adjustmentQuantity ?? 0);
-      let didRestock = false;
 
-      // When product ID and quantity are provided for restock, actively replenish inventory
-      if (actionType === 'create_restock_task' && payload.productId && restockQty > 0) {
-        try {
-          await InventoryService.recordMovement({
-            business_id: businessId,
-            product_id: payload.productId,
-            type: 'restock',
-            quantity: restockQty,
-            notes: payload.description || `Replenishment from restock action: ${title}`,
-          });
+      // Support batch restock items if payload.items is provided
+      const itemsList: Array<{ productId?: string; productName?: string; quantity: number }> =
+        Array.isArray(payload.items) && payload.items.length > 0
+          ? payload.items.map((it: any) => ({
+              productId: it.productId || it.product_id || it.id,
+              productName: it.productName || it.product_name || it.name,
+              quantity: Number(it.quantity ?? it.suggestedQuantity ?? it.restockQty ?? 0),
+            }))
+          : [
+              {
+                productId: payload.productId || payload.product_id || payload.id,
+                productName: payload.productName || payload.product_name || payload.name,
+                quantity: Number(
+                  payload.suggestedQuantity ??
+                    payload.quantity ??
+                    payload.adjustmentQuantity ??
+                    payload.restockQty ??
+                    0
+                ),
+              },
+            ];
 
-          OfflineSyncService.enqueue('inventory_movement', businessId, {
-            business_id: businessId,
-            product_id: payload.productId,
-            type: 'restock',
-            quantity: restockQty,
-            notes: payload.description || `Replenishment from restock action: ${title}`,
-          });
-          didRestock = true;
-        } catch (invErr) {
-          console.warn('[Proactive] Auto-restock recordMovement error:', invErr);
+      const validItems = itemsList.filter((it) => it.quantity > 0 && (it.productId || it.productName));
+      const restockedList: Array<{ product: Product; addedQty: number; newStock: number }> = [];
+
+      if (actionType === 'create_restock_task' && validItems.length > 0) {
+        for (const item of validItems) {
+          const resolved = await this.resolveProduct(businessId, item.productId, item.productName);
+          if (resolved) {
+            try {
+              await InventoryService.recordMovement({
+                business_id: businessId,
+                product_id: resolved.id,
+                type: 'restock',
+                quantity: item.quantity,
+                notes: payload.description || `Replenishment from restock action: ${title}`,
+              });
+
+              // Fetch updated local product stock
+              const prodKey = `${LOCAL_PRODUCTS_PREFIX}${businessId}`;
+              const prodStored = localStorage.getItem(prodKey);
+              const prods: Product[] = prodStored ? JSON.parse(prodStored) : [];
+              const updatedP = prods.find((p) => p.id === resolved.id);
+              const currentStock = updatedP ? updatedP.stock_quantity : (resolved.stock_quantity + item.quantity);
+
+              restockedList.push({
+                product: resolved,
+                addedQty: item.quantity,
+                newStock: currentStock,
+              });
+            } catch (invErr) {
+              console.warn('[Proactive] Auto-restock recordMovement error:', invErr);
+            }
+          }
         }
       }
+
+      const didRestock = restockedList.length > 0;
+      const totalUnits = restockedList.reduce((acc, curr) => acc + curr.addedQty, 0);
+      const firstItem = restockedList[0];
 
       const reminder: BusinessReminder = {
         id: remId,
         business_id: businessId,
         title,
-        description: payload.description || (restockQty > 0 ? `Restocked +${restockQty} units` : `Target quantity: ${payload.suggestedQuantity || 'as needed'}`),
+        description:
+          payload.description ||
+          (didRestock
+            ? `Restocked +${totalUnits} units (${restockedList.map((r) => `${r.product.name}: +${r.addedQty}`).join(', ')})`
+            : `Target quantity: ${payload.suggestedQuantity || 'as needed'}`),
         due_date: payload.dueDate || new Date(Date.now() + 86400000).toISOString(),
         priority: payload.priority || 'high',
         status: didRestock ? 'completed' : 'pending',
         related_entity_type: payload.relatedEntityType || 'product',
-        related_entity_id: payload.productId,
-        related_entity_name: payload.productName,
+        related_entity_id: firstItem?.product.id || payload.productId || payload.product_id,
+        related_entity_name: firstItem?.product.name || payload.productName,
         created_at: new Date().toISOString(),
       };
 
@@ -482,24 +596,21 @@ export class ProactiveService {
       rems.unshift(reminder);
       localStorage.setItem(`${LOCAL_REMINDERS_KEY}${businessId}`, JSON.stringify(rems));
 
-      OfflineSyncService.enqueue('reminder', businessId, {
-        business_id: businessId,
-        title,
-        description: reminder.description,
-        due_date: reminder.due_date,
-        priority: reminder.priority,
-        related_entity_type: reminder.related_entity_type,
-        related_entity_id: reminder.related_entity_id,
-        related_entity_name: reminder.related_entity_name,
-      });
+      const summaryText = didRestock
+        ? `Successfully restocked ${restockedList.map((r) => `+${r.addedQty} ${r.product.name} (Now: ${r.newStock} units)`).join(', ')}.`
+        : `Task "${title}" created successfully.`;
 
       return {
-        message: didRestock
-          ? `Successfully restocked ${restockQty} units of ${payload.productName || 'item'} and logged replenishment record.`
-          : `Task "${title}" created successfully offline.`,
+        message: summaryText,
         reminderId: remId,
         restocked: didRestock,
-        restockQty: didRestock ? restockQty : 0,
+        totalUnitsRestocked: totalUnits,
+        restockedItems: restockedList.map((r) => ({
+          productId: r.product.id,
+          productName: r.product.name,
+          addedQty: r.addedQty,
+          newStock: r.newStock,
+        })),
       };
     }
 

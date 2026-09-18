@@ -159,13 +159,23 @@ export const InventoryService = {
 
     // Local fallback with atomic stock checks (always runs if offline or direct database fallback)
     const prodKey = `${LOCAL_PRODUCTS_PREFIX}${params.business_id}`;
-      const prodStored = localStorage.getItem(prodKey);
-      const prods: Product[] = prodStored ? JSON.parse(prodStored) : [];
-      const prodIdx = prods.findIndex((p) => p.id === params.product_id);
+    const prodStored = localStorage.getItem(prodKey);
+    const prods: Product[] = prodStored ? JSON.parse(prodStored) : [];
+    let prodIdx = prods.findIndex((p) => p.id === params.product_id);
 
-      if (prodIdx === -1) {
-        throw new Error('Product does not exist.');
-      }
+    if (prodIdx === -1 && params.product_id) {
+      const search = params.product_id.toLowerCase();
+      prodIdx = prods.findIndex(
+        (p) =>
+          p.name.toLowerCase() === search ||
+          (p.sku && p.sku.toLowerCase() === search) ||
+          p.name.toLowerCase().includes(search)
+      );
+    }
+
+    if (prodIdx === -1) {
+      throw new Error('Product does not exist.');
+    }
 
       const product = prods[prodIdx];
       if (product.product_type === 'service') {
