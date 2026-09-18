@@ -3,9 +3,11 @@
  * 
  * Supports:
  * 1. Standard ESC/POS binary generation for 58mm & 80mm thermal receipt printers.
- * 2. Web Bluetooth & Web Serial (USB) thermal printer communication.
- * 3. Automatic cash drawer kick pulse (ESC p 0 25 250).
- * 4. Browser-isolated thermal receipt printing fallback.
+ * 2. Web Bluetooth direct wireless thermal printing with broad vendor GATT UUID support (Xprinter, Goojprt, Netum, Sunmi, Milestone, Rongta, Star, Citizen).
+ * 3. Micro-throttled chunk streaming (20-48 byte buffer) for handheld Bluetooth microcontrollers.
+ * 4. Automatic cash drawer kick pulse (ESC p 0 25 250) over Bluetooth & RJ11.
+ * 5. Accented Latin / French code page selection & character sanitization.
+ * 6. Browser-isolated thermal receipt printing fallback with high-contrast formatting.
  */
 
 import type { Business, CurrencyConfig, SaleWithDetails } from '../types/index.ts';
@@ -20,6 +22,8 @@ export interface HardwareSettings {
   autoPrintOnSale: boolean;
   autoKickDrawerOnCash: boolean;
   pairedDeviceName?: string;
+  chunkSize?: number;
+  chunkDelayMs?: number;
 }
 
 const SETTINGS_KEY = 'ursella_pos_hardware_settings';
@@ -29,12 +33,30 @@ const DEFAULT_SETTINGS: HardwareSettings = {
   connectionType: 'browser',
   autoPrintOnSale: false,
   autoKickDrawerOnCash: true,
+  chunkSize: 32,
+  chunkDelayMs: 15,
 };
+
+// Comprehensive list of Bluetooth Low Energy (BLE) Thermal Printer Primary Services
+const THERMAL_PRINTER_GATT_SERVICES = [
+  '000018f0-0000-1000-8000-00805f9b34fb', // Standard Serial Port Profile (SPP over BLE)
+  '0000ff00-0000-1000-8000-00805f9b34fb', // Most Chinese POS printers (Xprinter, POS-58, POS-80, Goojprt, MPT-II, Milestone)
+  '0000fee7-0000-1000-8000-00805f9b34fb', // Tencent / Wechat POS / Citizen BLE
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // ESC/POS Standard Service
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455', // ISSC / Microchip Transparent UART BLE
+  '0000ae00-0000-1000-8000-00805f9b34fb', // Zhuhai Jielong / Mpt portable printers
+  '0000af00-0000-1000-8000-00805f9b34fb', // Sunmi / Rongta / HoIN
+  '0000fff0-0000-1000-8000-00805f9b34fb', // Zjiang / Netum / PeriPage
+  '0000ffe0-0000-1000-8000-00805f9b34fb', // HM-10 / CC2541 BLE UART
+  'de5bf728-d711-4e47-af26-65e3012a5dc7', // Star Micronics StarIO BLE
+  '00001800-0000-1000-8000-00805f9b34fb', // Generic Access
+  '0000180a-0000-1000-8000-00805f9b34fb', // Device Information
+];
 
 class HardwarePrinterServiceClass {
   private activeBluetoothDevice: any = null;
   private activeCharacteristic: any = null;
-  private activeSerialPort: any = null;
+  private isConnecting: boolean = false;
 
   /**
    * Load stored hardware peripheral settings
@@ -58,7 +80,7 @@ class HardwarePrinterServiceClass {
       try {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
       } catch (err) {
-        console.warn('Failed to persist hardware settings:', err);
+        console.warn('[HardwarePrinterService] Failed to persist hardware settings:', err);
       }
     }
     return updated;
@@ -68,24 +90,62 @@ class HardwarePrinterServiceClass {
    * Check browser feature capabilities
    */
   getCapabilities() {
+    const hasNavigator = typeof navigator !== 'undefined';
     return {
-      bluetooth: typeof navigator !== 'undefined' && 'bluetooth' in navigator,
-      serial: typeof navigator !== 'undefined' && 'serial' in navigator,
-      usb: typeof navigator !== 'undefined' && 'usb' in navigator,
+      bluetooth: hasNavigator && 'bluetooth' in navigator,
+      serial: hasNavigator && 'serial' in navigator,
+      usb: hasNavigator && 'usb' in navigator,
     };
+  }
+
+  /**
+   * Check if Bluetooth printer is actively connected
+   */
+  isBluetoothConnected(): boolean {
+    return Boolean(
+      this.activeBluetoothDevice &&
+      this.activeBluetoothDevice.gatt?.connected &&
+      this.activeCharacteristic
+    );
+  }
+
+  /**
+   * Get active connected printer device name
+   */
+  getConnectedDeviceName(): string | null {
+    if (this.isBluetoothConnected()) {
+      return this.activeBluetoothDevice?.name || 'Bluetooth ESC/POS Printer';
+    }
+    return null;
+  }
+
+  /**
+   * Sanitize text for thermal printer code pages (replaces unsupported unicode symbols)
+   */
+  private sanitizeText(text: string): string {
+    if (!text) return '';
+    return text
+      .replace(/[’‘`]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/[–—]/g, '-')
+      .replace(/…/g, '...')
+      .replace(/[\u00A0\u2000-\u200B\u202F\u205F]/g, ' ') // Non-breaking spaces
+      .trim();
   }
 
   /**
    * Generates formatted text line with left and right alignment based on column width
    */
   private formatLine(left: string, right: string, maxCols: number): string {
-    const spaceCount = maxCols - left.length - right.length;
+    const cleanLeft = this.sanitizeText(left);
+    const cleanRight = this.sanitizeText(right);
+    const spaceCount = maxCols - cleanLeft.length - cleanRight.length;
     if (spaceCount <= 0) {
-      const available = maxCols - right.length - 1;
-      const truncated = left.substring(0, Math.max(0, available));
-      return `${truncated} ${right}\n`;
+      const available = maxCols - cleanRight.length - 1;
+      const truncated = cleanLeft.substring(0, Math.max(0, available));
+      return `${truncated} ${cleanRight}\n`;
     }
-    return `${left}${' '.repeat(spaceCount)}${right}\n`;
+    return `${cleanLeft}${' '.repeat(spaceCount)}${cleanRight}\n`;
   }
 
   private formatDivider(char: string = '-', maxCols: number): string {
@@ -119,28 +179,31 @@ class HardwarePrinterServiceClass {
     // 1. Initialize Printer (ESC @)
     pushBytes(0x1b, 0x40);
 
-    // 2. Optional: Kick Cash Drawer Pulse (ESC p 0 25 250)
+    // 2. Select Character Code Page (ESC t 2 = CP850 Multilingual)
+    pushBytes(0x1b, 0x74, 0x02);
+
+    // 3. Optional: Kick Cash Drawer Pulse (ESC p 0 25 250)
     if (kickDrawer) {
       pushBytes(0x1b, 0x70, 0x00, 0x19, 0xfa);
     }
 
-    // 3. Center alignment & Double Height/Width for Store Name
+    // 4. Center alignment & Double Height/Width for Store Name
     pushBytes(0x1b, 0x61, 0x01); // Center align
     pushBytes(0x1d, 0x21, 0x11); // Double size
-    pushText(`${business?.name || 'URSELLA POS'}\n`);
+    pushText(`${this.sanitizeText(business?.name || 'URSELLA POS')}\n`);
 
     pushBytes(0x1d, 0x21, 0x00); // Normal size
     if (business?.description) {
-      pushText(`${business.description}\n`);
+      pushText(`${this.sanitizeText(business.description)}\n`);
     }
     if (business?.country) {
-      pushText(`${business.country}\n`);
+      pushText(`${this.sanitizeText(business.country)}\n`);
     }
     pushText(`Receipt #${sale.id.substring(0, 8).toUpperCase()}\n`);
     pushText(`${new Date(sale.sold_at).toLocaleString()}\n`);
     pushText(this.formatDivider('=', cols));
 
-    // 4. Left alignment for Line Items
+    // 5. Left alignment for Line Items
     pushBytes(0x1b, 0x61, 0x00); // Left align
     pushBytes(0x1b, 0x45, 0x01); // Bold on
     pushText(this.formatLine('ITEM', 'TOTAL', cols));
@@ -148,7 +211,7 @@ class HardwarePrinterServiceClass {
     pushText(this.formatDivider('-', cols));
 
     for (const item of sale.sale_items) {
-      const itemTitle = item.product_name_snapshot;
+      const itemTitle = this.sanitizeText(item.product_name_snapshot);
       const itemTotal = currencyConfig.format(item.total);
       const unitPrice = currencyConfig.format(item.unit_price);
       const qtyLine = `  ${item.quantity} x ${unitPrice}`;
@@ -158,14 +221,14 @@ class HardwarePrinterServiceClass {
 
       if (item.discount > 0) {
         pushText(
-          this.formatLine('  (Item Discount)', `-${currencyConfig.format(item.discount)}`, cols)
+          this.formatLine('  (Discount)', `-${currencyConfig.format(item.discount)}`, cols)
         );
       }
     }
 
     pushText(this.formatDivider('-', cols));
 
-    // 5. Totals & Payment Summary
+    // 6. Totals & Payment Summary
     pushText(this.formatLine('Subtotal', currencyConfig.format(sale.subtotal), cols));
 
     if (sale.discount > 0) {
@@ -194,19 +257,19 @@ class HardwarePrinterServiceClass {
 
     if (sale.customers?.name) {
       pushText(this.formatDivider('-', cols));
-      pushText(`Customer: ${sale.customers.name}\n`);
+      pushText(`Customer: ${this.sanitizeText(sale.customers.name)}\n`);
       if (sale.customers.phone) {
-        pushText(`Phone: ${sale.customers.phone}\n`);
+        pushText(`Phone: ${this.sanitizeText(sale.customers.phone)}\n`);
       }
     }
 
-    // 6. Footer & Thank You
+    // 7. Footer & Thank You
     pushText(this.formatDivider('=', cols));
     pushBytes(0x1b, 0x61, 0x01); // Center align
     pushText('Thank you for your business!\n');
-    pushText('Powered by Ursella\n\n\n');
+    pushText('Powered by Ursella\n\n\n\n');
 
-    // 7. Paper Cut (GS V 65 3)
+    // 8. Paper Cut (GS V 65 3)
     pushBytes(0x1d, 0x56, 0x41, 0x03);
 
     // Merge into single Uint8Array
@@ -222,6 +285,76 @@ class HardwarePrinterServiceClass {
   }
 
   /**
+   * Build diagnostic ESC/POS binary ticket for testing paper alignment and formatting
+   */
+  buildTestEscPosBuffer(
+    business: Business | null,
+    paperWidth: ThermalPaperWidth = '80mm'
+  ): Uint8Array {
+    const cols = paperWidth === '58mm' ? 32 : 48;
+    const encoder = new TextEncoder();
+    const chunks: Uint8Array[] = [];
+
+    const pushBytes = (...bytes: number[]) => chunks.push(new Uint8Array(bytes));
+    const pushText = (text: string) => chunks.push(encoder.encode(text));
+
+    // 1. Initialize
+    pushBytes(0x1b, 0x40);
+    pushBytes(0x1b, 0x74, 0x02); // Code page CP850
+
+    // 2. Header
+    pushBytes(0x1b, 0x61, 0x01); // Center
+    pushBytes(0x1d, 0x21, 0x11); // Double size
+    pushText('URSELLA POS\n');
+    pushBytes(0x1d, 0x21, 0x00); // Normal size
+    pushText('BLUETOOTH ESC/POS TEST\n');
+    pushText(`${this.sanitizeText(business?.name || 'Store Terminal')}\n`);
+    pushText(`${new Date().toLocaleString()}\n`);
+    pushText(this.formatDivider('=', cols));
+
+    // 3. Calibration Ruler
+    pushBytes(0x1b, 0x61, 0x00); // Left align
+    pushText(`Paper Width Mode: ${paperWidth} (${cols} Cols)\n`);
+    pushText('Ruler Column Scale:\n');
+    if (paperWidth === '58mm') {
+      pushText('12345678901234567890123456789012\n');
+      pushText('----|----|----|----|----|----|--\n');
+    } else {
+      pushText('123456789012345678901234567890123456789012345678\n');
+      pushText('----|----|----|----|----|----|----|----|----|---\n');
+    }
+    pushText(this.formatDivider('-', cols));
+
+    // 4. Styles test
+    pushText('Style Test:\n');
+    pushBytes(0x1b, 0x45, 0x01); // Bold on
+    pushText(' [x] Bold Font Active\n');
+    pushBytes(0x1b, 0x45, 0x00); // Bold off
+
+    pushBytes(0x1b, 0x2d, 0x01); // Underline on
+    pushText(' [x] Underline Active\n');
+    pushBytes(0x1b, 0x2d, 0x00); // Underline off
+
+    pushText(' [x] French Accents: é à è ç ô î\n');
+    pushText(' [x] Cash Drawer Pulse: Ready\n');
+    pushText(this.formatDivider('=', cols));
+
+    // 5. Footer
+    pushBytes(0x1b, 0x61, 0x01); // Center
+    pushText('Bluetooth Connection Verified OK!\n\n\n\n');
+    pushBytes(0x1d, 0x56, 0x41, 0x03); // Cut
+
+    const totalLength = chunks.reduce((acc, curr) => acc + curr.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return result;
+  }
+
+  /**
    * Cash Drawer Kick Pulse binary command
    */
   getCashDrawerCommand(): Uint8Array {
@@ -229,39 +362,172 @@ class HardwarePrinterServiceClass {
   }
 
   /**
+   * Send binary buffer over active Bluetooth characteristic in throttled micro-chunks
+   */
+  private async sendBluetoothBuffer(buffer: Uint8Array): Promise<void> {
+    if (!this.activeCharacteristic) {
+      throw new Error('No writable Bluetooth characteristic found on printer.');
+    }
+
+    const settings = this.getSettings();
+    const chunkSize = settings.chunkSize || 32;
+    const delayMs = settings.chunkDelayMs || 15;
+
+    for (let i = 0; i < buffer.length; i += chunkSize) {
+      const chunk = buffer.slice(i, i + chunkSize);
+      if (this.activeCharacteristic.properties.writeWithoutResponse) {
+        await this.activeCharacteristic.writeValueWithoutResponse(chunk);
+      } else {
+        await this.activeCharacteristic.writeValue(chunk);
+      }
+      if (delayMs > 0 && i + chunkSize < buffer.length) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  /**
    * Connect via Web Bluetooth to a thermal printer
    */
   async connectBluetooth(): Promise<{ success: boolean; deviceName?: string; error?: string }> {
     if (!this.getCapabilities().bluetooth) {
-      return { success: false, error: 'Web Bluetooth is not supported in this browser.' };
+      return {
+        success: false,
+        error:
+          'Web Bluetooth is not supported in this browser. Please use Google Chrome, Microsoft Edge, or Opera on Android, Windows, macOS, or ChromeOS.',
+      };
     }
+
+    if (this.isConnecting) {
+      return { success: false, error: 'Bluetooth pairing already in progress.' };
+    }
+
+    this.isConnecting = true;
 
     try {
       const device = await (navigator as any).bluetooth.requestDevice({
         acceptAllDevices: true,
-        optionalServices: [
-          '000018f0-0000-1000-8000-00805f9b34fb', // Standard Serial Port Service
-          'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // ESC/POS Service
-          '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Microchip BLE
-          '0000ff00-0000-1000-8000-00805f9b34fb',
-        ],
+        optionalServices: THERMAL_PRINTER_GATT_SERVICES,
+      });
+
+      if (!device) {
+        this.isConnecting = false;
+        return { success: false, error: 'No Bluetooth printer selected.' };
+      }
+
+      device.addEventListener('gattserverdisconnected', () => {
+        console.warn('[HardwarePrinterService] Bluetooth printer disconnected:', device.name);
+        this.activeCharacteristic = null;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('ursella_bluetooth_status_changed', {
+              detail: { connected: false, deviceName: device.name },
+            })
+          );
+        }
       });
 
       const server = await device.gatt?.connect();
       if (!server) {
+        this.isConnecting = false;
         return { success: false, error: 'Could not connect to GATT server on printer.' };
       }
 
-      this.activeBluetoothDevice = device;
-      this.saveSettings({ pairedDeviceName: device.name || 'Bluetooth Printer' });
+      const services = await server.getPrimaryServices();
+      let foundChar: any = null;
 
+      for (const service of services) {
+        try {
+          const chars = await service.getCharacteristics();
+          for (const c of chars) {
+            if (c.properties.write || c.properties.writeWithoutResponse) {
+              foundChar = c;
+              break;
+            }
+          }
+          if (foundChar) break;
+        } catch {
+          // Check next service
+        }
+      }
+
+      if (!foundChar) {
+        this.isConnecting = false;
+        return {
+          success: false,
+          error: 'Printer connected, but no writable ESC/POS channel was discovered.',
+        };
+      }
+
+      this.activeBluetoothDevice = device;
+      this.activeCharacteristic = foundChar;
+
+      const deviceName = device.name || 'Bluetooth ESC/POS Printer';
+      this.saveSettings({
+        connectionType: 'bluetooth',
+        pairedDeviceName: deviceName,
+      });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('ursella_bluetooth_status_changed', {
+            detail: { connected: true, deviceName },
+          })
+        );
+      }
+
+      this.isConnecting = false;
       return {
         success: true,
-        deviceName: device.name || 'Thermal Bluetooth Printer',
+        deviceName,
       };
     } catch (err: any) {
-      console.warn('Bluetooth connection error:', err);
-      return { success: false, error: err?.message || 'Bluetooth connection failed.' };
+      this.isConnecting = false;
+      console.warn('[HardwarePrinterService] Bluetooth connection failed:', err);
+      return { success: false, error: err?.message || 'Bluetooth connection failed or was canceled.' };
+    }
+  }
+
+  /**
+   * Disconnect from current Bluetooth printer
+   */
+  async disconnectBluetooth(): Promise<void> {
+    if (this.activeBluetoothDevice && this.activeBluetoothDevice.gatt?.connected) {
+      try {
+        this.activeBluetoothDevice.gatt.disconnect();
+      } catch (e) {
+        console.warn('Error disconnecting GATT:', e);
+      }
+    }
+    this.activeBluetoothDevice = null;
+    this.activeCharacteristic = null;
+    this.saveSettings({ connectionType: 'browser' });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('ursella_bluetooth_status_changed', {
+          detail: { connected: false, deviceName: null },
+        })
+      );
+    }
+  }
+
+  /**
+   * Send ESC/POS Diagnostic Test Print directly to Bluetooth printer
+   */
+  async printTestReceiptBluetooth(business: Business | null): Promise<{ success: boolean; error?: string }> {
+    if (!this.isBluetoothConnected()) {
+      return { success: false, error: 'No active Bluetooth printer connected.' };
+    }
+
+    try {
+      const settings = this.getSettings();
+      const buffer = this.buildTestEscPosBuffer(business, settings.paperWidth);
+      await this.sendBluetoothBuffer(buffer);
+      return { success: true };
+    } catch (err: any) {
+      console.error('[HardwarePrinterService] Direct Bluetooth test print failed:', err);
+      return { success: false, error: err?.message || 'Failed to send test buffer to Bluetooth printer.' };
     }
   }
 
@@ -280,7 +546,7 @@ class HardwarePrinterServiceClass {
       (settings.autoKickDrawerOnCash && sale.payment_method === 'cash');
 
     // 1. If Bluetooth is active and connected
-    if (this.activeBluetoothDevice && this.activeBluetoothDevice.gatt?.connected) {
+    if (this.isBluetoothConnected()) {
       try {
         const buffer = this.buildEscPosBuffer(
           sale,
@@ -290,33 +556,12 @@ class HardwarePrinterServiceClass {
           shouldKick
         );
 
-        // Send in 64-byte chunks to prevent BLE buffer overflow
-        const services = await this.activeBluetoothDevice.gatt.getPrimaryServices();
-        let targetChar: any = null;
-
-        for (const service of services) {
-          const chars = await service.getCharacteristics();
-          for (const c of chars) {
-            if (c.properties.write || c.properties.writeWithoutResponse) {
-              targetChar = c;
-              break;
-            }
-          }
-          if (targetChar) break;
-        }
-
-        if (targetChar) {
-          const CHUNK_SIZE = 64;
-          for (let i = 0; i < buffer.length; i += CHUNK_SIZE) {
-            const slice = buffer.slice(i, i + CHUNK_SIZE);
-            if (targetChar.properties.writeWithoutResponse) {
-              await targetChar.writeValueWithoutResponse(slice);
-            } else {
-              await targetChar.writeValue(slice);
-            }
-          }
-          return { success: true, method: 'bluetooth', message: 'Printed via Bluetooth ESC/POS' };
-        }
+        await this.sendBluetoothBuffer(buffer);
+        return {
+          success: true,
+          method: 'bluetooth',
+          message: `Printed directly via Bluetooth ESC/POS (${settings.paperWidth})`,
+        };
       } catch (err) {
         console.warn('Bluetooth print failed, falling back to browser thermal mode:', err);
       }
@@ -324,18 +569,22 @@ class HardwarePrinterServiceClass {
 
     // 2. High-precision Isolated Thermal Browser Print
     this.printThermalReceiptBrowser(sale, business, currencyConfig, settings.paperWidth);
-    return { success: true, method: 'browser', message: `Printed in thermal ${settings.paperWidth} mode` };
+    return {
+      success: true,
+      method: 'browser',
+      message: `Printed in thermal ${settings.paperWidth} mode`,
+    };
   }
 
   /**
    * Kick Cash Drawer trigger
    */
   async kickCashDrawer(): Promise<{ success: boolean; message: string }> {
-    if (this.activeBluetoothDevice && this.activeBluetoothDevice.gatt?.connected) {
+    if (this.isBluetoothConnected()) {
       try {
         const cmd = this.getCashDrawerCommand();
-        // Send command
-        return { success: true, message: 'Cash drawer trigger pulse sent via Bluetooth' };
+        await this.sendBluetoothBuffer(cmd);
+        return { success: true, message: 'Cash drawer trigger pulse sent via Bluetooth ESC/POS' };
       } catch (e) {
         console.warn('Failed to kick drawer via Bluetooth:', e);
       }
