@@ -35,6 +35,13 @@ import {
   Boxes,
   Users,
 } from 'lucide-react';
+import {
+  getCategoryTheme,
+  CATEGORY_PALETTES,
+  setCategoryColorOverride,
+  getCategoryColorOverrides,
+  removeCategoryColorOverride,
+} from '../../lib/product-colors.ts';
 
 export const UNIT_OF_MEASURE_GROUPS_EN = [
   {
@@ -237,6 +244,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [catName, setCatName] = useState('');
   const [catDesc, setCatDesc] = useState('');
+  const [catColor, setCatColor] = useState<string>('auto');
   const [savingCategory, setSavingCategory] = useState(false);
   const [catError, setCatError] = useState<string | null>(null);
 
@@ -542,15 +550,31 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
     setCatError(null);
 
     try {
+      let savedCatId = editingCatId;
       if (editingCatId) {
         await ProductService.updateCategory(activeBusiness.id, editingCatId, catName.trim(), catDesc);
       } else {
-        await ProductService.createCategory(activeBusiness.id, catName.trim(), catDesc);
+        const created = await ProductService.createCategory(activeBusiness.id, catName.trim(), catDesc);
+        savedCatId = created.id;
+      }
+
+      // Persist chosen color override
+      if (catColor && catColor !== 'auto') {
+        setCategoryColorOverride(activeBusiness.id, catName.trim(), catColor);
+        if (savedCatId) {
+          setCategoryColorOverride(activeBusiness.id, savedCatId, catColor);
+        }
+      } else if (catColor === 'auto') {
+        removeCategoryColorOverride(activeBusiness.id, catName.trim());
+        if (savedCatId) {
+          removeCategoryColorOverride(activeBusiness.id, savedCatId);
+        }
       }
 
       setIsCategoryModalOpen(false);
       setCatName('');
       setCatDesc('');
+      setCatColor('auto');
       setEditingCatId(null);
       loadProducts();
     } catch (err: any) {
@@ -565,6 +589,11 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
     if (!confirm(isFr ? 'Voulez-vous vraiment supprimer cette catégorie ? Les produits associés ne seront pas supprimés.' : 'Are you sure you want to remove this category? Products in this category will not be deleted.')) return;
 
     try {
+      const targetCat = categories.find((c) => c.id === catId);
+      if (targetCat) {
+        removeCategoryColorOverride(activeBusiness.id, targetCat.name);
+        removeCategoryColorOverride(activeBusiness.id, targetCat.id);
+      }
       await ProductService.deleteOrArchiveCategory(activeBusiness.id, catId);
       loadProducts();
     } catch (err: any) {
@@ -879,31 +908,45 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
                     ? Math.round((marginAmount / product.selling_price) * 100)
                     : 0;
 
-                const isOutOfStock = product.stock_quantity <= 0;
+                const isService = product.product_type === 'service';
+                const isOutOfStock = !isService && product.stock_quantity <= 0;
                 const isLowStock =
+                  !isService &&
                   product.stock_quantity > 0 &&
                   product.stock_quantity <= product.minimum_stock_level;
+
+                const theme = getCategoryTheme(product.category?.name || (isService ? 'service' : ''), activeBusiness?.id);
+
+                let cardBg = `${theme.bg} ${theme.border} ${theme.hoverBorder}`;
+                if (!product.is_active) {
+                  cardBg = 'bg-zinc-950/40 border-zinc-900 opacity-60';
+                } else if (isOutOfStock) {
+                  cardBg = 'bg-zinc-950/30 border-zinc-800/50 opacity-60';
+                }
 
                 return (
                   <div
                     key={product.id}
-                    className={`p-4 rounded-xl border transition-all flex flex-col justify-between group ${
-                      !product.is_active
-                        ? 'bg-zinc-950/40 border-zinc-900 opacity-60'
-                        : 'bg-zinc-900/90 border-zinc-800 hover:border-zinc-700'
-                    }`}
+                    className={`p-4 rounded-2xl border transition-all flex flex-col justify-between group relative overflow-hidden ${cardBg}`}
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider truncate">
-                          {product.category?.name || (isFr ? 'Général' : 'General Product')}
-                        </span>
+                        {product.category ? (
+                          <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-md border ${theme.badgeBg} ${theme.badgeText} ${theme.badgeBorder} uppercase tracking-wider truncate max-w-[160px]`}>
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${theme.accentDot}`} />
+                            <span className="truncate">{product.category.name}</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+                            {isFr ? 'Général' : 'General Product'}
+                          </span>
+                        )}
                         {!product.is_active && <Badge variant="zinc">{isFr ? 'Archivé' : 'Archived'}</Badge>}
                       </div>
 
                       <h3
                         onClick={() => handleViewProductDetail(product.id)}
-                        className="text-sm font-bold text-zinc-100 hover:text-blue-400 cursor-pointer mt-1 line-clamp-1"
+                        className="text-sm font-bold text-zinc-100 hover:text-blue-400 cursor-pointer mt-2 line-clamp-1 group-hover:text-white transition-colors"
                       >
                         {product.name}
                       </h3>
@@ -1179,39 +1222,51 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {categories.map((cat) => {
                 const assignedProds = products.filter((p) => p.category_id === cat.id);
+                const theme = getCategoryTheme(cat.name, activeBusiness?.id);
                 return (
                   <div
                     key={cat.id}
-                    className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-3 group"
+                    className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 group relative overflow-hidden ${theme.bg} ${theme.border} ${theme.hoverBorder}`}
                   >
-                    <div>
-                      <h4 className="text-sm font-bold text-zinc-100">{cat.name}</h4>
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        {assignedProds.length} {isFr ? (assignedProds.length === 1 ? 'produit associé' : 'produits associés') : (assignedProds.length === 1 ? 'product assigned' : 'products assigned')}
-                      </p>
-                      {cat.description && (
-                        <p className="text-[11px] text-zinc-500 mt-1 line-clamp-1">
-                          {cat.description}
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className={`w-3.5 h-3.5 rounded-full ${theme.accentDot} mt-1 shrink-0 ring-4 ring-zinc-900/50`} />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-bold text-zinc-100 truncate">{cat.name}</h4>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${theme.badgeBg} ${theme.badgeText} ${theme.badgeBorder} shrink-0`}>
+                            {assignedProds.length} {isFr ? 'prod.' : 'prod.'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          {assignedProds.length} {isFr ? (assignedProds.length === 1 ? 'produit associé' : 'produits associés') : (assignedProds.length === 1 ? 'product assigned' : 'products assigned')}
                         </p>
-                      )}
+                        {cat.description && (
+                          <p className="text-[11px] text-zinc-400 mt-1 line-clamp-1">
+                            {cat.description}
+                          </p>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => {
+                          const overrides = getCategoryColorOverrides(activeBusiness?.id);
+                          const existingColor = overrides[cat.name.toLowerCase()] || overrides[cat.id.toLowerCase()] || 'auto';
                           setEditingCatId(cat.id);
                           setCatName(cat.name);
                           setCatDesc(cat.description || '');
+                          setCatColor(existingColor);
                           setIsCategoryModalOpen(true);
                         }}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-blue-400 hover:bg-blue-950/20 cursor-pointer"
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-blue-400 hover:bg-blue-950/30 cursor-pointer"
                         title={isFr ? 'Modifier' : 'Edit'}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDeleteCategory(cat.id)}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20 cursor-pointer"
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-950/30 cursor-pointer"
                         title={isFr ? 'Supprimer' : 'Delete'}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1890,6 +1945,88 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
             value={catDesc}
             onChange={(e) => setCatDesc(e.target.value)}
           />
+
+          {/* Color & Theme Picker */}
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-zinc-300">
+                {isFr ? 'Couleur & Thème de Carte' : 'Card Color & Theme'}
+              </label>
+              <span className="text-[11px] text-zinc-400">
+                {catColor === 'auto'
+                  ? (isFr ? 'Attribution automatique' : 'Auto-assigned')
+                  : CATEGORY_PALETTES.find((p) => p.id === catColor)?.name || catColor}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-6 gap-2">
+              {/* Auto Option */}
+              <button
+                type="button"
+                onClick={() => setCatColor('auto')}
+                className={`h-9 rounded-xl border flex flex-col items-center justify-center text-[10px] font-bold transition-all cursor-pointer ${
+                  catColor === 'auto'
+                    ? 'border-white bg-zinc-800 text-white ring-2 ring-white/20'
+                    : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700'
+                }`}
+                title={isFr ? 'Automatique (basé sur le nom)' : 'Automatic (based on category name)'}
+              >
+                Auto
+              </button>
+
+              {/* Palette swatches */}
+              {CATEGORY_PALETTES.map((pal) => {
+                const isSelected = catColor === pal.id;
+                return (
+                  <button
+                    key={pal.id}
+                    type="button"
+                    onClick={() => setCatColor(pal.id)}
+                    className={`h-9 rounded-xl border flex items-center justify-center transition-all cursor-pointer relative group ${pal.bg} ${
+                      isSelected
+                        ? 'border-white ring-2 ring-white/30 scale-105 z-10'
+                        : `${pal.border} hover:border-zinc-500`
+                    }`}
+                    title={pal.name}
+                  >
+                    <span className={`w-3.5 h-3.5 rounded-full ${pal.accentDot} shadow-sm ring-1 ring-black/30`} />
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Live Preview Card */}
+            <div className="pt-2">
+              <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider block mb-1.5">
+                {isFr ? 'Aperçu de la carte produit' : 'Live Product Card Preview'}
+              </span>
+              {(() => {
+                const previewTheme = getCategoryTheme(
+                  catName.trim() || 'Sample',
+                  activeBusiness?.id,
+                  catColor !== 'auto' ? catColor : null
+                );
+                return (
+                  <div className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${previewTheme.bg} ${previewTheme.border}`}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className={`w-2.5 h-2.5 rounded-full ${previewTheme.accentDot}`} />
+                      <div className="min-w-0">
+                        <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md border ${previewTheme.badgeBg} ${previewTheme.badgeText} ${previewTheme.badgeBorder} uppercase tracking-wider`}>
+                          {catName.trim() || (isFr ? 'Nom Catégorie' : 'Category Name')}
+                        </span>
+                        <p className="text-xs font-bold text-zinc-100 mt-1 truncate">
+                          {isFr ? 'Exemple de Produit' : 'Sample Product Title'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black text-emerald-400 shrink-0">
+                      {currencyConfig.format(1500)}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
 
           {catError && <p className="text-xs text-rose-400 font-medium">{catError}</p>}
 

@@ -51,6 +51,7 @@ import { BarcodeScannerModal } from '../../components/scanner/BarcodeScannerModa
 import { IndexedDBService } from '../../services/indexed-db.service.ts';
 import { calculateCartTotals, calculateChangeDue, roundToDecimals } from '../../utils/currency-math.ts';
 import { verifyManagerPin, getMaxAllowedDiscount } from '../../utils/rbac.ts';
+import { getCategoryTheme } from '../../lib/product-colors.ts';
 
 export const SellPage: React.FC = () => {
   const { activeBusiness, currency, effectiveRole } = useBusiness();
@@ -550,27 +551,35 @@ export const SellPage: React.FC = () => {
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none max-w-full overscroll-x-contain touch-pan-x">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                   selectedCategory === 'all'
-                    ? 'bg-zinc-100 text-zinc-950 font-bold shadow'
-                    : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
+                    ? 'bg-zinc-100 text-zinc-950 font-bold shadow-sm'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800 hover:border-zinc-700'
                 }`}
               >
-                {t.pos.allCategories} ({products.length})
+                <span>{t.pos.allCategories}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${selectedCategory === 'all' ? 'bg-zinc-300 text-zinc-900' : 'bg-zinc-800 text-zinc-400'}`}>
+                  {products.length}
+                </span>
               </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                    selectedCategory === cat.id
-                      ? 'bg-emerald-600 text-white font-bold'
-                      : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
-                  }`}
-                >
-                  {cat.name}
-                </button>
-              ))}
+              {categories.map((cat) => {
+                const catTheme = getCategoryTheme(cat.name, activeBusiness?.id);
+                const isSelected = selectedCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 border ${
+                      isSelected
+                        ? `${catTheme.activeChipBg} ${catTheme.activeChipText} border-transparent shadow-sm shadow-${catTheme.id}-900/50 font-bold`
+                        : `bg-zinc-900/90 text-zinc-300 hover:text-white border-zinc-800 hover:border-zinc-700`
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${catTheme.accentDot}`} />
+                    <span>{cat.name}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Product Cards Grid */}
@@ -579,7 +588,7 @@ export const SellPage: React.FC = () => {
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div
                     key={i}
-                    className="h-32 rounded-xl bg-zinc-900/60 animate-pulse border border-zinc-800"
+                    className="h-36 rounded-2xl bg-zinc-900/60 animate-pulse border border-zinc-800"
                   />
                 ))}
               </div>
@@ -604,69 +613,89 @@ export const SellPage: React.FC = () => {
                     product.stock_quantity > 0 &&
                     product.stock_quantity <= product.minimum_stock_level;
 
+                  const theme = getCategoryTheme(product.category?.name || (isService ? 'service' : ''), activeBusiness?.id);
+
+                  // Dynamic card class styling based on cart, stock, and category theme
+                  let cardClasses = 'bg-zinc-900/80 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-850 cursor-pointer active:scale-[0.98]';
+                  if (isOutOfStock) {
+                    cardClasses = 'bg-zinc-950/40 border-zinc-800/40 opacity-45 cursor-not-allowed';
+                  } else if (inCartItem) {
+                    cardClasses = 'bg-emerald-950/30 border-emerald-500 ring-1 ring-emerald-500/40 cursor-pointer shadow-md shadow-emerald-950/30';
+                  } else if (isLowStock) {
+                    cardClasses = `${theme.bg} ${theme.border} hover:border-amber-500/50 cursor-pointer active:scale-[0.98]`;
+                  } else {
+                    cardClasses = `${theme.bg} ${theme.border} ${theme.hoverBorder} cursor-pointer active:scale-[0.98]`;
+                  }
+
                   return (
                     <div
                       key={product.id}
                       onClick={() => !isOutOfStock && addToCart(product)}
-                      className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between select-none relative group ${
-                        isOutOfStock
-                          ? 'bg-zinc-900/30 border-zinc-800/40 opacity-50 cursor-not-allowed'
-                          : inCartItem
-                          ? 'bg-emerald-950/20 border-emerald-500/40 hover:border-emerald-500 cursor-pointer shadow-sm shadow-emerald-950/20'
-                          : 'bg-zinc-900/80 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/50 cursor-pointer active:scale-98'
-                      }`}
+                      className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between select-none relative group overflow-hidden ${cardClasses}`}
                     >
                       {/* In-Cart Quantity Indicator Badge */}
                       {inCartItem && (
-                        <div className="absolute top-2 right-2 px-1.5 min-w-[24px] h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shadow-lg animate-in zoom-in-50">
+                        <div className="absolute top-2.5 right-2.5 px-2 min-w-[24px] h-6 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shadow-lg animate-in zoom-in-50 border border-emerald-400/40">
                           {inCartItem.quantity}
                         </div>
                       )}
 
                       <div>
-                        <div className="flex items-center justify-between gap-1">
+                        {/* Category & Status Header */}
+                        <div className="flex items-center justify-between gap-1.5 pr-6">
                           {product.category ? (
-                            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block truncate">
-                              {product.category.name}
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${theme.badgeBg} ${theme.badgeText} ${theme.badgeBorder} uppercase tracking-wider truncate max-w-[120px]`}>
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${theme.accentDot}`} />
+                              <span className="truncate">{product.category.name}</span>
                             </span>
-                          ) : <span />}
+                          ) : (
+                            <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+                              {isFr ? 'Général' : 'General'}
+                            </span>
+                          )}
+
                           {isService && (
-                            <span className="text-[9px] font-bold text-blue-400 bg-blue-950/40 border border-blue-800/50 px-1.5 py-0.5 rounded">
+                            <span className="text-[9px] font-bold text-blue-300 bg-blue-950/80 border border-blue-700/60 px-1.5 py-0.5 rounded-md">
                               {isFr ? 'Service' : 'Service'}
                             </span>
                           )}
                         </div>
-                        <h4 className="text-xs font-bold text-zinc-100 mt-0.5 line-clamp-2 leading-tight">
+
+                        {/* Title & SKU */}
+                        <h4 className="text-xs sm:text-[13px] font-bold text-zinc-100 mt-2 line-clamp-2 leading-snug group-hover:text-white transition-colors">
                           {product.name}
                         </h4>
                         {product.sku && (
-                          <span className="text-[10px] text-zinc-400 font-mono">
+                          <span className="text-[10px] text-zinc-400 font-mono block mt-0.5">
                             {product.sku}
                           </span>
                         )}
                       </div>
 
-                      <div className="pt-3 mt-2 border-t border-zinc-800/60 flex items-center justify-between">
+                      {/* Pricing & Stock Bottom Bar */}
+                      <div className="pt-3 mt-3 border-t border-zinc-800/60 flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-xs sm:text-sm font-extrabold text-emerald-400">
+                          <p className="text-xs sm:text-sm font-black text-emerald-400 tracking-tight">
                             {currencyConfig.format(product.selling_price)}
                           </p>
                           <div className="mt-0.5">
                             {isService ? (
                               <span className="text-[10px] font-medium text-blue-400">
-                                {isFr ? 'Service (Sans limite de stock)' : 'Service (No stock limit)'}
+                                {isFr ? 'Service illimité' : 'Unlimited'}
                               </span>
                             ) : isOutOfStock ? (
-                              <span className="text-[10px] font-bold text-rose-400">
+                              <span className="text-[10px] font-bold text-rose-400 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                                 {isFr ? 'Rupture' : 'Out of stock'}
                               </span>
                             ) : isLowStock ? (
-                              <span className="text-[10px] font-semibold text-amber-400">
-                                {product.stock_quantity} {product.unit_of_measure || (isFr ? 'pièce' : 'piece')} {isFr ? 'Faible' : 'Low stock'}
+                              <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                {product.stock_quantity} {product.unit_of_measure || (isFr ? 'pcs' : 'pcs')} ({isFr ? 'Faible' : 'Low'})
                               </span>
                             ) : (
-                              <span className="text-[10px] text-zinc-400">
-                                {isFr ? 'Stock' : 'Stock'}: {product.stock_quantity} {product.unit_of_measure || (isFr ? 'pièce' : 'piece')}
+                              <span className="text-[10px] text-zinc-400 font-medium">
+                                {product.stock_quantity} {product.unit_of_measure || (isFr ? 'pcs' : 'pcs')}
                               </span>
                             )}
                           </div>
@@ -674,13 +703,14 @@ export const SellPage: React.FC = () => {
 
                         <button
                           disabled={isOutOfStock}
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                             isOutOfStock
                               ? 'bg-zinc-800 text-zinc-600'
                               : inCartItem
-                              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-900/40'
-                              : 'bg-zinc-800 text-zinc-300 group-hover:bg-emerald-600 group-hover:text-white'
+                              ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-900/50 scale-105'
+                              : 'bg-zinc-800/90 text-zinc-300 group-hover:bg-emerald-600 group-hover:text-white group-hover:shadow-sm'
                           }`}
+                          aria-label={`Add ${product.name} to cart`}
                         >
                           <Plus className="w-4 h-4" />
                         </button>
