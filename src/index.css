@@ -541,5 +541,29 @@ html.light .shadow-lg {
   -webkit-overflow-scrolling: touch;
 }
 
+/* html5-qrcode video and container styling */
+#ursella-pos-scanner-viewport {
+  border: none !important;
+  width: 100% !important;
+  position: relative !important;
+}
+
+#ursella-pos-scanner-viewport video {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 380px !important;
+  object-fit: cover !important;
+  border-radius: 1rem !important;
+  display: block !important;
+}
+
+#ursella-pos-scanner-viewport #ursella-pos-scanner-viewport__scan_region {
+  border: none !important;
+}
+
+#ursella-pos-scanner-viewport img[alt="Info icon"] {
+  display: none !important;
+}
+
 
 

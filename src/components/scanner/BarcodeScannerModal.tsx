@@ -171,6 +171,23 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
         );
       }
 
+      // Preflight getUserMedia to prompt for browser permission cleanly inside iframe
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: 'environment' },
+        });
+        // Stop the temporary preview track immediately once permission is granted
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (permErr: any) {
+        if (permErr?.name === 'NotAllowedError' || permErr?.name === 'PermissionDeniedError') {
+          throw new Error(
+            isFr
+              ? "Autorisation refusée. Veuillez autoriser l'accès à la caméra dans les paramètres de votre navigateur."
+              : 'Camera permission denied. Please allow camera access in your browser settings.'
+          );
+        }
+      }
+
       // Query available cameras
       try {
         const devices = await Html5Qrcode.getCameras();
@@ -213,8 +230,12 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       await scanner.start(
         cameraConfig,
         {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
+          fps: 15,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const edgeSize = Math.max(160, Math.floor(minEdge * 0.72));
+            return { width: edgeSize, height: edgeSize };
+          },
           aspectRatio: 1.0,
         },
         (decodedText) => {
@@ -311,16 +332,16 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     >
       <div className="space-y-4 select-none">
         {/* Camera Viewport Container */}
-        <div className="relative rounded-2xl overflow-hidden bg-zinc-950 border border-zinc-800 shadow-inner flex flex-col items-center justify-center min-h-[280px]">
-          {/* html5-qrcode target div */}
+        <div className="relative rounded-2xl overflow-hidden bg-zinc-950 border border-zinc-800 shadow-inner flex flex-col items-center justify-center min-h-[300px] w-full">
+          {/* html5-qrcode target div: Always rendered with positive dimensions so html5-qrcode can measure and attach video element */}
           <div
             id={readerId}
-            className={`w-full max-w-[320px] aspect-square ${cameraActive ? 'block' : 'hidden'}`}
+            className="w-full max-w-[360px] aspect-square overflow-hidden rounded-xl"
           />
 
           {/* Fallback / Inactive Camera Overlay */}
           {!cameraActive && (
-            <div className="flex flex-col items-center justify-center p-6 text-center space-y-3">
+            <div className="absolute inset-0 bg-zinc-950/95 flex flex-col items-center justify-center p-6 text-center space-y-3 z-10">
               <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-500">
                 <CameraOff className="w-8 h-8" />
               </div>
@@ -337,7 +358,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                 size="sm"
                 onClick={() => startScanner(selectedCameraId)}
                 leftIcon={<Camera className="w-3.5 h-3.5" />}
-                className="border-zinc-700 bg-zinc-900 text-zinc-200 hover:text-white text-xs"
+                className="border-zinc-700 bg-zinc-900 text-zinc-200 hover:text-white text-xs cursor-pointer"
               >
                 {isFr ? 'Réessayer la Caméra' : 'Retry Camera'}
               </Button>
