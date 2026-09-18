@@ -67,6 +67,8 @@ export const InventoryService = {
       throw new Error('Movement quantity must be greater than zero.');
     }
 
+    let resultTxId: string | null = null;
+
     if (isSupabaseConfigured && isValidUUID(params.business_id) && isValidUUID(params.product_id)) {
       const sanitizedRefId = params.reference_id && isValidUUID(params.reference_id)
         ? params.reference_id
@@ -147,17 +149,17 @@ export const InventoryService = {
               .select('id')
               .maybeSingle();
 
-            return (tx as any)?.id || generateUUID();
+            resultTxId = (tx as any)?.id || generateUUID();
           }
         } catch (directErr: any) {
           console.warn('[Inventory] Direct table update failed, proceeding to local cache sync:', directErr?.message);
         }
       } else {
-        return data as string;
+        resultTxId = data as string;
       }
     }
 
-    // Local fallback with atomic stock checks (always runs if offline or direct database fallback)
+    // Always update local storage product cache so offline and catalog views immediately reflect new stock
     const prodKey = `${LOCAL_PRODUCTS_PREFIX}${params.business_id}`;
     const prodStored = localStorage.getItem(prodKey);
     const prods: Product[] = prodStored ? JSON.parse(prodStored) : [];
@@ -173,30 +175,21 @@ export const InventoryService = {
       );
     }
 
-    if (prodIdx === -1) {
-      throw new Error('Product does not exist.');
-    }
-
+    if (prodIdx !== -1) {
       const product = prods[prodIdx];
-      if (product.product_type === 'service') {
-        throw new Error('Cannot record inventory movements for service items.');
-      }
-
       let newStock = product.stock_quantity;
 
       if (['purchase', 'restock', 'return'].includes(params.type)) {
         newStock += params.quantity;
       } else if (['sale', 'damage'].includes(params.type)) {
-        if (product.stock_quantity < params.quantity) {
+        if (!resultTxId && product.stock_quantity < params.quantity) {
           throw new Error(
             `Insufficient stock for "${product.name}". Available: ${product.stock_quantity}, requested: ${params.quantity}.`
           );
         }
-        newStock -= params.quantity;
+        newStock = Math.max(0, newStock - params.quantity);
       } else if (params.type === 'adjustment' || params.type === 'initial_stock') {
         newStock = params.quantity; // target level
-      } else {
-        throw new Error(`Unknown movement type: ${params.type}`);
       }
 
       prods[prodIdx] = {
@@ -205,8 +198,10 @@ export const InventoryService = {
         updated_at: new Date().toISOString(),
       };
       localStorage.setItem(prodKey, JSON.stringify(prods));
+    }
 
-      // Record transaction
+    // Record local transaction if not handled online
+    if (!resultTxId) {
       const invKey = `${LOCAL_INVENTORY_PREFIX}${params.business_id}`;
       const invStored = localStorage.getItem(invKey);
       const invList: InventoryTransaction[] = invStored ? JSON.parse(invStored) : [];
@@ -227,7 +222,18 @@ export const InventoryService = {
       });
 
       localStorage.setItem(invKey, JSON.stringify(invList));
-      return txId;
+      resultTxId = txId;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('ursella_data_changed', {
+          detail: { type: 'inventory_movement', productId: params.product_id },
+        })
+      );
+    }
+
+    return resultTxId;
   },
 
   /**

@@ -185,6 +185,19 @@ export const SellPage: React.FC = () => {
     }
   }, [activeTab, activeBusiness?.id, historyStatusFilter, historySearch]);
 
+  useEffect(() => {
+    const handleDataChanged = () => {
+      loadData();
+      if (activeTab === 'history') {
+        loadSalesHistory();
+      }
+    };
+    window.addEventListener('ursella_data_changed', handleDataChanged);
+    return () => {
+      window.removeEventListener('ursella_data_changed', handleDataChanged);
+    };
+  }, [activeBusiness?.id, activeTab, historyStatusFilter, historySearch]);
+
   // Keyboard shortcut: F2 toggles the Barcode/QR scanner modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

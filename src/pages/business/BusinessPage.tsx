@@ -325,6 +325,22 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
     }
   }, [activeBusiness?.id, activeTab, expenseCatFilter, expenseSearch]);
 
+  // Real-time synchronization when AI actions, restocks, or sales alter product stock
+  useEffect(() => {
+    const handleDataChanged = () => {
+      loadProducts();
+      if (activeTab === 'inventory') {
+        loadInventory();
+      } else if (activeTab === 'expenses') {
+        loadExpenses();
+      }
+    };
+    window.addEventListener('ursella_data_changed', handleDataChanged);
+    return () => {
+      window.removeEventListener('ursella_data_changed', handleDataChanged);
+    };
+  }, [activeBusiness?.id, activeTab, categoryFilter, stockStatusFilter, showArchivedProducts, productSearch, expenseCatFilter, expenseSearch]);
+
   // View Product Detail Modal
   const handleViewProductDetail = async (productId: string) => {
     if (!activeBusiness?.id) return;

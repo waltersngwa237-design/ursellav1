@@ -279,6 +279,30 @@ export class ProactiveService {
         if (response.ok) {
           const serverData = await response.json();
           if (serverData.success) {
+            // Synchronize returned server product stock changes to local cache
+            try {
+              const prodKey = `${LOCAL_PRODUCTS_PREFIX}${params.businessId}`;
+              const prodStored = localStorage.getItem(prodKey);
+              let prods: Product[] = prodStored ? JSON.parse(prodStored) : [];
+
+              const itemsToUpdate = serverData.result?.restockedItems || (serverData.result?.inventoryUpdate ? [serverData.result.inventoryUpdate] : []);
+              if (Array.isArray(itemsToUpdate) && itemsToUpdate.length > 0) {
+                for (const item of itemsToUpdate) {
+                  const idx = prods.findIndex((p) => p.id === item.productId || p.name.toLowerCase() === (item.productName || '').toLowerCase());
+                  if (idx !== -1 && item.newStock !== undefined) {
+                    prods[idx] = {
+                      ...prods[idx],
+                      stock_quantity: Number(item.newStock),
+                      updated_at: new Date().toISOString(),
+                    };
+                  }
+                }
+                localStorage.setItem(prodKey, JSON.stringify(prods));
+              }
+            } catch (syncErr) {
+              console.warn('[ProactiveService] Local cache sync from server result warning:', syncErr);
+            }
+
             this.recordLocalAuditLog(params.businessId, {
               id: serverData.auditLogId || `audit_${Date.now()}`,
               business_id: params.businessId,
