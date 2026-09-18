@@ -150,6 +150,56 @@ app.post('/api/auth/complete-signup', async (req, res) => {
   }
 });
 
+app.post('/api/auth/request-password-reset-code', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email address is required.' });
+    }
+
+    const result = await serverAuthService.requestPasswordResetCode(email);
+    if (!result.success) {
+      return res.status(429).json(result);
+    }
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[API Auth] Error requesting password reset code:', err);
+    return res.status(400).json({ error: err.message || 'Failed to send password reset code.' });
+  }
+});
+
+app.post('/api/auth/verify-reset-code', (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and reset code are required.' });
+    }
+
+    const result = serverAuthService.verifyResetCode(email, code);
+    if (!result.verified) {
+      return res.status(400).json({ error: result.message, verified: false });
+    }
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'Verification failed.' });
+  }
+});
+
+app.post('/api/auth/confirm-password-reset', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: 'Email, verification code, and new password are required.' });
+    }
+
+    const result = await serverAuthService.completePasswordReset(email, code, newPassword);
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[API Auth] Error completing password reset:', err);
+    return res.status(400).json({ error: err.message || 'Password reset failed.' });
+  }
+});
+
 // Health Check APIs
 app.get('/api/health', async (req, res) => {
   const result = await HealthService.performHealthCheck(false);

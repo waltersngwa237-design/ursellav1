@@ -523,22 +523,77 @@ export const AuthService = {
   },
 
   /**
-   * Send password reset email
+   * Send password reset email via Brevo with 6-digit code
    */
   async resetPasswordForEmail(email: string) {
     if (!email || !email.includes('@')) {
       throw new Error('Please provide a valid email address to send password reset instructions.');
     }
 
-    if (isSupabaseConfigured) {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
-      });
-      if (error) {
-        throw new Error(error.message);
-      }
+    // Dispatch via Brevo password reset code endpoint
+    return await this.requestPasswordResetCode(email);
+  },
+
+  /**
+   * Request a 6-digit password reset code via Brevo
+   */
+  async requestPasswordResetCode(email: string): Promise<{
+    success: boolean;
+    simulated: boolean;
+    devCode?: string;
+    message: string;
+    expiresInSeconds: number;
+    cooldownSeconds?: number;
+  }> {
+    const response = await fetch('/api/auth/request-password-reset-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Failed to send password reset code.');
     }
-    return true;
+    return data;
+  },
+
+  /**
+   * Verify an entered 6-digit password reset code
+   */
+  async verifyPasswordResetCode(email: string, code: string): Promise<{ verified: boolean; message?: string }> {
+    const response = await fetch('/api/auth/verify-reset-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim().toLowerCase(), code: code.trim() }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Reset code verification failed.');
+    }
+    return data;
+  },
+
+  /**
+   * Complete password reset using verified 6-digit code and new password
+   */
+  async confirmPasswordResetWithCode(email: string, code: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch('/api/auth/confirm-password-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        code: code.trim(),
+        newPassword,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Password reset failed.');
+    }
+    return data;
   },
 
   /**

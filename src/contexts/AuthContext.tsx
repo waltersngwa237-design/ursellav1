@@ -29,6 +29,16 @@ interface AuthContextType {
   startInstantDemo: () => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  requestPasswordResetCode: (email: string) => Promise<{
+    success: boolean;
+    simulated: boolean;
+    devCode?: string;
+    message: string;
+    expiresInSeconds: number;
+    cooldownSeconds?: number;
+  }>;
+  verifyPasswordResetCode: (email: string, code: string) => Promise<{ verified: boolean; message?: string }>;
+  confirmPasswordResetWithCode: (email: string, code: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   updatePassword: (newPass: string) => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<UserProfile>;
   refreshProfile: () => Promise<void>;
@@ -211,6 +221,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const requestPasswordResetCode = async (email: string) => {
+    try {
+      setError(null);
+      return await AuthService.requestPasswordResetCode(email);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send password reset code.';
+      setError(msg);
+      throw new Error(msg);
+    }
+  };
+
+  const verifyPasswordResetCode = async (email: string, code: string) => {
+    try {
+      setError(null);
+      return await AuthService.verifyPasswordResetCode(email, code);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to verify reset code.';
+      setError(msg);
+      throw new Error(msg);
+    }
+  };
+
+  const confirmPasswordResetWithCode = async (email: string, code: string, newPass: string) => {
+    try {
+      setError(null);
+      return await AuthService.confirmPasswordResetWithCode(email, code, newPass);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to reset password.';
+      setError(msg);
+      throw new Error(msg);
+    }
+  };
+
   const updatePassword = async (newPass: string) => {
     try {
       setError(null);
@@ -261,6 +304,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         startInstantDemo,
         signOut,
         resetPassword,
+        requestPasswordResetCode,
+        verifyPasswordResetCode,
+        confirmPasswordResetWithCode,
         updatePassword,
         updateProfile,
         refreshProfile,
