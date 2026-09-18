@@ -3,9 +3,11 @@ import { Modal } from '../common/Modal.tsx';
 import { Badge } from '../common/Badge.tsx';
 import { Button } from '../common/Button.tsx';
 import { useBusiness } from '../../contexts/BusinessContext.tsx';
+import { useLanguage } from '../../contexts/LanguageContext.tsx';
 import { PDFAndPrintService } from '../../services/pdf.service.ts';
 import { HardwarePrinterService } from '../../services/hardware-printer.service.ts';
 import { HardwareSettingsModal } from '../hardware/HardwareSettingsModal.tsx';
+import { ReceiptQRCode } from './ReceiptQRCode.tsx';
 import { CURRENCY_MAP, type SaleWithDetails } from '../../types/index.ts';
 import {
   Printer,
@@ -37,6 +39,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   onNewSale,
 }) => {
   const { activeBusiness, currency } = useBusiness();
+  const { language } = useLanguage();
+  const isFr = language === 'fr';
   const currencyConfig = CURRENCY_MAP[currency] || CURRENCY_MAP.XAF;
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [isHardwareModalOpen, setIsHardwareModalOpen] = useState(false);
@@ -44,8 +48,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
   if (!sale) return null;
 
-  const handlePrint = () => {
-    PDFAndPrintService.printReceiptDirectly(sale, activeBusiness, currencyConfig);
+  const handlePrint = async () => {
+    await PDFAndPrintService.printReceiptDirectly(sale, activeBusiness, currencyConfig);
   };
 
   const handleThermalPrint = async () => {
@@ -66,10 +70,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     setTimeout(() => setActionFeedback(null), 3500);
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     setIsExportingPDF(true);
     try {
-      PDFAndPrintService.exportReceiptPDF(sale, activeBusiness, currencyConfig);
+      await PDFAndPrintService.exportReceiptPDF(sale, activeBusiness, currencyConfig);
     } catch (err) {
       console.error('Failed to export PDF receipt:', err);
     } finally {
@@ -218,6 +222,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               Note: {sale.notes}
             </div>
           )}
+
+          {/* Scannable Receipt QR Code for Digital Authenticity */}
+          <ReceiptQRCode sale={sale} business={activeBusiness} isFr={isFr} />
         </div>
 
         {/* Feedback Message */}

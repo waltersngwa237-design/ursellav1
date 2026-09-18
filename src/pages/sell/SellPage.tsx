@@ -41,11 +41,13 @@ import {
   X,
   Printer,
   Lock,
+  QrCode,
 } from 'lucide-react';
 import { PDFAndPrintService } from '../../services/pdf.service.ts';
 import { HardwarePrinterService } from '../../services/hardware-printer.service.ts';
 import { HardwareSettingsModal } from '../../components/hardware/HardwareSettingsModal.tsx';
 import { RegisterCloseoutModal } from '../../components/reports/RegisterCloseoutModal.tsx';
+import { BarcodeScannerModal } from '../../components/scanner/BarcodeScannerModal.tsx';
 import { IndexedDBService } from '../../services/indexed-db.service.ts';
 import { calculateCartTotals, calculateChangeDue, roundToDecimals } from '../../utils/currency-math.ts';
 import { verifyManagerPin, getMaxAllowedDiscount } from '../../utils/rbac.ts';
@@ -90,6 +92,7 @@ export const SellPage: React.FC = () => {
   const [saleError, setSaleError] = useState<string | null>(null);
   const [completedSale, setCompletedSale] = useState<SaleWithDetails | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // New Customer Inline Modal
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
@@ -181,6 +184,18 @@ export const SellPage: React.FC = () => {
       loadSalesHistory();
     }
   }, [activeTab, activeBusiness?.id, historyStatusFilter, historySearch]);
+
+  // Keyboard shortcut: F2 toggles the Barcode/QR scanner modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        setIsScannerOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Filtered Products for Catalog
   const filteredProducts = useMemo(() => {
@@ -483,8 +498,8 @@ export const SellPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* CATALOG COLUMN (lg:col-span-7) */}
           <div className="lg:col-span-7 space-y-4">
-            {/* Search & Category Filter Header */}
-            <div className="flex flex-col sm:flex-row gap-3">
+            {/* Search & Barcode/QR Scanner Trigger */}
+            <div className="flex gap-2 items-center">
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                 <input
@@ -503,6 +518,19 @@ export const SellPage: React.FC = () => {
                   </button>
                 )}
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsScannerOpen(true)}
+                title={isFr ? 'Scanner un code-barres ou QR code (F2)' : 'Scan barcode or QR code (F2)'}
+                className="flex items-center gap-1.5 border-zinc-800 bg-zinc-900 text-zinc-200 hover:text-white hover:border-emerald-500/50 hover:bg-zinc-800/90 px-3 py-2.5 rounded-xl shrink-0 cursor-pointer transition-colors shadow-xs"
+              >
+                <QrCode className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="font-semibold text-xs">{isFr ? 'Scanner' : 'Scan'}</span>
+                <kbd className="hidden sm:inline-block px-1 py-0.5 text-[9px] font-mono text-zinc-400 bg-zinc-800 border border-zinc-700/60 rounded">
+                  F2
+                </kbd>
+              </Button>
             </div>
 
             {/* Category Filter Chips */}
@@ -1350,6 +1378,16 @@ export const SellPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Live Camera Barcode & QR Code Scanner Modal */}
+      <BarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        products={products}
+        onProductScanned={(product) => addToCart(product)}
+        currencyConfig={currencyConfig}
+        isFr={isFr}
+      />
     </div>
   );
 };

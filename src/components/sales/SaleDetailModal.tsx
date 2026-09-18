@@ -45,14 +45,14 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
 
   if (!sale) return null;
 
-  const handlePrint = () => {
-    PDFAndPrintService.printReceiptDirectly(sale, activeBusiness, currencyConfig);
+  const handlePrint = async () => {
+    await PDFAndPrintService.printReceiptDirectly(sale, activeBusiness, currencyConfig);
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     setIsExportingPDF(true);
     try {
-      PDFAndPrintService.exportReceiptPDF(sale, activeBusiness, currencyConfig);
+      await PDFAndPrintService.exportReceiptPDF(sale, activeBusiness, currencyConfig);
     } catch (err) {
       console.error('Failed to export PDF:', err);
     } finally {

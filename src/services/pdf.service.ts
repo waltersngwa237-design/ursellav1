@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { QRService } from './qr.service.ts';
 import type {
   Business,
   SaleWithDetails,
@@ -30,7 +31,8 @@ export class PDFAndPrintService {
   private static getReceiptHTML(
     sale: SaleWithDetails,
     business: Business | null,
-    currencyConfig: CurrencyConfig
+    currencyConfig: CurrencyConfig,
+    qrDataUrl?: string
   ): string {
     const anyBiz = business as (Business & { phone?: string; address?: string }) | null;
     const businessName = business?.name || 'Ursella Merchant';
@@ -296,6 +298,16 @@ export class PDFAndPrintService {
           ${notesSection}
 
           <div class="footer">
+            ${
+              qrDataUrl
+                ? `
+              <div style="margin: 6px 0 4px 0; text-align: center;">
+                <img src="${qrDataUrl}" alt="Receipt QR" style="width: 76px; height: 76px; display: inline-block; image-rendering: pixelated;" />
+                <div style="font-size: 7.5px; color: #555; letter-spacing: 0.5px; margin-top: 1px;">DIGITAL VERIFICATION QR</div>
+              </div>
+            `
+                : ''
+            }
             <div class="barcode-mock">*${receiptNum}*</div>
             <div>Thank you for your business!</div>
             <div style="font-size: 8px; color: #888; margin-top: 2px;">Powered by Ursella Business Intelligence</div>
@@ -310,12 +322,20 @@ export class PDFAndPrintService {
    * Triggers clean isolated printing of ONLY the customized receipt.
    * Creates an invisible iframe to prevent capturing background UI or dark mode screens.
    */
-  public static printReceiptDirectly(
+  public static async printReceiptDirectly(
     sale: SaleWithDetails,
     business: Business | null,
     currencyConfig: CurrencyConfig
-  ): void {
-    const htmlContent = this.getReceiptHTML(sale, business, currencyConfig);
+  ): Promise<void> {
+    let qrDataUrl = '';
+    try {
+      const payload = QRService.getReceiptPayload(sale, business);
+      qrDataUrl = await QRService.generateDataURL(payload, { width: 110, margin: 1 });
+    } catch (e) {
+      console.warn('Print QR generation failed:', e);
+    }
+
+    const htmlContent = this.getReceiptHTML(sale, business, currencyConfig, qrDataUrl);
 
     // Create a hidden iframe
     const iframe = document.createElement('iframe');
@@ -363,11 +383,11 @@ export class PDFAndPrintService {
   /**
    * Generates and downloads a high-resolution, vector PDF receipt.
    */
-  public static exportReceiptPDF(
+  public static async exportReceiptPDF(
     sale: SaleWithDetails,
     business: Business | null,
     currencyConfig: CurrencyConfig
-  ): void {
+  ): Promise<void> {
     const businessName = business?.name || 'Ursella Merchant';
     const businessDesc = business?.description || 'Official Sales Receipt';
     const receiptNum = sale.id.substring(0, 8).toUpperCase();
@@ -376,9 +396,9 @@ export class PDFAndPrintService {
     const customerPhone = sale.customers?.phone || '';
     const paymentMethod = sale.payment_method ? sale.payment_method.replace('_', ' ').toUpperCase() : 'CASH';
 
-    // Calculate height dynamically based on item count
+    // Calculate height dynamically based on item count + verification QR code
     const itemLinesCount = sale.sale_items.length;
-    const docHeight = Math.max(160, 100 + itemLinesCount * 12 + (sale.notes ? 15 : 0));
+    const docHeight = Math.max(190, 115 + itemLinesCount * 12 + (sale.notes ? 15 : 0) + 34);
 
     // Create 80mm thermal receipt PDF in jsPDF
     const doc = new jsPDF({
@@ -559,6 +579,25 @@ export class PDFAndPrintService {
       doc.setTextColor(80, 80, 80);
       doc.text(`Note: ${sanitizeText(sale.notes)}`, margin, y);
       y += 4;
+    }
+
+    // Receipt Digital Verification QR Code
+    try {
+      const payload = QRService.getReceiptPayload(sale, business);
+      const qrDataUrl = await QRService.generateDataURL(payload, { width: 120, margin: 1 });
+      if (qrDataUrl) {
+        y += 1;
+        const qrSize = 19; // 19mm centered on 80mm roll
+        doc.addImage(qrDataUrl, 'PNG', (pageWidth - qrSize) / 2, y, qrSize, qrSize);
+        y += qrSize + 2;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 100, 100);
+        doc.text('SCAN TO AUTHENTICATE RECEIPT', pageWidth / 2, y, { align: 'center' });
+        y += 3;
+      }
+    } catch (e) {
+      console.warn('Could not embed QR code in PDF receipt:', e);
     }
 
     // Footer
