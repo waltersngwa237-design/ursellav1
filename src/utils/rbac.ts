@@ -124,10 +124,35 @@ export function getMaxAllowedDiscount(role: MemberRole | null | undefined): numb
 }
 
 /**
+ * Key used to store custom manager override PIN
+ */
+const MANAGER_PIN_KEY = 'ursella_manager_pin';
+
+/**
+ * Get current configured Manager PIN
+ */
+export function getCustomManagerPin(): string {
+  if (typeof localStorage === 'undefined') return '8888';
+  return localStorage.getItem(MANAGER_PIN_KEY) || '8888';
+}
+
+/**
+ * Set custom Manager PIN
+ */
+export function setCustomManagerPin(pin: string): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(MANAGER_PIN_KEY, pin.trim());
+  }
+}
+
+/**
  * Validate manager override PIN for cashier authorization
- * Default store manager PIN is 8888 or 1234
+ * Default store manager PIN is 8888, 1234, or 7777, or user's custom configured PIN
  */
 export function verifyManagerPin(pin: string): boolean {
   const normalized = pin.trim();
+  const custom = getCustomManagerPin();
+  if (custom && normalized === custom) return true;
   return normalized === '8888' || normalized === '1234' || normalized === '7777';
 }
+

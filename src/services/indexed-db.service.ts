@@ -225,6 +225,26 @@ class IndexedDBServiceClass {
       }
     });
   }
+
+  /**
+   * Get total item count in an object store
+   */
+  async getItemCount(storeName: 'products' | 'customers' | 'sales_cache'): Promise<number> {
+    const db = await this.getDB();
+    if (!db) return 0;
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const req = store.count();
+        req.onsuccess = () => resolve(req.result || 0);
+        req.onerror = () => resolve(0);
+      } catch {
+        resolve(0);
+      }
+    });
+  }
 }
 
 export const IndexedDBService = new IndexedDBServiceClass();
