@@ -531,5 +531,15 @@ html.light .shadow-lg {
   }
 }
 
+/* Touch-friendly scroll utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
 
 

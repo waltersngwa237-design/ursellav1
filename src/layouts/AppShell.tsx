@@ -412,15 +412,15 @@ export const AppShell: React.FC<AppShellProps> = ({
       >
         {/* Mobile Top Bar - Solid, pinned at top, safe for iPhone dynamic island and notch; never disappears */}
         <header 
-          className="md:hidden shrink-0 w-full z-30 bg-white dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800 px-3.5 py-2.5 flex items-center justify-between select-none"
+          className="md:hidden shrink-0 w-full z-30 bg-white dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800 px-2.5 sm:px-3.5 py-2.5 flex items-center justify-between select-none"
           style={{
             paddingTop: 'max(0.625rem, calc(0.375rem + env(safe-area-inset-top, 0px)))',
           }}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0"
+              className="p-1.5 sm:p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0"
               title="Open Navigation Menu"
               aria-label="Open Navigation Menu"
             >
@@ -439,23 +439,25 @@ export const AppShell: React.FC<AppShellProps> = ({
                     </span>
                   </div>
                   {activeBusiness?.name && (
-                    <p className="text-[10px] text-slate-500 dark:text-zinc-400 truncate max-w-[140px] sm:max-w-[200px]">
+                    <p className="text-[10px] text-slate-500 dark:text-zinc-400 truncate max-w-[120px] sm:max-w-[200px]">
                       {activeBusiness.name}
                     </p>
                   )}
                 </div>
               </div>
             ) : (
-              <UrsellaLogo size="sm" showBetaBadge={true} />
+              <div className="shrink-0 flex items-center">
+                <UrsellaLogo size="sm" showBetaBadge={true} />
+              </div>
             )}
           </div>
           
           {/* Action buttons on right: On AI Advisor, strictly omit notification bell, feedback, and unrelated functions */}
           {currentRoute === 'ai' ? (
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('ursella_ai_toggle_history'))}
-                className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all"
+                className="p-1.5 sm:p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all"
                 title="Chat History"
                 aria-label="Chat History"
               >
@@ -463,16 +465,16 @@ export const AppShell: React.FC<AppShellProps> = ({
               </button>
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('ursella_ai_new_chat'))}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all active:scale-95 shadow-xs"
+                className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all active:scale-95 shadow-xs"
                 title="New Chat"
                 aria-label="New Chat"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span className="text-xs font-medium">New</span>
+                <span className="hidden xs:inline text-xs font-medium">New</span>
               </button>
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('ursella_ai_toggle_options'))}
-                className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all"
+                className="p-1.5 sm:p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all"
                 title="Chat Options"
                 aria-label="Chat Options"
               >
@@ -480,18 +482,18 @@ export const AppShell: React.FC<AppShellProps> = ({
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               <OfflineSyncIndicator />
               <button
                 onClick={() => setIsFeedbackModalOpen(true)}
-                className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="hidden xs:flex p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                 title="Beta Feedback"
               >
                 <MessageSquare className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setIsNotificationDrawerOpen(true)}
-                className="relative p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="relative p-1.5 sm:p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                 title="Notifications"
               >
                 <Bell className="w-4 h-4" />
@@ -626,7 +628,10 @@ export const AppShell: React.FC<AppShellProps> = ({
           <div className={`p-1 rounded-lg ${currentRoute === 'sell' ? 'bg-emerald-50 dark:bg-emerald-500/10' : ''}`}>
             <ShoppingCart className="w-5 h-5" />
           </div>
-          <span className="text-[10px] mt-0.5 leading-none">Sell (POS)</span>
+          <span className="text-[10px] mt-0.5 leading-none truncate max-w-[65px] text-center">
+            <span className="hidden xs:inline">Sell (POS)</span>
+            <span className="xs:hidden">Sell</span>
+          </span>
         </button>
 
         {/* 3. Center Quick Action (+) Button - Perfectly docked in center navigation */}
@@ -662,7 +667,10 @@ export const AppShell: React.FC<AppShellProps> = ({
               className={currentRoute === 'ai' ? '' : isDark ? 'opacity-60' : 'opacity-80'}
             />
           </div>
-          <span className="text-[10px] mt-0.5 leading-none font-medium">Ursella AI</span>
+          <span className="text-[10px] mt-0.5 leading-none font-medium truncate max-w-[65px] text-center">
+            <span className="hidden xs:inline">Ursella AI</span>
+            <span className="xs:hidden">AI</span>
+          </span>
         </button>
 
         {/* 5. Menu Bar Drawer Trigger */}

@@ -209,10 +209,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             variant="outline"
             size="sm"
             onClick={() => onNavigate('analytics')}
-            className="text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+            allowWrap
+            className="text-xs flex items-center gap-1.5 cursor-pointer shadow-xs px-2.5 sm:px-3 min-h-[36px]"
           >
-            <BarChart3 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>{t.dashboard.fullAnalyticsBtn}</span>
+            <BarChart3 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="truncate">{t.dashboard.fullAnalyticsBtn}</span>
           </Button>
         </div>
       </div>
@@ -253,7 +254,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
         </div>
 
         {/* Timeframe Presets */}
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-950 p-1 rounded-xl border border-slate-200 dark:border-zinc-800 self-start sm:self-auto overflow-x-auto max-w-full">
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-950 p-1 rounded-xl border border-slate-200 dark:border-zinc-800 self-stretch sm:self-auto overflow-x-auto no-scrollbar touch-pan-x max-w-full">
           {(
             [
               { id: 'today', label: timeframeLabels.today },
@@ -265,7 +266,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             <button
               key={timePreset.id}
               onClick={() => setPreset(timePreset.id)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+              className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 preset === timePreset.id
                   ? 'bg-emerald-600 dark:bg-emerald-500 text-white dark:text-zinc-950 font-bold shadow-xs'
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'

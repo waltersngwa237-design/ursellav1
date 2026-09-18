@@ -5,6 +5,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
+  allowWrap?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
@@ -16,6 +17,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       variant = 'primary',
       size = 'md',
       isLoading = false,
+      allowWrap = false,
       leftIcon,
       rightIcon,
       className = '',
@@ -25,9 +27,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const sizeClasses = {
-      sm: 'text-xs px-3 py-1.5 rounded-lg gap-1.5 font-medium min-h-[32px]',
-      md: 'text-sm px-4 py-2 rounded-xl gap-2 font-semibold min-h-[40px]',
-      lg: 'text-base px-5 py-2.5 rounded-xl gap-2.5 font-bold min-h-[48px]',
+      sm: 'text-xs px-2.5 sm:px-3 py-1.5 rounded-lg gap-1.5 font-medium min-h-[36px]',
+      md: 'text-xs sm:text-sm px-3.5 sm:px-4 py-2 rounded-xl gap-2 font-semibold min-h-[40px]',
+      lg: 'text-sm sm:text-base px-4 sm:px-5 py-2.5 rounded-xl gap-2 sm:gap-2.5 font-bold min-h-[44px]',
     };
 
     const variantClasses = {
@@ -43,20 +45,27 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-xs border border-rose-600 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 focus-visible:outline-hidden',
     };
 
+    const hasWhitespaceClass = className.includes('whitespace-');
+    const whitespaceClass = hasWhitespaceClass
+      ? ''
+      : allowWrap
+      ? 'whitespace-normal text-center'
+      : 'whitespace-nowrap';
+
     return (
       <button
         ref={ref}
         disabled={disabled || isLoading}
-        className={`inline-flex items-center justify-center cursor-pointer select-none transition-all duration-150 ease-out active:scale-[0.98] disabled:active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${sizeClasses[size]} ${variantClasses[variant]} ${className}`}
+        className={`inline-flex items-center justify-center cursor-pointer select-none transition-all duration-150 ease-out active:scale-[0.98] disabled:active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed ${whitespaceClass} ${sizeClasses[size]} ${variantClasses[variant]} ${className}`}
         {...props}
       >
         {isLoading ? (
-          <Loader2 className="w-4 h-4 animate-spin text-current stroke-[2]" />
+          <Loader2 className="w-4 h-4 shrink-0 animate-spin text-current stroke-[2]" />
         ) : (
-          leftIcon
+          leftIcon && <span className="shrink-0">{leftIcon}</span>
         )}
-        <span>{children}</span>
-        {!isLoading && rightIcon}
+        <span className={allowWrap ? 'break-words' : undefined}>{children}</span>
+        {!isLoading && rightIcon && <span className="shrink-0">{rightIcon}</span>}
       </button>
     );
   }

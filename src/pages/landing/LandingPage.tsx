@@ -101,14 +101,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           paddingRight: 'env(safe-area-inset-right, 0px)',
         }}
       >
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="max-w-6xl mx-auto px-2.5 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-4">
           {/* Brand on Far Left */}
           <div className="shrink-0 flex items-center">
             <UrsellaLogo size="sm" />
           </div>
 
           {/* Unified Actions on Far Right */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
             {/* Single Compact Globe Toggle */}
             <LanguageToggle variant="compact" />
 
@@ -116,7 +116,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <button
               type="button"
               onClick={toggleTheme}
-              className={`w-8 h-8 flex items-center justify-center rounded-lg border text-xs transition-all active:scale-95 cursor-pointer shrink-0 ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border text-xs transition-all active:scale-95 cursor-pointer shrink-0 ${
                 isDark
                   ? 'border-zinc-800 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-amber-300'
                   : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-600 shadow-xs'
@@ -161,8 +161,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               variant="primary"
               size="sm"
               onClick={onNavigateSignUp}
-              className="text-xs font-bold shadow-xs shrink-0 whitespace-nowrap px-3 sm:px-3.5 h-8 rounded-lg"
-              rightIcon={<ArrowRight className="w-3.5 h-3.5 shrink-0" />}
+              className="text-[11px] sm:text-xs font-bold shadow-xs shrink-0 px-2 sm:px-3.5 h-7 sm:h-8 rounded-lg"
+              rightIcon={<ArrowRight className="w-3.5 h-3.5 shrink-0 hidden xs:inline" />}
             >
               {t.landing.signUp}
             </Button>
@@ -207,13 +207,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </p>
 
           {/* Action CTAs */}
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full max-w-md sm:max-w-none mx-auto">
             <Button
               variant="primary"
               size="lg"
               onClick={onNavigateSignUp}
-              className="w-full sm:w-auto px-8 py-3.5 text-sm font-bold shadow-md shadow-emerald-500/20"
-              rightIcon={<ArrowRight className="w-4 h-4" />}
+              allowWrap
+              className="w-full sm:w-auto px-5 sm:px-8 py-3 sm:py-3.5 text-xs sm:text-sm font-bold shadow-md shadow-emerald-500/20 min-h-[44px]"
+              rightIcon={<ArrowRight className="w-4 h-4 shrink-0" />}
             >
               {t.landing.createAccount}
             </Button>
@@ -223,7 +224,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               size="lg"
               onClick={handleQuickDemo}
               isLoading={loading}
-              className={`w-full sm:w-auto px-7 py-3.5 text-sm font-medium ${
+              allowWrap
+              className={`w-full sm:w-auto px-4 sm:px-7 py-3 sm:py-3.5 text-xs sm:text-sm font-medium min-h-[44px] ${
                 isDark
                   ? 'text-zinc-200 hover:text-white bg-zinc-900/90 border-zinc-800'
                   : 'text-slate-700 hover:text-slate-900 bg-white border-slate-300'
@@ -248,7 +250,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           {/* Trust Value Badges */}
           <div
-            className={`mt-6 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs ${
+            className={`mt-6 flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-xs ${
               isDark ? 'text-zinc-400' : 'text-slate-600'
             }`}
           >
@@ -277,49 +279,49 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             }`}
           >
             {/* View Switcher Tabs */}
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-3 mb-4 gap-2 overflow-x-auto">
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-3 mb-4 gap-2 overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setActiveTab('pos')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`shrink-0 whitespace-nowrap px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeTab === 'pos'
                       ? 'bg-emerald-500 text-white shadow-xs'
                       : 'text-slate-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
                   }`}
                 >
-                  <ShoppingCart className="w-3.5 h-3.5" />
+                  <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
                   <span>{isFr ? 'Caisse & Paiements' : 'POS & Payments'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveTab('health')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`shrink-0 whitespace-nowrap px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeTab === 'health'
                       ? 'bg-emerald-500 text-white shadow-xs'
                       : 'text-slate-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
                   }`}
                 >
-                  <Activity className="w-3.5 h-3.5" />
+                  <Activity className="w-3.5 h-3.5 shrink-0" />
                   <span>{isFr ? 'Indicateur de Santé' : 'Business Health'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveTab('ai')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`shrink-0 whitespace-nowrap px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeTab === 'ai'
                       ? 'bg-emerald-500 text-white shadow-xs'
                       : 'text-slate-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
                   }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
                   <span>{isFr ? 'Conseiller IA' : 'AI Advisor'}</span>
                 </button>
               </div>
 
-              <div className="hidden sm:flex items-center gap-2 text-[11px] font-medium text-slate-500 dark:text-zinc-400">
+              <div className="hidden sm:flex items-center gap-2 text-[11px] font-medium text-slate-500 dark:text-zinc-400 shrink-0">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 <span>{isFr ? 'Synchronisation En Direct' : 'Live Sync Active'}</span>
               </div>
@@ -402,24 +404,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </div>
 
                     <div className="space-y-2 pt-2">
-                      <div className="grid grid-cols-3 gap-1.5 text-[11px] font-semibold text-center">
-                        <span className="p-1.5 rounded-lg border border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[11px] font-semibold text-center">
+                        <span className="p-1.5 rounded-lg border border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 truncate">
                           Espèces (Cash)
                         </span>
-                        <span className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400">
+                        <span className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 truncate">
                           MTN MoMo
                         </span>
-                        <span className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400">
+                        <span className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 truncate">
                           Orange Money
                         </span>
                       </div>
 
                       <button
                         onClick={onNavigateSignUp}
-                        className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                        className="w-full py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer text-center"
                       >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>{isFr ? 'Encaisser & Reçu WhatsApp' : 'Complete Sale & WhatsApp Receipt'}</span>
+                        <Check className="w-3.5 h-3.5 shrink-0" />
+                        <span className="break-words">{isFr ? 'Encaisser & Reçu WhatsApp' : 'Complete Sale & WhatsApp Receipt'}</span>
                       </button>
                     </div>
                   </div>

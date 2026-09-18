@@ -406,10 +406,10 @@ export const SellPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Header & Tab Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-white">
               {isFr ? 'Point de Vente' : 'Point of Sale'}
             </h1>
             <Badge variant="emerald" size="sm">
@@ -423,28 +423,28 @@ export const SellPage: React.FC = () => {
         </div>
 
         {/* View Switcher Tabs & Hardware Configuration */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 self-start sm:self-auto">
           <div className="flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800">
             <button
               onClick={() => setActiveTab('pos')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'pos'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <ShoppingCart className="w-3.5 h-3.5" />
+              <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
               <span>{isFr ? 'Caisse' : 'Terminal'}</span>
             </button>
             <button
               onClick={() => setActiveTab('history')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'history'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <History className="w-3.5 h-3.5" />
+              <History className="w-3.5 h-3.5 shrink-0" />
               <span>{isFr ? 'Historique' : 'History'}</span>
             </button>
           </div>
@@ -452,7 +452,7 @@ export const SellPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsHardwareModalOpen(true)}
-            className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors cursor-pointer"
+            className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors cursor-pointer shrink-0"
             title={isFr ? 'Paramètres Imprimante' : 'Printer & Hardware Settings'}
           >
             <Printer className="w-4 h-4 text-emerald-400" />
@@ -462,10 +462,10 @@ export const SellPage: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={() => setIsRegisterCloseoutOpen(true)}
-            className="flex items-center gap-1.5 border-zinc-800 bg-zinc-900 text-zinc-200 hover:text-white cursor-pointer"
+            className="flex items-center gap-1.5 border-zinc-800 bg-zinc-900 text-zinc-200 hover:text-white cursor-pointer px-2.5 sm:px-3 shrink-0"
             title={isFr ? 'Clôture de caisse & Rapport Z' : 'Open Register Audit & End-of-Day Closeout (Z-Report)'}
           >
-            <Receipt className="w-4 h-4 text-emerald-400" />
+            <Receipt className="w-4 h-4 text-emerald-400 shrink-0" />
             <span className="hidden sm:inline">{isFr ? 'Clôture Caisse' : 'Z-Report'}</span>
           </Button>
 
@@ -855,25 +855,25 @@ export const SellPage: React.FC = () => {
                     <label className="text-zinc-400 flex items-center gap-1 font-semibold">
                       <CreditCard className="w-3.5 h-3.5" /> {t.pos.paymentMethod}:
                     </label>
-                    <div className="grid grid-cols-3 gap-1.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                       {[
-                        { id: 'cash', label: isFr ? 'Espèces' : 'Cash', icon: <Banknote className="w-3.5 h-3.5" /> },
+                        { id: 'cash', label: isFr ? 'Espèces' : 'Cash', icon: <Banknote className="w-3.5 h-3.5 shrink-0" /> },
                         {
                           id: 'mobile_money',
                           label: isFr ? 'Mobile Money' : 'MoMo',
-                          icon: <Smartphone className="w-3.5 h-3.5" />,
+                          icon: <Smartphone className="w-3.5 h-3.5 shrink-0" />,
                         },
                         {
                           id: 'bank_transfer',
                           label: isFr ? 'Virement' : 'Bank',
-                          icon: <Building2 className="w-3.5 h-3.5" />,
+                          icon: <Building2 className="w-3.5 h-3.5 shrink-0" />,
                         },
-                        { id: 'card', label: isFr ? 'Carte' : 'Card', icon: <CreditCard className="w-3.5 h-3.5" /> },
-                        { id: 'other', label: isFr ? 'Autre' : 'Other', icon: <Receipt className="w-3.5 h-3.5" /> },
+                        { id: 'card', label: isFr ? 'Carte' : 'Card', icon: <CreditCard className="w-3.5 h-3.5 shrink-0" /> },
+                        { id: 'other', label: isFr ? 'Autre' : 'Other', icon: <Receipt className="w-3.5 h-3.5 shrink-0" /> },
                         {
                           id: 'credit',
                           label: isFr ? 'Crédit / Dette' : 'Credit',
-                          icon: <Clock className="w-3.5 h-3.5" />,
+                          icon: <Clock className="w-3.5 h-3.5 shrink-0" />,
                         },
                       ].map((m) => {
                         const isSelected =
@@ -892,7 +892,7 @@ export const SellPage: React.FC = () => {
                                 if (amountPaidInput === '0') setAmountPaidInput('');
                               }
                             }}
-                            className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
+                            className={`flex items-center justify-center gap-1 py-2 px-2 rounded-lg text-[11px] sm:text-xs font-semibold border transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
                                 : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200'
@@ -997,9 +997,10 @@ export const SellPage: React.FC = () => {
                   onClick={handleCompleteSale}
                   disabled={cart.length === 0 || isSubmittingSale}
                   isLoading={isSubmittingSale}
-                  className="w-full py-3 text-sm font-extrabold shadow-lg shadow-emerald-950/40 cursor-pointer"
+                  allowWrap
+                  className="w-full py-3 px-3 sm:px-4 text-xs sm:text-sm font-extrabold shadow-lg shadow-emerald-950/40 cursor-pointer min-h-[44px]"
                 >
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  <CheckCircle2 className="w-4 h-4 mr-1.5 shrink-0" />
                   {isSubmittingSale
                     ? (isFr ? 'Finalisation de la vente...' : 'Processing Sale...')
                     : `${t.pos.completeSale} (${currencyConfig.format(cartTotal)})`}

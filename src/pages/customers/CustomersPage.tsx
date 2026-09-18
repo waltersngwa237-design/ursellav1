@@ -323,7 +323,7 @@ export const CustomersPage: React.FC = () => {
           />
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar touch-pan-x py-0.5 max-w-full">
           {[
             { id: 'all', label: isFr ? 'Tous les Clients' : 'All Customers' },
             { id: 'debt_only', label: isFr ? 'Avec Dette' : 'With Debt', hasAlert: true },
@@ -333,7 +333,7 @@ export const CustomersPage: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setFilterType(tab.id as any)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer active:scale-[0.98] ${
+              className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer active:scale-[0.98] ${
                 filterType === tab.id
                   ? 'bg-purple-600 text-white shadow-sm'
                   : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200'
@@ -430,21 +430,21 @@ export const CustomersPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-1">
+                  <div className="flex flex-wrap items-center justify-between pt-2 border-t border-zinc-800/80 gap-2">
                     <button
                       onClick={() => handleOpenCustomerProfile(cust.id)}
-                      className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1 cursor-pointer"
+                      className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1 cursor-pointer min-h-[32px]"
                     >
-                      <span>{isFr ? 'Voir Fiche & Historique' : 'View Profile & History'}</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <span className="truncate">{isFr ? 'Fiche & Historique' : 'Profile & History'}</span>
+                      <ChevronRight className="w-3.5 h-3.5 shrink-0" />
                     </button>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       {hasDebt && (
                         <button
                           onClick={() => handleOpenSettleDebt(cust)}
                           title={isFr ? 'Régler la dette' : 'Settle Debt'}
-                          className="p-1 px-2 rounded-lg text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 shadow-sm cursor-pointer"
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 shadow-sm cursor-pointer min-h-[32px] flex items-center"
                         >
                           {isFr ? 'Régler' : 'Settle'}
                         </button>
@@ -452,7 +452,7 @@ export const CustomersPage: React.FC = () => {
                       <button
                         onClick={() => openEditCustomer(cust)}
                         title={isFr ? 'Modifier le client' : 'Edit Customer'}
-                        className="p-1 rounded-lg text-zinc-400 hover:text-purple-400 hover:bg-purple-950/20 cursor-pointer"
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-purple-400 hover:bg-purple-950/20 cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>

@@ -656,64 +656,64 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
         </div>
 
         {/* View Tabs Switcher */}
-        <div className="flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800 max-w-full overflow-x-auto self-start sm:self-auto scrollbar-none overscroll-x-contain touch-pan-x">
+        <div className="flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800 max-w-full overflow-x-auto self-stretch sm:self-auto no-scrollbar overscroll-x-contain touch-pan-x gap-1">
           <button
             onClick={() => setActiveTab('catalog')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'catalog'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Package className="w-3.5 h-3.5" />
+            <Package className="w-3.5 h-3.5 shrink-0" />
             <span>{isFr ? 'Catalogue Produits' : 'Products'}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('inventory')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'inventory'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Layers className="w-3.5 h-3.5" />
+            <Layers className="w-3.5 h-3.5 shrink-0" />
             <span>{isFr ? 'Registre de Stock' : 'Stock Ledger'}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('categories')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'categories'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Tag className="w-3.5 h-3.5" />
+            <Tag className="w-3.5 h-3.5 shrink-0" />
             <span>{isFr ? 'Catégories' : 'Categories'}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('expenses')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'expenses'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Receipt className="w-3.5 h-3.5" />
+            <Receipt className="w-3.5 h-3.5 shrink-0" />
             <span>{t.navigation.expenses}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('team')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'team'
                 ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Users className="w-3.5 h-3.5" />
+            <Users className="w-3.5 h-3.5 shrink-0" />
             <span>{isFr ? 'Équipe & Personnel' : 'Team & Staff'}</span>
           </button>
         </div>
@@ -759,7 +759,7 @@ export const BusinessPage: React.FC<BusinessPageProps> = ({ initialTab = 'catalo
 
           {/* Filter & Search Toolbar */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[220px] flex-1">
+            <div className="relative min-w-[140px] sm:min-w-[220px] flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
               <input
                 type="text"
