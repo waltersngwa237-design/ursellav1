@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 import { generateUUID, isValidUUID } from '../lib/uuid.ts';
+import { isDeviceOnline, fastRaceWithFallback } from '../lib/offline-fast.ts';
 import { OfflineSyncService } from './offline-sync.service.ts';
 import type { Expense, PaymentMethodType } from '../types/index.ts';
 
@@ -41,7 +42,54 @@ export interface ExpenseSummary {
 
 export const ExpenseService = {
   /**
+   * Helper to retrieve expenses from local storage cache with zero-latency filtering.
+   */
+  getLocalExpenses(businessId: string, options: ExpenseFilterOptions = {}): Expense[] {
+    const key = `${LOCAL_EXPENSES_PREFIX}${businessId}`;
+    const stored = localStorage.getItem(key);
+    let list: Expense[] = stored ? JSON.parse(stored) : [];
+
+    if (options.category && options.category !== 'all') {
+      list = list.filter((e) => e.category === options.category);
+    }
+
+    if (options.paymentMethod && options.paymentMethod !== 'all') {
+      list = list.filter((e) => e.payment_method === options.paymentMethod);
+    }
+
+    if (options.startDate) {
+      list = list.filter(
+        (e) => new Date(e.expense_date).getTime() >= new Date(options.startDate!).getTime()
+      );
+    }
+
+    if (options.endDate) {
+      list = list.filter(
+        (e) => new Date(e.expense_date).getTime() <= new Date(options.endDate!).getTime()
+      );
+    }
+
+    if (options.search && options.search.trim()) {
+      const s = options.search.trim().toLowerCase();
+      list = list.filter(
+        (e) =>
+          e.category.toLowerCase().includes(s) ||
+          (e.description && e.description.toLowerCase().includes(s))
+      );
+    }
+
+    if (options.limit && options.limit > 0) {
+      list = list.slice(0, options.limit);
+    }
+
+    return list.sort(
+      (a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime()
+    );
+  },
+
+  /**
    * Fetch list of expenses with optional category and date filtering.
+   * Leverages fast network racing and instant local fallback.
    */
   async getExpenses(
     businessId: string,
@@ -49,8 +97,14 @@ export const ExpenseService = {
   ): Promise<Expense[]> {
     if (!businessId) return [];
 
-    if (isSupabaseConfigured && isValidUUID(businessId)) {
-      try {
+    const getLocal = () => this.getLocalExpenses(businessId, options);
+
+    if (!isDeviceOnline() || !isSupabaseConfigured || !isValidUUID(businessId)) {
+      return getLocal();
+    }
+
+    return fastRaceWithFallback(
+      async () => {
         let query = (supabase as any)
           .from('expenses')
           .select('*')
@@ -78,10 +132,7 @@ export const ExpenseService = {
         }
 
         const { data, error } = await query;
-        if (error) {
-          console.warn('Error fetching expenses from Supabase, checking local cache:', error.message);
-          throw error;
-        }
+        if (error) throw error;
 
         let expenses: Expense[] = (data || []).map((e: any) => ({
           ...e,
@@ -104,48 +155,16 @@ export const ExpenseService = {
           );
         }
 
+        if (expenses.length === 0) {
+          const local = getLocal();
+          if (local.length > 0) return local;
+        }
+
         return expenses;
-      } catch (err) {
-        console.warn('[ExpenseService] Supabase offline, using local expense cache:', err);
-      }
-    }
-
-    const key = `${LOCAL_EXPENSES_PREFIX}${businessId}`;
-    const stored = localStorage.getItem(key);
-    let list: Expense[] = stored ? JSON.parse(stored) : [];
-
-      if (options.category && options.category !== 'all') {
-        list = list.filter((e) => e.category === options.category);
-      }
-
-      if (options.paymentMethod && options.paymentMethod !== 'all') {
-        list = list.filter((e) => e.payment_method === options.paymentMethod);
-      }
-
-      if (options.startDate) {
-        list = list.filter(
-          (e) => new Date(e.expense_date).getTime() >= new Date(options.startDate!).getTime()
-        );
-      }
-
-      if (options.endDate) {
-        list = list.filter(
-          (e) => new Date(e.expense_date).getTime() <= new Date(options.endDate!).getTime()
-        );
-      }
-
-      if (options.search && options.search.trim()) {
-        const s = options.search.trim().toLowerCase();
-        list = list.filter(
-          (e) =>
-            e.category.toLowerCase().includes(s) ||
-            (e.description && e.description.toLowerCase().includes(s))
-        );
-      }
-
-      return list.sort(
-        (a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime()
-      );
+      },
+      getLocal,
+      2000
+    );
   },
 
   /**

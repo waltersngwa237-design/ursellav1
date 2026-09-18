@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 import { generateUUID, isValidUUID } from '../lib/uuid.ts';
+import { isDeviceOnline, fastRaceWithFallback } from '../lib/offline-fast.ts';
 import { OfflineSyncService } from './offline-sync.service.ts';
 import type {
   Product,
@@ -70,7 +71,62 @@ export interface ProductDetailResult {
 
 export const ProductService = {
   /**
+   * Helper to retrieve products from local storage cache with immediate zero-latency filtering
+   */
+  getLocalProducts(businessId: string, options: ProductFilterOptions = {}): ProductWithCategory[] {
+    const stored = localStorage.getItem(`${LOCAL_PRODUCTS_PREFIX}${businessId}`);
+    let list: Product[] = stored ? JSON.parse(stored) : [];
+    const catStored = localStorage.getItem(`${LOCAL_CATEGORIES_PREFIX}${businessId}`);
+    const categories: ProductCategory[] = catStored ? JSON.parse(catStored) : [];
+    const supStored = localStorage.getItem(`${LOCAL_SUPPLIERS_PREFIX}${businessId}`);
+    const suppliers: Supplier[] = supStored ? JSON.parse(supStored) : [];
+
+    if (options.isActive !== undefined) {
+      list = list.filter((p) => p.is_active === options.isActive);
+    }
+    if (options.categoryId) {
+      list = list.filter((p) => p.category_id === options.categoryId);
+    }
+    if (options.search && options.search.trim()) {
+      const s = options.search.trim().toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(s) ||
+          (p.sku && p.sku.toLowerCase().includes(s)) ||
+          (p.description && p.description.toLowerCase().includes(s))
+      );
+    }
+
+    let enriched: ProductWithCategory[] = list.map((p) => ({
+      ...p,
+      selling_price: Number(p.selling_price) || 0,
+      cost_price: Number(p.cost_price) || 0,
+      stock_quantity: Number(p.stock_quantity) || 0,
+      minimum_stock_level: Number(p.minimum_stock_level) || 0,
+      category: categories.find((c) => c.id === p.category_id) || null,
+      supplier: suppliers.find((s) => s.id === p.supplier_id) || null,
+    }));
+
+    if (options.stockStatus && options.stockStatus !== 'all') {
+      enriched = enriched.filter((p) => {
+        if (p.product_type === 'service') return false;
+        if (options.stockStatus === 'out_of_stock') return p.stock_quantity <= 0;
+        if (options.stockStatus === 'low_stock') return p.stock_quantity > 0 && p.stock_quantity <= p.minimum_stock_level;
+        if (options.stockStatus === 'in_stock') return p.stock_quantity > p.minimum_stock_level;
+        return true;
+      });
+    }
+
+    if (options.limit && options.limit > 0) {
+      enriched = enriched.slice(0, options.limit);
+    }
+
+    return enriched.sort((a, b) => a.name.localeCompare(b.name));
+  },
+
+  /**
    * Fetch catalog products with filters, search, and category joining.
+   * Leverages fast network racing and instant local caching for zero offline delay.
    */
   async getProducts(
     businessId: string,
@@ -78,8 +134,14 @@ export const ProductService = {
   ): Promise<ProductWithCategory[]> {
     if (!businessId) return [];
 
-    if (isSupabaseConfigured && isValidUUID(businessId)) {
-      try {
+    const getLocal = () => this.getLocalProducts(businessId, options);
+
+    if (!isDeviceOnline() || !isSupabaseConfigured || !isValidUUID(businessId)) {
+      return getLocal();
+    }
+
+    return fastRaceWithFallback(
+      async () => {
         let query = (supabase as any)
           .from('products')
           .select(`
@@ -108,10 +170,7 @@ export const ProductService = {
         }
 
         const { data, error } = await query;
-        if (error) {
-          console.warn('Error fetching products from Supabase, checking local cache:', error.message);
-          throw error;
-        }
+        if (error) throw error;
 
         let results: ProductWithCategory[] = (data || []).map((p: any) => ({
           ...p,
@@ -147,67 +206,16 @@ export const ProductService = {
           });
         }
 
-        if (results.length > 0) {
-          return results;
+        if (results.length === 0) {
+          const local = getLocal();
+          if (local.length > 0) return local;
         }
-        const localCached = localStorage.getItem(`${LOCAL_PRODUCTS_PREFIX}${businessId}`);
-        if (!localCached) {
-          return results;
-        }
-      } catch (err) {
-        console.warn('[ProductService] Supabase fetch failed or offline, using local fallback:', err);
-      }
-    }
 
-    // Local fallback
-    const stored = localStorage.getItem(`${LOCAL_PRODUCTS_PREFIX}${businessId}`);
-    let list: Product[] = stored ? JSON.parse(stored) : [];
-      const catStored = localStorage.getItem(`${LOCAL_CATEGORIES_PREFIX}${businessId}`);
-      const categories: ProductCategory[] = catStored ? JSON.parse(catStored) : [];
-      const supStored = localStorage.getItem(`${LOCAL_SUPPLIERS_PREFIX}${businessId}`);
-      const suppliers: Supplier[] = supStored ? JSON.parse(supStored) : [];
-
-      if (options.isActive !== undefined) {
-        list = list.filter((p) => p.is_active === options.isActive);
-      }
-      if (options.categoryId) {
-        list = list.filter((p) => p.category_id === options.categoryId);
-      }
-      if (options.search && options.search.trim()) {
-        const s = options.search.trim().toLowerCase();
-        list = list.filter(
-          (p) =>
-            p.name.toLowerCase().includes(s) ||
-            (p.sku && p.sku.toLowerCase().includes(s)) ||
-            (p.description && p.description.toLowerCase().includes(s))
-        );
-      }
-
-      let enriched: ProductWithCategory[] = list.map((p) => ({
-        ...p,
-        category: categories.find((c) => c.id === p.category_id) || null,
-        supplier: suppliers.find((s) => s.id === p.supplier_id) || null,
-      }));
-
-      if (options.stockStatus && options.stockStatus !== 'all') {
-        enriched = enriched.filter((p) => {
-          if (p.product_type === 'service') {
-            return false;
-          }
-          if (options.stockStatus === 'out_of_stock') {
-            return p.stock_quantity <= 0;
-          }
-          if (options.stockStatus === 'low_stock') {
-            return p.stock_quantity > 0 && p.stock_quantity <= p.minimum_stock_level;
-          }
-          if (options.stockStatus === 'in_stock') {
-            return p.stock_quantity > p.minimum_stock_level;
-          }
-          return true;
-        });
-      }
-
-      return enriched.sort((a, b) => a.name.localeCompare(b.name));
+        return results;
+      },
+      getLocal,
+      2000
+    );
   },
 
   /**
@@ -219,8 +227,44 @@ export const ProductService = {
   ): Promise<ProductDetailResult | null> {
     if (!businessId || !productId) return null;
 
-    if (isSupabaseConfigured && isValidUUID(businessId) && isValidUUID(productId)) {
-      try {
+    const getLocal = (): ProductDetailResult | null => {
+      const stored = localStorage.getItem(`${LOCAL_PRODUCTS_PREFIX}${businessId}`);
+      const list: Product[] = stored ? JSON.parse(stored) : [];
+      const prod = list.find((p) => p.id === productId);
+      if (!prod) return null;
+
+      const catStored = localStorage.getItem(`${LOCAL_CATEGORIES_PREFIX}${businessId}`);
+      const categories: ProductCategory[] = catStored ? JSON.parse(catStored) : [];
+      const supStored = localStorage.getItem(`${LOCAL_SUPPLIERS_PREFIX}${businessId}`);
+      const suppliers: Supplier[] = supStored ? JSON.parse(supStored) : [];
+
+      const invStored = localStorage.getItem(`${LOCAL_INVENTORY_PREFIX}${businessId}`);
+      const invList: InventoryTransaction[] = invStored ? JSON.parse(invStored) : [];
+      const prodInv = invList
+        .filter((t) => t.product_id === productId)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      return {
+        product: {
+          ...prod,
+          selling_price: Number(prod.selling_price) || 0,
+          cost_price: Number(prod.cost_price) || 0,
+          stock_quantity: Number(prod.stock_quantity) || 0,
+          minimum_stock_level: Number(prod.minimum_stock_level) || 0,
+          category: categories.find((c) => c.id === prod.category_id) || null,
+          supplier: suppliers.find((s) => s.id === prod.supplier_id) || null,
+        },
+        inventoryHistory: prodInv,
+        salesHistory: [],
+      };
+    };
+
+    if (!isDeviceOnline() || !isSupabaseConfigured || !isValidUUID(businessId) || !isValidUUID(productId)) {
+      return getLocal();
+    }
+
+    return fastRaceWithFallback(
+      async () => {
         const { data: prodData, error: prodErr } = await (supabase as any)
           .from('products')
           .select(`
@@ -233,7 +277,7 @@ export const ProductService = {
           .single();
 
         if (prodErr || !prodData) {
-          return null;
+          return getLocal();
         }
 
         // Fetch inventory history
@@ -277,37 +321,10 @@ export const ProductService = {
           inventoryHistory: invData || [],
           salesHistory: formattedSales,
         };
-      } catch (err) {
-        console.error('Error fetching product detail:', err);
-        return null;
-      }
-    } else {
-      const stored = localStorage.getItem(`${LOCAL_PRODUCTS_PREFIX}${businessId}`);
-      const list: Product[] = stored ? JSON.parse(stored) : [];
-      const prod = list.find((p) => p.id === productId);
-      if (!prod) return null;
-
-      const catStored = localStorage.getItem(`${LOCAL_CATEGORIES_PREFIX}${businessId}`);
-      const categories: ProductCategory[] = catStored ? JSON.parse(catStored) : [];
-      const supStored = localStorage.getItem(`${LOCAL_SUPPLIERS_PREFIX}${businessId}`);
-      const suppliers: Supplier[] = supStored ? JSON.parse(supStored) : [];
-
-      const invStored = localStorage.getItem(`${LOCAL_INVENTORY_PREFIX}${businessId}`);
-      const invList: InventoryTransaction[] = invStored ? JSON.parse(invStored) : [];
-      const prodInv = invList
-        .filter((t) => t.product_id === productId)
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-      return {
-        product: {
-          ...prod,
-          category: categories.find((c) => c.id === prod.category_id) || null,
-          supplier: suppliers.find((s) => s.id === prod.supplier_id) || null,
-        },
-        inventoryHistory: prodInv,
-        salesHistory: [],
-      };
-    }
+      },
+      getLocal,
+      2000
+    );
   },
 
   /**
@@ -620,23 +637,36 @@ export const ProductService = {
   async getCategories(businessId: string): Promise<ProductCategory[]> {
     if (!businessId) return [];
 
-    if (isSupabaseConfigured && isValidUUID(businessId)) {
-      const { data, error } = await (supabase as any)
-        .from('product_categories')
-        .select('*')
-        .eq('business_id', businessId)
-        .order('name', { ascending: true });
-
-      if (error) {
-        console.warn('Failed to fetch categories:', error.message);
-        return [];
-      }
-      return data || [];
-    } else {
+    const getLocal = (): ProductCategory[] => {
       const key = `${LOCAL_CATEGORIES_PREFIX}${businessId}`;
       const stored = localStorage.getItem(key);
       return stored ? JSON.parse(stored) : [];
+    };
+
+    if (!isDeviceOnline() || !isSupabaseConfigured || !isValidUUID(businessId)) {
+      return getLocal();
     }
+
+    return fastRaceWithFallback(
+      async () => {
+        const { data, error } = await (supabase as any)
+          .from('product_categories')
+          .select('*')
+          .eq('business_id', businessId)
+          .order('name', { ascending: true });
+
+        if (error) throw error;
+        const list = data || [];
+        if (list.length > 0) {
+          try {
+            localStorage.setItem(`${LOCAL_CATEGORIES_PREFIX}${businessId}`, JSON.stringify(list));
+          } catch {}
+        }
+        return list;
+      },
+      getLocal,
+      2000
+    );
   },
 
   async createCategory(
@@ -779,18 +809,36 @@ export const ProductService = {
   async getSuppliers(businessId: string): Promise<Supplier[]> {
     if (!businessId) return [];
 
-    if (isSupabaseConfigured && isValidUUID(businessId)) {
-      const { data } = await (supabase as any)
-        .from('suppliers')
-        .select('*')
-        .eq('business_id', businessId)
-        .order('name', { ascending: true });
-      return data || [];
-    } else {
+    const getLocal = (): Supplier[] => {
       const key = `${LOCAL_SUPPLIERS_PREFIX}${businessId}`;
       const stored = localStorage.getItem(key);
       return stored ? JSON.parse(stored) : [];
+    };
+
+    if (!isDeviceOnline() || !isSupabaseConfigured || !isValidUUID(businessId)) {
+      return getLocal();
     }
+
+    return fastRaceWithFallback(
+      async () => {
+        const { data, error } = await (supabase as any)
+          .from('suppliers')
+          .select('*')
+          .eq('business_id', businessId)
+          .order('name', { ascending: true });
+
+        if (error) throw error;
+        const list = data || [];
+        if (list.length > 0) {
+          try {
+            localStorage.setItem(`${LOCAL_SUPPLIERS_PREFIX}${businessId}`, JSON.stringify(list));
+          } catch {}
+        }
+        return list;
+      },
+      getLocal,
+      2000
+    );
   },
 
   async createSupplier(

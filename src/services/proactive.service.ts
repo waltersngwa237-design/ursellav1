@@ -22,6 +22,7 @@ import { ExpenseService } from './expense.service.ts';
 import { ProductService } from './product.service.ts';
 import { OfflineSyncService, type SyncItemType } from './offline-sync.service.ts';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
+import { isDeviceOnline, fastRaceWithFallback } from '../lib/offline-fast.ts';
 
 const CACHED_INSIGHTS_KEY = 'ursella_cached_insights_';
 const INSIGHT_STATUS_KEY = 'ursella_insight_status_';
@@ -52,44 +53,47 @@ export class ProactiveService {
    * Scan business data to detect events and generate proactive insights.
    */
   public static async scanBusinessInsights(businessId: string): Promise<BusinessInsight[]> {
-    try {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        return this.getInsights(businessId);
-      }
+    const getLocal = () => this.getLocalOrCachedInsights(businessId, 'all', 'all');
 
-      const snapshot = this.collectLocalSnapshot(businessId);
-
-      const response = await fetch('/api/insights/scan', {
-        method: 'POST',
-        headers: await this.getAuthHeaders(),
-        body: JSON.stringify({ businessId, snapshot }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Scan failed with status ${response.status}`);
-      }
-
-      const data = await response.json();
-      let insights: BusinessInsight[] = data.insights || [];
-
-      // If server returned 0 insights, fallback to local generation so anomalous local data is not missed
-      if (insights.length === 0) {
-        const localGenerated = this.generateOfflineInsights(businessId);
-        if (localGenerated.length > 0) {
-          insights = localGenerated;
-        }
-      }
-
-      if (insights.length > 0) {
-        this.cacheInsights(businessId, insights);
-      }
-
-      return this.applyLocalStatusOverrides(businessId, insights);
-    } catch (err) {
-      console.warn('[ProactiveService] Failed to scan server insights:', err);
-      // Fallback to local get
-      return this.getInsights(businessId);
+    if (!isDeviceOnline() || !businessId) {
+      return this.applyLocalStatusOverrides(businessId, getLocal());
     }
+
+    return fastRaceWithFallback(
+      async () => {
+        const snapshot = this.collectLocalSnapshot(businessId);
+        const headers = await this.getAuthHeaders();
+
+        const response = await fetch('/api/insights/scan', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ businessId, snapshot }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Scan failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        let insights: BusinessInsight[] = data.insights || [];
+
+        // If server returned 0 insights, fallback to local generation so anomalous local data is not missed
+        if (insights.length === 0) {
+          const localGenerated = this.generateOfflineInsights(businessId);
+          if (localGenerated.length > 0) {
+            insights = localGenerated;
+          }
+        }
+
+        if (insights.length > 0) {
+          this.cacheInsights(businessId, insights);
+        }
+
+        return this.applyLocalStatusOverrides(businessId, insights);
+      },
+      () => this.applyLocalStatusOverrides(businessId, getLocal()),
+      2500
+    );
   }
 
   /**
@@ -100,31 +104,35 @@ export class ProactiveService {
     category = 'all',
     status = 'all'
   ): Promise<BusinessInsight[]> {
-    try {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        return this.getLocalOrCachedInsights(businessId, category, status);
-      }
+    const getLocal = () => this.getLocalOrCachedInsights(businessId, category, status);
 
-      const response = await fetch(`/api/insights?businessId=${encodeURIComponent(businessId)}&category=${category}&status=${status}`, {
-        headers: await this.getAuthHeaders(),
-      });
-      if (!response.ok) throw new Error('Failed to fetch insights');
-      let data: BusinessInsight[] = await response.json();
-
-      if (Array.isArray(data) && data.length > 0) {
-        this.cacheInsights(businessId, data);
-      } else {
-        const fallback = this.getLocalOrCachedInsights(businessId, category, status);
-        if (fallback.length > 0) {
-          data = fallback;
-        }
-      }
-
-      return this.applyLocalStatusOverrides(businessId, data);
-    } catch (err) {
-      console.warn('[ProactiveService] Error fetching insights, using offline cache:', err);
-      return this.getLocalOrCachedInsights(businessId, category, status);
+    if (!isDeviceOnline() || !businessId) {
+      return this.applyLocalStatusOverrides(businessId, getLocal());
     }
+
+    return fastRaceWithFallback(
+      async () => {
+        const headers = await this.getAuthHeaders();
+        const response = await fetch(`/api/insights?businessId=${encodeURIComponent(businessId)}&category=${category}&status=${status}`, {
+          headers,
+        });
+        if (!response.ok) throw new Error('Failed to fetch insights');
+        let data: BusinessInsight[] = await response.json();
+
+        if (Array.isArray(data) && data.length > 0) {
+          this.cacheInsights(businessId, data);
+        } else {
+          const fallback = this.getLocalOrCachedInsights(businessId, category, status);
+          if (fallback.length > 0) {
+            data = fallback;
+          }
+        }
+
+        return this.applyLocalStatusOverrides(businessId, data);
+      },
+      () => this.applyLocalStatusOverrides(businessId, getLocal()),
+      2000
+    );
   }
 
   private static collectLocalSnapshot(businessId: string) {

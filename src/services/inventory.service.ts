@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 import { generateUUID, isValidUUID } from '../lib/uuid.ts';
+import { isDeviceOnline, fastRaceWithFallback } from '../lib/offline-fast.ts';
 import type { InventoryTransactionType } from '../types/database.types.ts';
 import type { InventoryTransaction, Product } from '../types/index.ts';
 
@@ -295,34 +296,8 @@ export const InventoryService = {
   ): Promise<InventoryLedgerItem[]> {
     if (!businessId) return [];
 
-    if (isSupabaseConfigured && isValidUUID(businessId)) {
-      try {
-        let query = (supabase as any)
-          .from('inventory_transactions')
-          .select(`
-            *,
-            product:products ( id, name, sku, stock_quantity, selling_price )
-          `)
-          .eq('business_id', businessId)
-          .order('created_at', { ascending: false })
-          .limit(limit);
-
-        if (productId && isValidUUID(productId)) {
-          query = query.eq('product_id', productId);
-        }
-
-        const { data, error } = await query;
-        if (error) {
-          console.warn('Failed to fetch inventory ledger, using local fallback:', error.message);
-        } else if (data && data.length > 0) {
-          return data;
-        }
-      } catch (err) {
-        console.warn('Inventory ledger fetch error, using local fallback:', err);
-      }
-    }
-
-    const invKey = `${LOCAL_INVENTORY_PREFIX}${businessId}`;
+    const getLocal = (): InventoryLedgerItem[] => {
+      const invKey = `${LOCAL_INVENTORY_PREFIX}${businessId}`;
       const invStored = localStorage.getItem(invKey);
       let invList: InventoryTransaction[] = invStored ? JSON.parse(invStored) : [];
 
@@ -351,5 +326,37 @@ export const InventoryService = {
       });
 
       return results;
+    };
+
+    if (!isDeviceOnline() || !isSupabaseConfigured || !isValidUUID(businessId)) {
+      return getLocal();
+    }
+
+    return fastRaceWithFallback(
+      async () => {
+        let query = (supabase as any)
+          .from('inventory_transactions')
+          .select(`
+            *,
+            product:products ( id, name, sku, stock_quantity, selling_price )
+          `)
+          .eq('business_id', businessId)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (productId && isValidUUID(productId)) {
+          query = query.eq('product_id', productId);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        if (data && data.length > 0) {
+          return data;
+        }
+        return getLocal();
+      },
+      getLocal,
+      2000
+    );
   },
 };

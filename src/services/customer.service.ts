@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.ts';
 import { generateUUID, isValidUUID } from '../lib/uuid.ts';
+import { isDeviceOnline, fastRaceWithFallback } from '../lib/offline-fast.ts';
 import { OfflineSyncService } from './offline-sync.service.ts';
 import type { Customer, CustomerWithSummary, Sale, Payment, PaymentMethodType } from '../types/index.ts';
 
@@ -49,7 +50,61 @@ export interface RecordCustomerDebtPaymentInput {
 
 export const CustomerService = {
   /**
+   * Helper to retrieve customers from local storage cache with aggregated sales and debt metrics.
+   */
+  getLocalCustomers(businessId: string, options: CustomerFilterOptions = {}): CustomerWithSummary[] {
+    const key = `${LOCAL_CUSTOMERS_PREFIX}${businessId}`;
+    const stored = localStorage.getItem(key);
+    let list: Customer[] = stored ? JSON.parse(stored) : [];
+
+    const salesKey = `${LOCAL_SALES_PREFIX}${businessId}`;
+    const salesStored = localStorage.getItem(salesKey);
+    const salesList: Sale[] = salesStored ? JSON.parse(salesStored) : [];
+
+    if (options.isActive !== undefined) {
+      list = list.filter((c) => c.is_active === options.isActive);
+    }
+
+    if (options.search && options.search.trim()) {
+      const s = options.search.trim().toLowerCase();
+      list = list.filter(
+        (c) =>
+          c.name.toLowerCase().includes(s) ||
+          (c.phone && c.phone.toLowerCase().includes(s)) ||
+          (c.email && c.email.toLowerCase().includes(s)) ||
+          (c.location && c.location.toLowerCase().includes(s))
+      );
+    }
+
+    let results: CustomerWithSummary[] = list.map((c) => {
+      const customerSales = salesList.filter(
+        (s) => s.customer_id === c.id && s.sale_status === 'completed'
+      );
+      const totalSpent = customerSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
+      const outstanding = customerSales.reduce((acc, s) => acc + Number(s.amount_due || 0), 0);
+      const sortedSales = [...customerSales].sort(
+        (a, b) => new Date(b.sold_at).getTime() - new Date(a.sold_at).getTime()
+      );
+
+      return {
+        ...c,
+        total_spent: totalSpent,
+        purchase_count: customerSales.length,
+        last_purchase_at: sortedSales[0]?.sold_at || null,
+        outstanding_balance: Math.max(0, outstanding),
+      };
+    });
+
+    if (options.hasOutstandingDebt) {
+      results = results.filter((c) => c.outstanding_balance > 0);
+    }
+
+    return results.sort((a, b) => a.name.localeCompare(b.name));
+  },
+
+  /**
    * Get list of customers with aggregated metrics (total spent, outstanding debt, order count).
+   * Uses fast-fail network racing and instant local fallback.
    */
   async getCustomers(
     businessId: string,
@@ -57,8 +112,14 @@ export const CustomerService = {
   ): Promise<CustomerWithSummary[]> {
     if (!businessId) return [];
 
-    if (isSupabaseConfigured && isValidUUID(businessId)) {
-      try {
+    const getLocal = () => this.getLocalCustomers(businessId, options);
+
+    if (!isDeviceOnline() || !isSupabaseConfigured || !isValidUUID(businessId)) {
+      return getLocal();
+    }
+
+    return fastRaceWithFallback(
+      async () => {
         let query = (supabase as any)
           .from('customers')
           .select(`
@@ -86,10 +147,7 @@ export const CustomerService = {
         }
 
         const { data, error } = await query;
-        if (error) {
-          console.warn('Failed to fetch customers from Supabase, checking local cache:', error.message);
-          throw error;
-        }
+        if (error) throw error;
 
         let customers: CustomerWithSummary[] = (data || []).map((c: any) => {
           const validSales = (c.sales || []).filter((s: any) => s.sale_status === 'completed');
@@ -132,60 +190,16 @@ export const CustomerService = {
           customers = customers.filter((c) => c.outstanding_balance > 0);
         }
 
+        if (customers.length === 0) {
+          const local = getLocal();
+          if (local.length > 0) return local;
+        }
+
         return customers;
-      } catch (err) {
-        console.warn('[CustomerService] Supabase offline, using local customer list:', err);
-      }
-    }
-
-    // Local storage fallback
-    const key = `${LOCAL_CUSTOMERS_PREFIX}${businessId}`;
-      const stored = localStorage.getItem(key);
-      let list: Customer[] = stored ? JSON.parse(stored) : [];
-
-      const salesKey = `${LOCAL_SALES_PREFIX}${businessId}`;
-      const salesStored = localStorage.getItem(salesKey);
-      const salesList: Sale[] = salesStored ? JSON.parse(salesStored) : [];
-
-      if (options.isActive !== undefined) {
-        list = list.filter((c) => c.is_active === options.isActive);
-      }
-
-      if (options.search && options.search.trim()) {
-        const s = options.search.trim().toLowerCase();
-        list = list.filter(
-          (c) =>
-            c.name.toLowerCase().includes(s) ||
-            (c.phone && c.phone.toLowerCase().includes(s)) ||
-            (c.email && c.email.toLowerCase().includes(s)) ||
-            (c.location && c.location.toLowerCase().includes(s))
-        );
-      }
-
-      let results: CustomerWithSummary[] = list.map((c) => {
-        const customerSales = salesList.filter(
-          (s) => s.customer_id === c.id && s.sale_status === 'completed'
-        );
-        const totalSpent = customerSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
-        const outstanding = customerSales.reduce((acc, s) => acc + Number(s.amount_due || 0), 0);
-        const sortedSales = [...customerSales].sort(
-          (a, b) => new Date(b.sold_at).getTime() - new Date(a.sold_at).getTime()
-        );
-
-        return {
-          ...c,
-          total_spent: totalSpent,
-          purchase_count: customerSales.length,
-          last_purchase_at: sortedSales[0]?.sold_at || null,
-          outstanding_balance: Math.max(0, outstanding),
-        };
-      });
-
-      if (options.hasOutstandingDebt) {
-        results = results.filter((c) => c.outstanding_balance > 0);
-      }
-
-      return results.sort((a, b) => a.name.localeCompare(b.name));
+      },
+      getLocal,
+      2000
+    );
   },
 
   /**
@@ -197,8 +211,49 @@ export const CustomerService = {
   ): Promise<CustomerProfileResult | null> {
     if (!businessId || !customerId) return null;
 
-    if (isSupabaseConfigured && isValidUUID(businessId) && isValidUUID(customerId)) {
-      try {
+    const getLocal = (): CustomerProfileResult | null => {
+      const key = `${LOCAL_CUSTOMERS_PREFIX}${businessId}`;
+      const stored = localStorage.getItem(key);
+      const list: Customer[] = stored ? JSON.parse(stored) : [];
+      const customer = list.find((c) => c.id === customerId);
+      if (!customer) return null;
+
+      const salesKey = `${LOCAL_SALES_PREFIX}${businessId}`;
+      const salesStored = localStorage.getItem(salesKey);
+      const salesList: Sale[] = salesStored ? JSON.parse(salesStored) : [];
+      const customerSales = salesList.filter((s) => s.customer_id === customerId);
+
+      const validSales = customerSales.filter((s) => s.sale_status === 'completed');
+      const totalSpent = validSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
+      const outstanding = validSales.reduce((acc, s) => acc + Number(s.amount_due || 0), 0);
+      const sortedSales = [...customerSales].sort(
+        (a, b) => new Date(b.sold_at).getTime() - new Date(a.sold_at).getTime()
+      );
+
+      const payKey = `${LOCAL_PAYMENTS_PREFIX}${businessId}`;
+      const payStored = localStorage.getItem(payKey);
+      const payList: Payment[] = payStored ? JSON.parse(payStored) : [];
+      const customerPayments = payList.filter((p) => p.customer_id === customerId);
+
+      return {
+        customer: {
+          ...customer,
+          total_spent: totalSpent,
+          purchase_count: validSales.length,
+          last_purchase_at: sortedSales[0]?.sold_at || null,
+          outstanding_balance: Math.max(0, outstanding),
+        },
+        sales: sortedSales,
+        payments: customerPayments,
+      };
+    };
+
+    if (!isDeviceOnline() || !isSupabaseConfigured || !isValidUUID(businessId) || !isValidUUID(customerId)) {
+      return getLocal();
+    }
+
+    return fastRaceWithFallback(
+      async () => {
         const { data, error } = await (supabase as any)
           .from('customers')
           .select(`
@@ -219,7 +274,7 @@ export const CustomerService = {
           .eq('business_id', businessId)
           .single();
 
-        if (error || !data) return null;
+        if (error || !data) return getLocal();
 
         // Fetch payments
         const { data: payData } = await (supabase as any)
@@ -261,46 +316,10 @@ export const CustomerService = {
           sales: sortedSales as Sale[],
           payments: (payData || []) as Payment[],
         };
-      } catch (err) {
-        console.error('Error fetching customer profile:', err);
-        return null;
-      }
-    } else {
-      const key = `${LOCAL_CUSTOMERS_PREFIX}${businessId}`;
-      const stored = localStorage.getItem(key);
-      const list: Customer[] = stored ? JSON.parse(stored) : [];
-      const customer = list.find((c) => c.id === customerId);
-      if (!customer) return null;
-
-      const salesKey = `${LOCAL_SALES_PREFIX}${businessId}`;
-      const salesStored = localStorage.getItem(salesKey);
-      const salesList: Sale[] = salesStored ? JSON.parse(salesStored) : [];
-      const customerSales = salesList.filter((s) => s.customer_id === customerId);
-
-      const validSales = customerSales.filter((s) => s.sale_status === 'completed');
-      const totalSpent = validSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
-      const outstanding = validSales.reduce((acc, s) => acc + Number(s.amount_due || 0), 0);
-      const sortedSales = [...customerSales].sort(
-        (a, b) => new Date(b.sold_at).getTime() - new Date(a.sold_at).getTime()
-      );
-
-      const payKey = `${LOCAL_PAYMENTS_PREFIX}${businessId}`;
-      const payStored = localStorage.getItem(payKey);
-      const payList: Payment[] = payStored ? JSON.parse(payStored) : [];
-      const customerPayments = payList.filter((p) => p.customer_id === customerId);
-
-      return {
-        customer: {
-          ...customer,
-          total_spent: totalSpent,
-          purchase_count: validSales.length,
-          last_purchase_at: sortedSales[0]?.sold_at || null,
-          outstanding_balance: Math.max(0, outstanding),
-        },
-        sales: sortedSales,
-        payments: customerPayments,
-      };
-    }
+      },
+      getLocal,
+      2000
+    );
   },
 
   /**
