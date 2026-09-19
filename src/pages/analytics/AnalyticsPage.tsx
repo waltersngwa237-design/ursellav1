@@ -140,7 +140,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate }) => {
               leftIcon={<Sparkles className="w-3.5 h-3.5" />}
               className="text-xs cursor-pointer"
             >
-              {isFr ? 'Demander à Ursella' : 'Ask Ursella'}
+              {isFr ? 'Demander à Ursa' : 'Ask Ursa'}
             </Button>
           )}
 

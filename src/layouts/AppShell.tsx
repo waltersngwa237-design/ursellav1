@@ -459,7 +459,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white tracking-tight truncate">
-                      Ursa
+                      Ursa AI
                     </span>
                   </div>
                   {activeBusiness?.name && (

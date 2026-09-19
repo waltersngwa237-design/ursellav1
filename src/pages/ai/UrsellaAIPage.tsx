@@ -1105,7 +1105,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                   <h1 className={`text-xs sm:text-sm font-bold truncate leading-tight tracking-tight ${
                     isDark ? 'text-zinc-100' : 'text-slate-900'
                   }`}>
-                    Ursa
+                    Ursa AI
                   </h1>
                 </div>
                 <p className={`text-[10px] sm:text-[11px] truncate mt-0.5 ${
