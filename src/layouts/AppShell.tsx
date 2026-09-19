@@ -263,7 +263,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     { route: 'home', label: language === 'fr' ? 'Accueil' : 'Home', icon: <Home className="w-5 h-5" /> },
     { route: 'sell', label: language === 'fr' ? 'Caisse / Vente' : 'Sell / POS', icon: <ShoppingCart className="w-5 h-5" /> },
     { route: 'insights', label: language === 'fr' ? 'IA Proactive' : 'Proactive AI', icon: <Activity className="w-5 h-5 text-indigo-400" /> },
-    { route: 'ai', label: 'Ursella AI', icon: <UrsellaAIGlyph sizeClass="w-5 h-5" /> },
+    { route: 'ai', label: 'Ursa', icon: <UrsellaAIGlyph sizeClass="w-5 h-5" /> },
     { route: 'analytics', label: language === 'fr' ? 'Analytique' : 'Analytics', icon: <BarChart3 className="w-5 h-5 text-emerald-400" /> },
     { route: 'reports', label: language === 'fr' ? 'Rapports' : 'Reports', icon: <FileText className="w-5 h-5 text-teal-400" /> },
     { route: 'business', label: language === 'fr' ? 'Stocks & Catalogue' : 'Business & Stock', icon: <Store className="w-5 h-5" /> },
@@ -459,7 +459,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white tracking-tight truncate">
-                      Ursella AI
+                      Ursa
                     </span>
                   </div>
                   {activeBusiness?.name && (
@@ -674,7 +674,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           <span className="text-[10px] mt-0.5 leading-none font-semibold text-emerald-700 dark:text-emerald-400">Actions</span>
         </button>
 
-        {/* 4. AI Advisor / Ursella AI Tab */}
+        {/* 4. AI Advisor / Ursa Tab */}
         <button
           onClick={() => handleNavWithHaptic('ai')}
           className="flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200"
@@ -687,8 +687,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             />
           </div>
           <span className="text-[10px] mt-0.5 leading-none font-medium truncate max-w-[65px] text-center">
-            <span className="hidden xs:inline">Ursella AI</span>
-            <span className="xs:hidden">AI</span>
+            <span>Ursa</span>
           </span>
         </button>
 

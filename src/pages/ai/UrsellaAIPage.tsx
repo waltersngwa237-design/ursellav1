@@ -577,7 +577,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     const transcript = messages
       .map(
         (m) =>
-          `[${m.role === 'user' ? (isFr ? 'Commerçant' : 'Merchant') : 'Ursella AI'}] (${new Date(
+          `[${m.role === 'user' ? (isFr ? 'Commerçant' : 'Merchant') : 'Ursa'}] (${new Date(
             m.created_at
           ).toLocaleTimeString()}):\n${m.content}\n`
       )
@@ -864,7 +864,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
               )}
             </button>
 
-            {/* Active Chat Title: Ursella AI */}
+            {/* Active Chat Title: Ursa */}
             <div className="flex items-center gap-2.5 min-w-0">
               <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 shadow-xs ${
                 isDark ? 'bg-zinc-900 border-sky-500/30 shadow-sky-950/30' : 'bg-sky-50 border-sky-200'
@@ -876,13 +876,13 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
                   <h1 className={`text-xs sm:text-sm font-bold truncate leading-tight tracking-tight ${
                     isDark ? 'text-zinc-100' : 'text-slate-900'
                   }`}>
-                    Ursella AI
+                    Ursa
                   </h1>
                 </div>
                 <p className={`text-[10px] sm:text-[11px] truncate mt-0.5 ${
                   isDark ? 'text-zinc-500' : 'text-slate-500'
                 }`}>
-                  {activeBusiness.name}
+                  {isFr ? 'Conseillère d’Entreprise Personnelle' : 'Personal Business Advisor'}
                 </p>
               </div>
             </div>

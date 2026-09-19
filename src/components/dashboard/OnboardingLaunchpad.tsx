@@ -69,13 +69,13 @@ export const OnboardingLaunchpad: React.FC<OnboardingLaunchpadProps> = ({
     },
     {
       id: 'ai',
-      title: isFr ? 'Activer le Co-pilote Financier IA' : 'Get Instant Financial Intelligence',
+      title: isFr ? 'Consulter Ursa, votre Conseillère' : 'Get Instant Clarity with Ursa',
       description: isFr
-        ? 'Interrogez Ursella IA pour connaître vos marges réelles, votre bénéfice et vos alertes de stock.'
-        : 'Ask Ursella AI for real-time ledger metrics, gross profit, and restock guidance.',
+        ? 'Interrogez Ursa pour connaître vos marges réelles, votre bénéfice et vos alertes de stock.'
+        : 'Ask Ursa for real-time ledger metrics, gross profit, and restock guidance.',
       icon: <Sparkles className="w-5 h-5" />,
       completed: hasAIInteraction,
-      actionText: isFr ? 'Conseiller IA' : 'Ask AI Advisor',
+      actionText: isFr ? 'Consulter Ursa' : 'Ask Ursa',
       route: 'ai' as AppNavRoute,
       prompt: isFr
         ? 'Fais-moi un résumé de notre configuration initiale et des priorités du commerce.'

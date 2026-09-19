@@ -384,7 +384,7 @@ export const AIMessageCard: React.FC<AIMessageCardProps> = React.memo(({
               {/* Verified AI Advisor Indicator */}
               <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
                 <UrsellaAIGlyph sizeClass="w-2.5 h-2.5" />
-                <span>Ursella AI</span>
+                <span>Ursa</span>
               </span>
             </div>
 

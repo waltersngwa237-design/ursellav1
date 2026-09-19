@@ -44,7 +44,7 @@ export const UrsellaAIGlyph: React.FC<UrsellaGlyphProps> = ({
   isAnimated = false,
   width,
   height,
-  'aria-label': ariaLabel = 'Ursella AI Advisor',
+  'aria-label': ariaLabel = 'Ursa Personal Business Advisor',
 }) => {
   const rawId = useId();
   const uid = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -445,7 +445,7 @@ export const UrsellaLogo: React.FC<UrsellaLogoProps> = ({
         className={`inline-flex items-center justify-center select-none ${badgeStyle} ${currentSize.badge} ${className}`}
         onClick={onClick}
         role="img"
-        aria-label={ariaLabel || 'Ursella AI Advisor Badge'}
+        aria-label={ariaLabel || 'Ursa Personal Business Advisor Badge'}
       >
         <UrsellaAIGlyph
           sizeClass="w-full h-full"
