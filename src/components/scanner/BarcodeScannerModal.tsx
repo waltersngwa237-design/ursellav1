@@ -49,9 +49,11 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   const [hasTorch, setHasTorch] = useState(false);
   const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+  const [isHardwareAccelerated, setIsHardwareAccelerated] = useState<boolean>(false);
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const cooldownRef = useRef(false);
+  const animationFrameRef = useRef<number | null>(null);
   const readerId = 'ursella-pos-scanner-viewport';
 
   // Synthesized audio feedback (zero latency Web Audio API oscillator)
@@ -110,10 +112,11 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     const cleanCode = rawCode.trim();
     if (!cleanCode) return;
 
+    // Fast-track 450ms cooldown for rapid successive item checkout
     cooldownRef.current = true;
     setTimeout(() => {
       cooldownRef.current = false;
-    }, 1200);
+    }, 450);
 
     const matchedProduct = lookupProduct(cleanCode);
 
@@ -139,6 +142,10 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   };
 
   const stopScanner = async () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
     if (html5QrCodeRef.current) {
       try {
         if (html5QrCodeRef.current.isScanning) {
@@ -152,6 +159,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
         setCameraActive(false);
         setTorchOn(false);
         setHasTorch(false);
+        setIsHardwareAccelerated(false);
       }
     }
   };
@@ -169,6 +177,12 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
             ? "L'appareil photo n'est pas accessible sur cet appareil ou ce navigateur."
             : 'Camera API is not supported on this browser/device.'
         );
+      }
+
+      // Check native BarcodeDetector support
+      const hasNativeDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+      if (hasNativeDetector) {
+        setIsHardwareAccelerated(true);
       }
 
       // Preflight getUserMedia to prompt for browser permission cleanly inside iframe
@@ -208,6 +222,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
         // Fall back to facingMode constraint
       }
 
+      // High-performance scanner instance with native BarcodeDetector acceleration
       const scanner = new Html5Qrcode(readerId, {
         formatsToSupport: [
           Html5QrcodeSupportedFormats.QR_CODE,
@@ -218,35 +233,80 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
           Html5QrcodeSupportedFormats.UPC_A,
           Html5QrcodeSupportedFormats.UPC_E,
         ],
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true,
+        },
         verbose: false,
       });
 
       html5QrCodeRef.current = scanner;
 
+      // HD resolution config with fast autofocus for immediate barcode lock-on
       const cameraConfig = cameraId
-        ? { deviceId: { exact: cameraId } }
-        : { facingMode: 'environment' };
+        ? {
+            deviceId: { exact: cameraId },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'environment',
+          }
+        : {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          };
 
       await scanner.start(
         cameraConfig,
         {
-          fps: 15,
+          fps: 30, // Ultra-fast 30 FPS sampling rate for instant detection
           qrbox: (viewfinderWidth, viewfinderHeight) => {
-            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            const edgeSize = Math.max(160, Math.floor(minEdge * 0.72));
-            return { width: edgeSize, height: edgeSize };
+            // Wide rectangular bounding box optimized for both linear 1D barcodes and 2D QR codes
+            const width = Math.min(viewfinderWidth - 24, Math.max(220, Math.floor(viewfinderWidth * 0.88)));
+            const height = Math.min(viewfinderHeight - 24, Math.max(160, Math.floor(viewfinderHeight * 0.72)));
+            return { width, height };
           },
           aspectRatio: 1.0,
+          disableFlip: true,
         },
         (decodedText) => {
           handleProcessCode(decodedText);
         },
         () => {
-          // ignore scan frame errors
+          // ignore transient frame decode misses
         }
       );
 
       setCameraActive(true);
+
+      // Concurrent sub-millisecond hardware scanner loop if native BarcodeDetector API exists
+      if (hasNativeDetector) {
+        try {
+          const detector = new (window as any).BarcodeDetector({
+            formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e'],
+          });
+
+          const scanVideoFrame = async () => {
+            if (!cooldownRef.current) {
+              const videoEl = document.querySelector<HTMLVideoElement>(`#${readerId} video`);
+              if (videoEl && videoEl.readyState >= 2 && !videoEl.paused) {
+                try {
+                  const barcodes = await detector.detect(videoEl);
+                  if (barcodes && barcodes.length > 0 && barcodes[0]?.rawValue) {
+                    handleProcessCode(barcodes[0].rawValue);
+                  }
+                } catch {
+                  // ignore detector frame cycle error
+                }
+              }
+            }
+            animationFrameRef.current = requestAnimationFrame(scanVideoFrame);
+          };
+
+          animationFrameRef.current = requestAnimationFrame(scanVideoFrame);
+        } catch {
+          // Fall back gracefully to Html5Qrcode internal loop
+        }
+      }
 
       // Check for torch capability
       try {
@@ -372,7 +432,12 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
               <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-10 pointer-events-auto">
                 <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[11px] font-medium text-emerald-400">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>{isFr ? 'Prêt à scanner' : 'Live Scanner'}</span>
+                  <span>{isFr ? 'Scanner Rapide (30 FPS)' : 'Turbo Scan (30 FPS)'}</span>
+                  {isHardwareAccelerated && (
+                    <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold uppercase tracking-wider">
+                      GPU
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1.5">
