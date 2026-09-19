@@ -1042,6 +1042,24 @@ app.post('/api/notifications/clear-all', async (req, res) => {
   }
 });
 
+app.post('/api/notifications/:id/read', async (req, res) => {
+  try {
+    const notificationId = req.params.id;
+    const { businessId } = req.body;
+    if (!businessId) return res.status(400).json({ error: 'businessId required' });
+
+    const authCheck = await verifyTenantRequest(req, businessId);
+    if (!authCheck.authorized) {
+      return res.status(authCheck.status || 403).json({ error: authCheck.error });
+    }
+
+    const success = ProactiveAIService.markNotificationRead(businessId, notificationId);
+    return res.json({ success, notificationId });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
 app.post('/api/notifications/:id/toggle-read', async (req, res) => {
   try {
     const notificationId = req.params.id;

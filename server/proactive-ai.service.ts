@@ -289,6 +289,18 @@ Respond in valid JSON array of objects: [{"id": string, "strategicAdvice": strin
     return true;
   }
 
+  public static markNotificationRead(businessId: string, notificationId: string): boolean {
+    const list = businessNotificationsCache.get(businessId) || [];
+    const item = list.find((n) => n.id === notificationId);
+    if (item) {
+      item.is_read = true;
+      item.read_at = new Date().toISOString();
+      businessNotificationsCache.set(businessId, list);
+      return true;
+    }
+    return false;
+  }
+
   public static toggleNotificationRead(businessId: string, notificationId: string): boolean {
     const list = businessNotificationsCache.get(businessId) || [];
     const item = list.find((n) => n.id === notificationId);

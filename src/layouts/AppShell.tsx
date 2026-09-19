@@ -590,6 +590,12 @@ export const AppShell: React.FC<AppShellProps> = ({
         onClearAll={handleClearAllNotifications}
         onToggleRead={handleToggleReadNotification}
         onSelectNotification={(notif) => {
+          if (activeBusiness?.id && !notif.is_read) {
+            ProactiveService.markNotificationAsRead(notif.id, activeBusiness.id);
+            setNotifications((prev) =>
+              prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
+            );
+          }
           setIsNotificationDrawerOpen(false);
           if (notif.action_type === 'view_daily_brief' || notif.category === 'sales') {
             onNavigate('insights');

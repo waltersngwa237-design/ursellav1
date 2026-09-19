@@ -1092,6 +1092,28 @@ export class ProactiveService {
     }
   }
 
+  public static async markNotificationAsRead(notificationId: string, businessId: string): Promise<boolean> {
+    try {
+      const stateRaw = localStorage.getItem(`ursella_notif_states_${businessId}`);
+      const state = stateRaw ? JSON.parse(stateRaw) : { readIds: [], deletedIds: [] };
+      if (!state.readIds.includes(notificationId)) {
+        state.readIds.push(notificationId);
+      }
+      localStorage.setItem(`ursella_notif_states_${businessId}`, JSON.stringify(state));
+    } catch {}
+
+    try {
+      const response = await fetch(`/api/notifications/${encodeURIComponent(notificationId)}/read`, {
+        method: 'POST',
+        headers: await this.getAuthHeaders(),
+        body: JSON.stringify({ businessId }),
+      });
+      return response.ok;
+    } catch {
+      return true;
+    }
+  }
+
   public static async toggleNotificationRead(notificationId: string, businessId: string): Promise<boolean> {
     try {
       const stateRaw = localStorage.getItem(`ursella_notif_states_${businessId}`);
