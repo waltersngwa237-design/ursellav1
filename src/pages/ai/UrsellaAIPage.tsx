@@ -32,6 +32,10 @@ import {
   AlertTriangle,
   ChevronDown,
   ArrowLeft,
+  Mic,
+  MicOff,
+  Loader2,
+  Volume2,
 } from 'lucide-react';
 
 interface UrsellaAIPageProps {
@@ -96,6 +100,16 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   const [deleteConfirmConv, setDeleteConfirmConv] = useState<AIConversationSummary | null>(null);
   const [showClearAllConfirm, setShowClearAllConfirm] = useState<boolean>(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
+
+  // Voice Input States & Recording Handlers
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [recordingDuration, setRecordingDuration] = useState<number>(0);
+  const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -654,6 +668,170 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     setInputText(e.target.value);
     e.target.style.height = 'auto';
     e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+  };
+
+  // =========================================================================
+  // VOICE RECORDING & MULTILINGUAL / PIDGIN TRANSCRIPTION ENGINE
+  // =========================================================================
+  const startVoiceRecording = async () => {
+    setVoiceError(null);
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setVoiceError(isFr ? 'Enregistrement vocal non supporté par ce navigateur.' : 'Voice recording not supported in this browser.');
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+
+      // Determine supported mime type
+      const mimeTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/aac'];
+      let selectedMime = '';
+      for (const m of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(m)) {
+          selectedMime = m;
+          break;
+        }
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, selectedMime ? { mimeType: selectedMime } : undefined);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.start(250); // collect 250ms chunks
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      // Start duration ticker
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error('Error starting voice recording:', err);
+      const isDenied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
+      setVoiceError(
+        isDenied
+          ? (isFr ? 'Accès au micro refusé. Veuillez autoriser le microphone.' : 'Microphone permission denied. Please allow microphone access.')
+          : (isFr ? 'Impossible de démarrer l’enregistrement vocal.' : 'Failed to access microphone.')
+      );
+      setIsRecording(false);
+    }
+  };
+
+  const stopVoiceRecording = async (sendImmediately: boolean = true) => {
+    if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
+      setIsRecording(false);
+      return;
+    }
+
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
+    const mr = mediaRecorderRef.current;
+
+    // Return promise on stop
+    const blobPromise = new Promise<Blob>((resolve) => {
+      mr.onstop = () => {
+        const mime = mr.mimeType || 'audio/webm';
+        const fullBlob = new Blob(audioChunksRef.current, { type: mime });
+        resolve(fullBlob);
+      };
+    });
+
+    mr.stop();
+
+    // Stop all audio stream tracks
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      audioStreamRef.current = null;
+    }
+
+    setIsRecording(false);
+
+    try {
+      const audioBlob = await blobPromise;
+      if (!audioBlob || audioBlob.size === 0) return;
+
+      setIsTranscribing(true);
+      setVoiceError(null);
+
+      const result = await AIService.transcribeAudio(
+        audioBlob,
+        activeBusiness?.id || 'demo-store',
+        language as 'en' | 'fr'
+      );
+
+      const transcribed = result.transcript?.trim() || '';
+      if (transcribed) {
+        if (sendImmediately) {
+          handleSendMessage(transcribed);
+        } else {
+          setInputText(transcribed);
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+          }
+        }
+      } else {
+        setVoiceError(isFr ? 'Aucune voix détectée. Veuillez réessayer.' : 'No speech detected. Please speak clearly into your mic.');
+      }
+    } catch (err: any) {
+      console.error('Transcription error:', err);
+      setVoiceError(isFr ? 'Erreur lors de la transcription vocale. Veuillez réessayer.' : 'Failed to transcribe speech. Please try again.');
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const cancelVoiceRecording = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      audioStreamRef.current = null;
+    }
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordingDuration(0);
+    setVoiceError(null);
+  };
+
+  // Cleanup timers & streams on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  const formatSeconds = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
   // Filter conversations
@@ -1271,37 +1449,142 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
             paddingBottom: 'max(0.75rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)))',
           }}
         >
-          <div className="max-w-3xl lg:max-w-4xl mx-auto">
-            <div className={`relative flex items-center gap-2 border rounded-xl p-1.5 transition-all shadow-xs ${
-              isDark 
-                ? 'bg-zinc-900 border-zinc-800 hover:border-zinc-700 focus-within:border-emerald-500/60 focus-within:ring-1 focus-within:ring-emerald-500/30' 
-                : 'bg-slate-100 border-slate-200 hover:border-slate-300 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-1 focus-within:ring-emerald-500/30'
-            }`}>
-              <textarea
-                ref={textareaRef}
-                value={inputText}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder={isFr ? `Posez n’importe quelle question sur ${activeBusiness.name}...` : `Ask anything about ${activeBusiness.name}...`}
-                rows={1}
-                disabled={loading}
-                inputMode="text"
-                enterKeyHint="send"
-                className={`flex-1 bg-transparent border-0 text-base sm:text-sm focus:outline-hidden resize-none py-2 px-3 max-h-36 min-h-[2.5rem] leading-relaxed disabled:opacity-50 ${
-                  isDark ? 'text-zinc-100 placeholder-zinc-500' : 'text-slate-900 placeholder-slate-400'
-                }`}
-              />
+          <div className="max-w-3xl lg:max-w-4xl mx-auto space-y-2">
+            {/* Voice Recording Error Alert */}
+            {voiceError && (
+              <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl text-xs bg-rose-500/10 border border-rose-500/25 text-rose-400 animate-in fade-in duration-150">
+                <span className="truncate">{voiceError}</span>
+                <button
+                  type="button"
+                  onClick={() => setVoiceError(null)}
+                  className="p-1 hover:bg-rose-500/20 rounded-md text-rose-300"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
-              <button
-                onClick={() => handleSendMessage()}
-                disabled={!inputText.trim() || loading}
-                className="p-2.5 sm:p-2.5 min-w-[40px] min-h-[40px] rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-xs shadow-emerald-500/20 flex items-center justify-center active:scale-95 cursor-pointer"
-                title={isFr ? 'Envoyer le message' : 'Send message'}
-                aria-label={isFr ? 'Envoyer le message' : 'Send message'}
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
+            {/* Live Voice Recording Bar (shown when microphone is active) */}
+            {isRecording ? (
+              <div className={`flex items-center justify-between gap-3 p-2.5 sm:p-3 rounded-2xl border transition-all animate-in fade-in zoom-in-95 ${
+                isDark ? 'bg-zinc-900 border-rose-500/40 shadow-lg shadow-rose-950/20' : 'bg-rose-50 border-rose-200 shadow-md shadow-rose-100'
+              }`}>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="relative flex items-center justify-center">
+                    <span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-rose-400 opacity-75" />
+                    <div className="w-3.5 h-3.5 rounded-full bg-rose-600 relative" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-bold tracking-tight ${isDark ? 'text-rose-400' : 'text-rose-700'}`}>
+                        {isFr ? 'Enregistrement vocal...' : 'Listening to voice (Pidgin / English / French)...'}
+                      </span>
+                      <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded-md font-semibold ${
+                        isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-white text-slate-700 border border-rose-200'
+                      }`}>
+                        {formatSeconds(recordingDuration)}
+                      </span>
+                    </div>
+                    <p className={`text-[11px] truncate mt-0.5 ${isDark ? 'text-zinc-400' : 'text-slate-600'}`}>
+                      {isFr ? 'Parlez naturellement (ventes, stocks, dettes...)' : 'Speak naturally (e.g., "How market be today?", "Who never pay debt?")'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={cancelVoiceRecording}
+                    className={`p-2 rounded-xl transition-colors cursor-pointer text-xs font-medium ${
+                      isDark ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'
+                    }`}
+                    title={isFr ? 'Annuler' : 'Cancel'}
+                    aria-label={isFr ? 'Annuler l’enregistrement' : 'Cancel recording'}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => stopVoiceRecording(false)}
+                    className={`px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                      isDark 
+                        ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border-zinc-700' 
+                        : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                    }`}
+                    title={isFr ? 'Insérer le texte sans envoyer' : 'Insert text into field'}
+                  >
+                    {isFr ? 'Insérer' : 'To Text'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => stopVoiceRecording(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs shadow-rose-500/30 active:scale-95 transition-all cursor-pointer"
+                    title={isFr ? 'Envoyer directement' : 'Send voice message'}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{isFr ? 'Envoyer' : 'Send'}</span>
+                  </button>
+                </div>
+              </div>
+            ) : isTranscribing ? (
+              <div className={`flex items-center justify-center gap-2.5 p-3 rounded-2xl border transition-all ${
+                isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}>
+                <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                <span className="text-xs font-medium">
+                  {isFr ? 'Transcription et reconnaissance vocale en cours...' : 'Transcribing voice input with Ursa Speech AI...'}
+                </span>
+              </div>
+            ) : (
+              <div className={`relative flex items-center gap-2 border rounded-xl p-1.5 transition-all shadow-xs ${
+                isDark 
+                  ? 'bg-zinc-900 border-zinc-800 hover:border-zinc-700 focus-within:border-emerald-500/60 focus-within:ring-1 focus-within:ring-emerald-500/30' 
+                  : 'bg-slate-100 border-slate-200 hover:border-slate-300 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-1 focus-within:ring-emerald-500/30'
+              }`}>
+                {/* Voice Input Microphone Trigger */}
+                <button
+                  type="button"
+                  onClick={startVoiceRecording}
+                  disabled={loading || isTranscribing}
+                  className={`p-2 sm:p-2.5 min-w-[36px] min-h-[36px] rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer active:scale-95 ${
+                    isDark
+                      ? 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800'
+                      : 'text-slate-500 hover:text-emerald-600 hover:bg-slate-200'
+                  }`}
+                  title={isFr ? 'Parler au micro (Français / Anglais / Pidgin)' : 'Voice input (Speak in Pidgin, English, or French)'}
+                  aria-label={isFr ? 'Parler au micro' : 'Voice input'}
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+
+                <textarea
+                  ref={textareaRef}
+                  value={inputText}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder={isFr ? `Posez n’importe quelle question ou parlez au micro...` : `Ask anything or speak in Pidgin / English...`}
+                  rows={1}
+                  disabled={loading}
+                  inputMode="text"
+                  enterKeyHint="send"
+                  className={`flex-1 bg-transparent border-0 text-base sm:text-sm focus:outline-hidden resize-none py-2 px-2 max-h-36 min-h-[2.5rem] leading-relaxed disabled:opacity-50 ${
+                    isDark ? 'text-zinc-100 placeholder-zinc-500' : 'text-slate-900 placeholder-slate-400'
+                  }`}
+                />
+
+                <button
+                  onClick={() => handleSendMessage()}
+                  disabled={!inputText.trim() || loading}
+                  className="p-2.5 sm:p-2.5 min-w-[40px] min-h-[40px] rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-xs shadow-emerald-500/20 flex items-center justify-center active:scale-95 cursor-pointer"
+                  title={isFr ? 'Envoyer le message' : 'Send message'}
+                  aria-label={isFr ? 'Envoyer le message' : 'Send message'}
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

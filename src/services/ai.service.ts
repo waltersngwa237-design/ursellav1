@@ -80,6 +80,61 @@ export class AIService {
   }
 
   /**
+   * Transcribes merchant voice input through the server-side Gemini audio transcription endpoint.
+   */
+  public static async transcribeAudio(
+    audioBlob: Blob,
+    businessId: string,
+    language?: 'en' | 'fr'
+  ): Promise<{ transcript: string; detectedLanguage?: string }> {
+    try {
+      const session = isSupabaseConfigured ? (await supabase.auth.getSession()).data?.session : null;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      } else {
+        headers['x-ursella-demo'] = 'true';
+      }
+
+      // Convert Blob to Base64
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64Audio = btoa(binary);
+
+      const response = await fetch('/api/ai/transcribe', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          businessId,
+          audioBase64: base64Audio,
+          mimeType: audioBlob.type || 'audio/webm',
+          language,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Voice transcription failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      return {
+        transcript: data.transcript || '',
+        detectedLanguage: data.detectedLanguage,
+      };
+    } catch (err: any) {
+      console.error('[AIService] transcribeAudio error:', err);
+      throw err;
+    }
+  }
+
+  /**
    * Sends a user query to the Ursella AI engine via the full-stack server route.
    */
   public static async sendChatMessage(

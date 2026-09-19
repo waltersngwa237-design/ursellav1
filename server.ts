@@ -467,6 +467,52 @@ app.post('/api/ai/chat', async (req, res) => {
   }
 });
 
+// Audio Voice Transcription Endpoint (Gemini 3.5 Transcribe with Pidgin/Multilingual support)
+app.post('/api/ai/transcribe', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { businessId, audioBase64, mimeType, language } = req.body;
+    if (!audioBase64) {
+      return res.status(400).json({ error: 'audioBase64 payload is required' });
+    }
+
+    if (businessId) {
+      const authCheck = await verifyTenantRequest(req, businessId);
+      if (!authCheck.authorized) {
+        return res.status(authCheck.status || 403).json({ error: authCheck.error });
+      }
+    }
+
+    const cleanBase64 = audioBase64.replace(/^data:audio\/[a-zA-Z0-9.-]+;base64,/, '');
+    const resolvedMime = mimeType || 'audio/webm';
+
+    const result = await GeminiService.transcribeAudio(cleanBase64, resolvedMime, language);
+    const latencyMs = Date.now() - startTime;
+
+    if (businessId) {
+      AICostControlService.logUsage({
+        businessId,
+        requestType: 'transcribe',
+        model: 'gemini-3.5-transcribe',
+        latencyMs,
+        success: true,
+      }).catch(() => {});
+    }
+
+    return res.json({
+      transcript: result.transcript,
+      detectedLanguage: result.detectedLanguage,
+      latencyMs,
+    });
+  } catch (error: any) {
+    console.error('[AI Transcribe Error]:', error);
+    return res.status(500).json({
+      error: 'Failed to transcribe audio. Please try again or type your message.',
+      details: error?.message || 'Transcription error',
+    });
+  }
+});
+
 // Daily Business Brief Endpoint
 app.post('/api/ai/daily-brief', async (req, res) => {
   try {

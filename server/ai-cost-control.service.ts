@@ -5,7 +5,7 @@ import { getActiveGeminiModel, FALLBACK_LITE_MODEL } from './ai-config.ts';
 export interface AIUsageLogEntry {
   businessId: string;
   userId?: string;
-  requestType: 'chat' | 'daily_brief' | 'proactive_scan' | 'action_reasoning';
+  requestType: 'chat' | 'daily_brief' | 'proactive_scan' | 'action_reasoning' | 'transcribe';
   model: string;
   inputTokens?: number;
   outputTokens?: number;

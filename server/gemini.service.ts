@@ -124,21 +124,29 @@ ${
   * Clearly guide the merchant on how to record the product or adjustment in their **Inventory & Products** dashboard.
   * Keep the tone supportive, professional, and consultative.
 
-6. BILINGUAL REASONING & LOCALIZATION (ENGLISH & FRENCH):
-- Preferred Session Language: ${ctx.language === 'fr' ? 'FRENCH (Français)' : 'ENGLISH (Auto-detect from query)'}.
-- If the merchant speaks in French OR the preferred language is 'fr', you MUST reason, compute, explain, and respond entirely in natural, polished, native French business terminology.
-- Use precise French accounting & retail terms:
-  * Revenue -> "Chiffre d'affaires"
-  * Gross Profit & Margin -> "Marge brute" & "Taux de marge brute"
-  * FIFO Purchase Cost -> "Coût d'achat PEPS (Premier Entré, Premier Sorti)"
-  * Cost of Goods Sold -> "Coût des marchandises vendues (CMV)"
-  * Net Profit -> "Bénéfice net"
-  * Operating Expenses -> "Dépenses d'exploitation" / "Charges"
-  * Customer Receivables / Debtors -> "Créances clients" / "Débiteurs" / "Dettes impayées"
-  * Low Stock / Out of Stock -> "Stock faible" / "Rupture de stock"
-  * Cash Register / Checkout -> "Caisse" / "Ticket de caisse"
-- Format numbers and currency naturally according to French locale conventions (e.g., "15 000 FCFA" or "${ctx.currency} 15 000").
+6. BILINGUAL & MULTILINGUAL REASONING (ENGLISH, FRENCH, PIDGIN ENGLISH, & CODE-SWITCHING):
+- Preferred Session Language: ${ctx.language === 'fr' ? 'FRENCH (Français)' : 'ENGLISH / PIDGIN (Auto-detect from query)'}.
+- WEST AFRICAN PIDGIN ENGLISH & CAMFRANGLAIS FLUENCY:
+  * You fully understand and speak West African Pidgin English (Cameroon Pidgin, Nigerian Pidgin, Ghanaian Pidgin) and blended local marketplace speech ("Camfranglais").
+  * When the merchant asks or speaks in Pidgin (e.g., "How market be today?", "Who never pay debt?", "Which goods dey move fast fast?", "Which goods don finish?", "I spend 3000 for transport, put am for expense", "How much profit we make yesterday?", "Wetin be my best seller?"):
+    1. Understand the merchant's exact financial or operational intent flawlessly.
+    2. Respond warmly, naturally, and respectfully in fluent, friendly Pidgin English or clear plain English with a warm conversational touch (e.g., "Market dey move well today! You don record 12 sales...", "Mme. Atangana never balance her debt of 15,000 XAF...", "Rice and Cooking Oil na your top products...").
+    3. Keep all calculations, FIFO margins, currency figures, and business advice 100% accurate, precise, and verified against the store data.
+- FRENCH REASONING & LOCALIZATION:
+  * If the merchant speaks in French OR the preferred language is 'fr', you MUST reason, compute, explain, and respond entirely in natural, polished, native French business terminology.
+  * Use precise French accounting & retail terms:
+    * Revenue -> "Chiffre d'affaires"
+    * Gross Profit & Margin -> "Marge brute" & "Taux de marge brute"
+    * FIFO Purchase Cost -> "Coût d'achat PEPS (Premier Entré, Premier Sorti)"
+    * Cost of Goods Sold -> "Coût des marchandises vendues (CMV)"
+    * Net Profit -> "Bénéfice net"
+    * Operating Expenses -> "Dépenses d'exploitation" / "Charges"
+    * Customer Receivables / Debtors -> "Créances clients" / "Débiteurs" / "Dettes impayées"
+    * Low Stock / Out of Stock -> "Stock faible" / "Rupture de stock"
+    * Cash Register / Checkout -> "Caisse" / "Ticket de caisse"
+  * Format numbers and currency naturally according to French locale conventions (e.g., "15 000 FCFA" or "${ctx.currency} 15 000").
 - If followUpSuggestions are generated in French, phrase them from the user's perspective (e.g., "Vérifier les ventes de la semaine", "Qui me doit de l'argent ?", "Voir les articles en rupture", "Calculer ma marge brute").
+- If followUpSuggestions are generated for Pidgin conversations, phrase them naturally (e.g., "Check today market", "Who dey owe me?", "Which goods don finish?", "Show my profit").
 - If the merchant speaks in English, answer in English.
 
 7. ZERO DEFLECTION & FULL PRODUCT INTELLIGENCE:
@@ -1977,4 +1985,61 @@ ${
       confidence: 'high_confidence',
     };
   }
+
+  /**
+   * Transcribes audio recordings into text using gemini-3.5-transcribe with multi-lingual
+   * and West African Pidgin English awareness.
+   */
+  public static async transcribeAudio(
+    base64Audio: string,
+    mimeType: string = 'audio/webm',
+    preferredLanguage?: 'en' | 'fr'
+  ): Promise<{ transcript: string; detectedLanguage?: string }> {
+    const ai = getGeminiClient();
+    if (!ai) {
+      throw new Error('Gemini AI client not initialized');
+    }
+
+    const systemPrompt = `You are an expert multilingual speech-to-text audio transcriber.
+Your task is to transcribe the merchant's spoken voice accurately into text.
+The speaker may speak in:
+- West African Pidgin English (e.g., "How market be today?", "Who never pay debt?", "Wetin be my best seller?", "I spend 3000 for transport", "Which goods don finish?")
+- Plain English
+- French (e.g., "Quel est mon bénéfice ce mois ?", "Qui me doit de l'argent ?")
+- Blended code-switching (English, French, Pidgin, Camfranglais)
+
+Rules:
+1. Accurately capture every word spoken, preserving Pidgin English terms and numbers faithfully.
+2. Do not censor or normalize vernacular phrasing (keep natural phrasing like "How market dey", "Who dey owe", etc.).
+3. Output ONLY the clean transcribed text without any preamble, markdown code fences, notes, or labels.`;
+
+    const audioPart = {
+      inlineData: {
+        mimeType: mimeType || 'audio/webm',
+        data: base64Audio,
+      },
+    };
+
+    const promptText = preferredLanguage === 'fr'
+      ? 'Transcris fidèlement cet enregistrement audio en texte.'
+      : 'Transcribe this spoken audio accurately into text, capturing Pidgin English, English, or French.';
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-transcribe',
+      contents: {
+        parts: [audioPart, { text: promptText }],
+      },
+      config: {
+        systemInstruction: systemPrompt,
+        temperature: 0.1,
+      },
+    });
+
+    const transcript = (response.text || '').trim();
+    return {
+      transcript,
+      detectedLanguage: preferredLanguage,
+    };
+  }
 }
+

@@ -1,7 +1,7 @@
 {
   "name": "Ursella",
-  "description": "AI-powered operating system for small businesses featuring multi-tenant business management, real-time financial tracking, inventory management, and intelligent business insights.",
-  "requestFramePermissions": ["camera"],
+  "description": "AI-powered operating system for small businesses featuring multi-tenant business management, real-time financial tracking, inventory management, intelligent business insights, and multilingual voice recognition (English, French, and Pidgin).",
+  "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
 

@@ -46,6 +46,7 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
       ]
     : [
         { id: 'all', label: 'All' },
+        { id: 'pidgin', label: 'Pidgin Voice & Market', icon: Sparkles },
         { id: 'advisory', label: 'Priorities', icon: Sparkles },
         { id: 'sales', label: 'Sales', icon: TrendingUp },
         { id: 'inventory', label: 'Inventory', icon: Package },
@@ -121,6 +122,38 @@ export const SuggestedPromptChips: React.FC<SuggestedPromptChipsProps> = ({
         },
       ]
     : [
+        {
+          category: 'pidgin',
+          question: 'How market be today? Wetin we sell?',
+          icon: TrendingUp,
+          iconColor: 'text-emerald-500',
+          iconBgLight: 'bg-emerald-50 border-emerald-200/60',
+          iconBgDark: 'bg-emerald-500/10 border-emerald-500/25',
+        },
+        {
+          category: 'pidgin',
+          question: 'Who never pay debt for my store?',
+          icon: Users,
+          iconColor: 'text-rose-500',
+          iconBgLight: 'bg-rose-50 border-rose-200/60',
+          iconBgDark: 'bg-rose-500/10 border-rose-500/25',
+        },
+        {
+          category: 'pidgin',
+          question: 'Which goods dey move fast fast and make gain?',
+          icon: Sparkles,
+          iconColor: 'text-amber-500',
+          iconBgLight: 'bg-amber-50 border-amber-200/60',
+          iconBgDark: 'bg-amber-500/10 border-amber-500/25',
+        },
+        {
+          category: 'pidgin',
+          question: 'Which goods don finish for store wey need restock?',
+          icon: Package,
+          iconColor: 'text-sky-500',
+          iconBgLight: 'bg-sky-50 border-sky-200/60',
+          iconBgDark: 'bg-sky-500/10 border-sky-500/25',
+        },
         {
           category: 'advisory',
           question: 'What should I focus on today?',

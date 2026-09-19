@@ -79,13 +79,13 @@ export function classifyBusinessQuery(
   // 1. GREETING & CHIT-CHAT (Zero database retrieval needed)
   // =========================================================================
   const isGreetingOnly =
-    /^(hello|hi|hey|good\s+(morning|afternoon|evening|day)|greetings|howdy|salut|bonjour|bon courage|yo|hola)[\s!.,?]*$/i.test(
+    /^(hello|hi|hey|good\s+(morning|afternoon|evening|day)|greetings|howdy|salut|bonjour|bon courage|yo|hola|how\s+far|how\s+body|kedu|bawo|wetin\s+dey|wetin\s+dey\s+happen|how\s+you\s+dey|i\s+greet\s+you|salut\s+ursa|bonsoir)[\s!.,?]*$/i.test(
       q
     ) ||
-    /^(who\s+are\s+you|what\s+can\s+you\s+do|how\s+are\s+you|how\s+do\s+you\s+work|what\s+is\s+ursella|help\s+me|help)[\s!.,?]*$/i.test(
+    /^(who\s+are\s+you|what\s+can\s+you\s+do|how\s+are\s+you|how\s+do\s+you\s+work|what\s+is\s+ursella|who\s+be\s+you|wetin\s+you\s+fit\s+do|help\s+me|help)[\s!.,?]*$/i.test(
       q
     ) ||
-    /^(thanks|thank\s+you|merci|great|awesome|understood|got\s+it|ok|okay)[\s!.,?]*$/i.test(
+    /^(thanks|thank\s+you|merci|great|awesome|understood|got\s+it|ok|okay|nice\s+one|correct|abeg|na\s+so)[\s!.,?]*$/i.test(
       q
     );
 
@@ -549,6 +549,9 @@ export function classifyBusinessQuery(
     q.includes('fastest-selling') ||
     q.includes('fast moving') ||
     q.includes('fast-moving') ||
+    q.includes('dey move fast') ||
+    q.includes('dey move fast fast') ||
+    q.includes('wetin dey move') ||
     q.includes('most sold') ||
     q.includes('most popular') ||
     q.includes('popular product') ||
@@ -565,6 +568,8 @@ export function classifyBusinessQuery(
     q.includes('what product') ||
     q.includes('which products') ||
     q.includes('what products') ||
+    q.includes('which goods') ||
+    q.includes('wetin be my best') ||
     q.includes('product performance') ||
     q.includes('products performance') ||
     q.includes('slow moving product') ||
@@ -609,6 +614,10 @@ export function classifyBusinessQuery(
   // 8A. Today's sales only
   if (
     q.includes('today') ||
+    q.includes('how market be') ||
+    q.includes('how market dey') ||
+    q.includes('market today') ||
+    q.includes('wetin we sell') ||
     q.includes('sell today') ||
     q.includes('sold today') ||
     q.includes('sales today') ||
@@ -638,6 +647,7 @@ export function classifyBusinessQuery(
     q.includes('yesterday') ||
     q.includes('sales yesterday') ||
     q.includes('sold yesterday') ||
+    q.includes('wetin we sell yesterday') ||
     q.includes('hier') ||
     q.includes("ventes d'hier") ||
     q.includes('ventes hier')
@@ -657,6 +667,9 @@ export function classifyBusinessQuery(
   if (
     q.includes('what is my profit') ||
     q.includes('how much profit') ||
+    q.includes('wetin be my profit') ||
+    q.includes('how much gain') ||
+    q.includes('gain wey i make') ||
     q.includes('net profit') ||
     q.includes('gross profit') ||
     q.includes('profitability') ||
@@ -800,6 +813,10 @@ export function classifyBusinessQuery(
     q.includes('low stock') ||
     q.includes('running low') ||
     q.includes('out of stock') ||
+    q.includes('don finish') ||
+    q.includes('don near finish') ||
+    q.includes('goods finish') ||
+    q.includes('stock don finish') ||
     q.includes('inventory') ||
     q.includes('stock level') ||
     q.includes('items in stock') ||
@@ -834,6 +851,9 @@ export function classifyBusinessQuery(
   // =========================================================================
   if (
     q.includes('who owes') ||
+    q.includes('who dey owe') ||
+    q.includes('who get my money') ||
+    q.includes('who never pay') ||
     q.includes('debt') ||
     q.includes('debtor') ||
     q.includes('unpaid') ||
@@ -876,6 +896,8 @@ export function classifyBusinessQuery(
     q.includes('expense') ||
     q.includes('spending') ||
     q.includes('spent') ||
+    q.includes('i spend') ||
+    q.includes('i pay for') ||
     q.includes('costs') ||
     q.includes('operating cost') ||
     q.includes('where am i spending') ||
