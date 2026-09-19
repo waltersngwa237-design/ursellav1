@@ -185,44 +185,36 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
         setIsHardwareAccelerated(true);
       }
 
-      // Preflight getUserMedia to prompt for browser permission cleanly inside iframe
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: 'environment' },
-        });
-        // Stop the temporary preview track immediately once permission is granted
-        stream.getTracks().forEach((track) => track.stop());
-      } catch (permErr: any) {
-        if (permErr?.name === 'NotAllowedError' || permErr?.name === 'PermissionDeniedError') {
-          throw new Error(
-            isFr
-              ? "Autorisation refusée. Veuillez autoriser l'accès à la caméra dans les paramètres de votre navigateur."
-              : 'Camera permission denied. Please allow camera access in your browser settings.'
-          );
-        }
-      }
-
       // Query available cameras
+      let preferredCameraId = cameraId;
       try {
         const devices = await Html5Qrcode.getCameras();
         if (devices && devices.length > 0) {
           setCameras(devices);
-          if (!cameraId && !selectedCameraId) {
+          if (!preferredCameraId && !selectedCameraId) {
             // Prefer back/environment camera if available
             const backCam = devices.find((d) =>
               d.label.toLowerCase().includes('back') ||
               d.label.toLowerCase().includes('rear') ||
               d.label.toLowerCase().includes('environment')
             );
-            cameraId = backCam ? backCam.id : devices[0].id;
-            setSelectedCameraId(cameraId);
+            preferredCameraId = backCam ? backCam.id : devices[0].id;
+            setSelectedCameraId(preferredCameraId);
+          } else if (selectedCameraId && !preferredCameraId) {
+            preferredCameraId = selectedCameraId;
           }
         }
-      } catch {
-        // Fall back to facingMode constraint
+      } catch (e) {
+        console.warn('Could not enumerate cameras, continuing with facingMode constraint:', e);
       }
 
-      // High-performance scanner instance with native BarcodeDetector acceleration
+      // Clean container DOM if leftover elements remain
+      const containerEl = document.getElementById(readerId);
+      if (containerEl && !containerEl.hasChildNodes() === false) {
+        containerEl.innerHTML = '';
+      }
+
+      // High-performance scanner instance
       const scanner = new Html5Qrcode(readerId, {
         formatsToSupport: [
           Html5QrcodeSupportedFormats.QR_CODE,
@@ -233,48 +225,54 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
           Html5QrcodeSupportedFormats.UPC_A,
           Html5QrcodeSupportedFormats.UPC_E,
         ],
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true,
-        },
         verbose: false,
       });
 
       html5QrCodeRef.current = scanner;
 
-      // HD resolution config with fast autofocus for immediate barcode lock-on
-      const cameraConfig = cameraId
-        ? {
-            deviceId: { exact: cameraId },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          }
-        : {
-            facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          };
+      const scanConfig = {
+        fps: 25,
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const width = Math.min(viewfinderWidth - 20, Math.max(200, Math.floor(viewfinderWidth * 0.86)));
+          const height = Math.min(viewfinderHeight - 20, Math.max(150, Math.floor(viewfinderHeight * 0.70)));
+          return { width, height };
+        },
+        aspectRatio: 1.0,
+      };
 
-      await scanner.start(
-        cameraConfig,
-        {
-          fps: 30, // Ultra-fast 30 FPS sampling rate for instant detection
-          qrbox: (viewfinderWidth, viewfinderHeight) => {
-            // Wide rectangular bounding box optimized for both linear 1D barcodes and 2D QR codes
-            const width = Math.min(viewfinderWidth - 24, Math.max(220, Math.floor(viewfinderWidth * 0.88)));
-            const height = Math.min(viewfinderHeight - 24, Math.max(160, Math.floor(viewfinderHeight * 0.72)));
-            return { width, height };
-          },
-          aspectRatio: 1.0,
-          disableFlip: true,
-        },
-        (decodedText) => {
-          handleProcessCode(decodedText);
-        },
-        () => {
-          // ignore transient frame decode misses
+      // Try camera launch with progressive fallback to guarantee detection across all devices & browsers
+      let started = false;
+      const cameraConfigsToTry: any[] = [];
+      if (preferredCameraId) {
+        cameraConfigsToTry.push(preferredCameraId);
+      }
+      cameraConfigsToTry.push({ facingMode: 'environment' });
+      cameraConfigsToTry.push({ facingMode: 'user' });
+
+      let lastStartError: any = null;
+      for (const config of cameraConfigsToTry) {
+        try {
+          await scanner.start(
+            config,
+            scanConfig,
+            (decodedText) => {
+              handleProcessCode(decodedText);
+            },
+            () => {
+              // ignore transient decode frame misses
+            }
+          );
+          started = true;
+          break;
+        } catch (err: any) {
+          lastStartError = err;
+          console.warn('[Scanner] Camera config attempt failed, trying next fallback:', err?.message || err);
         }
-      );
+      }
+
+      if (!started) {
+        throw lastStartError || new Error('Failed to start camera feed');
+      }
 
       setCameraActive(true);
 
@@ -320,11 +318,16 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     } catch (err: any) {
       console.warn('Scanner init failed:', err);
       setCameraActive(false);
+      const isDenied = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError';
       setCameraError(
-        err?.message ||
-          (isFr
-            ? "Impossible d'accéder à la caméra. Vérifiez les autorisations de votre navigateur."
-            : 'Unable to access camera. Check browser permissions.')
+        isDenied
+          ? (isFr
+              ? "Autorisation refusée. Veuillez autoriser l'accès à la caméra dans les paramètres de votre navigateur."
+              : 'Camera permission denied. Please allow camera access in your browser settings.')
+          : err?.message ||
+            (isFr
+              ? "Impossible d'accéder à la caméra. Vérifiez les autorisations de votre navigateur."
+              : 'Unable to access camera. Check browser permissions.')
       );
     }
   };
