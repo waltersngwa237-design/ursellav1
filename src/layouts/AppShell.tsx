@@ -44,6 +44,7 @@ import {
   MoreVertical,
   Sun,
   Moon,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -69,6 +70,16 @@ export const AppShell: React.FC<AppShellProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [previousRoute, setPreviousRoute] = useState<AppNavRoute>('home');
+  const prevRouteRef = React.useRef<AppNavRoute>(currentRoute);
+
+  useEffect(() => {
+    if (currentRoute !== 'ai' && prevRouteRef.current !== currentRoute) {
+      setPreviousRoute(prevRouteRef.current);
+    }
+    prevRouteRef.current = currentRoute;
+  }, [currentRoute]);
+
   const [viewportHeight, setViewportHeight] = useState<number | null>(() => {
     if (typeof window !== 'undefined' && window.visualViewport) {
       return window.visualViewport.height;
@@ -420,14 +431,25 @@ export const AppShell: React.FC<AppShellProps> = ({
           }}
         >
           <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
-            <button
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="p-1.5 sm:p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0"
-              title="Open Navigation Menu"
-              aria-label="Open Navigation Menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+            {currentRoute === 'ai' ? (
+              <button
+                onClick={() => onNavigate(previousRoute || 'home')}
+                className="p-1.5 sm:p-2 rounded-xl text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-zinc-200 dark:hover:text-white dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0 flex items-center gap-1"
+                title={language === 'fr' ? 'Retour' : 'Back'}
+                aria-label={language === 'fr' ? 'Retour' : 'Back'}
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-1.5 sm:p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0"
+                title="Open Navigation Menu"
+                aria-label="Open Navigation Menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
 
             {currentRoute === 'ai' ? (
               <div className="flex items-center gap-2 min-w-0">
@@ -591,18 +613,17 @@ export const AppShell: React.FC<AppShellProps> = ({
       />
 
       {/* ========================================================================= */}
-      {/* MOBILE BOTTOM NAVIGATION: 5 Essential Tabs (Comfortable 64px Touch Area)  */}
+      {/* MOBILE BOTTOM NAVIGATION: 5 Essential Tabs (Hidden in AI Advisor for Edge-to-Edge Chat) */}
       {/* ========================================================================= */}
-      <nav 
-        className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-lg border-t border-slate-200/90 dark:border-zinc-800/90 px-1 py-1.5 flex items-center justify-around shadow-lg dark:shadow-2xl safe-area-bottom transition-all duration-200 ${
-          isKeyboardVisible && currentRoute === 'ai' ? 'translate-y-full pointer-events-none opacity-0' : 'translate-y-0 opacity-100'
-        }`}
-        style={{
-          paddingBottom: 'max(0.375rem, calc(0.25rem + env(safe-area-inset-bottom, 0px)))',
-          paddingLeft: 'max(0.25rem, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(0.25rem, env(safe-area-inset-right, 0px))',
-        }}
-      >
+      {currentRoute !== 'ai' && (
+        <nav 
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-lg border-t border-slate-200/90 dark:border-zinc-800/90 px-1 py-1.5 flex items-center justify-around shadow-lg dark:shadow-2xl safe-area-bottom transition-all duration-200"
+          style={{
+            paddingBottom: 'max(0.375rem, calc(0.25rem + env(safe-area-inset-bottom, 0px)))',
+            paddingLeft: 'max(0.25rem, env(safe-area-inset-left, 0px))',
+            paddingRight: 'max(0.25rem, env(safe-area-inset-right, 0px))',
+          }}
+        >
         {/* 1. Home Tab */}
         <button
           onClick={() => handleNavWithHaptic('home')}
@@ -656,17 +677,13 @@ export const AppShell: React.FC<AppShellProps> = ({
         {/* 4. AI Advisor / Ursella AI Tab */}
         <button
           onClick={() => handleNavWithHaptic('ai')}
-          className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all ${
-            currentRoute === 'ai'
-              ? 'text-indigo-600 dark:text-indigo-400 font-bold'
-              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
-          }`}
+          className="flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200"
         >
-          <div className={`p-1 rounded-lg ${currentRoute === 'ai' ? 'bg-indigo-50 dark:bg-indigo-500/10' : ''}`}>
+          <div className="p-1 rounded-lg">
             <UrsellaAIGlyph
               sizeClass="w-5 h-5"
-              theme={currentRoute === 'ai' ? 'default' : isDark ? 'mono-white' : 'mono-black'}
-              className={currentRoute === 'ai' ? '' : isDark ? 'opacity-60' : 'opacity-80'}
+              theme={isDark ? 'mono-white' : 'mono-black'}
+              className={isDark ? 'opacity-60' : 'opacity-80'}
             />
           </div>
           <span className="text-[10px] mt-0.5 leading-none font-medium truncate max-w-[65px] text-center">
@@ -698,6 +715,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           <span className="text-[10px] mt-0.5 leading-none">Menu</span>
         </button>
       </nav>
+      )}
 
       {/* ========================================================================= */}
       {/* FLOATING ACTION BUTTON (SPEED-DIAL FOR INSTANT OPERATIONAL ACCESS)         */}

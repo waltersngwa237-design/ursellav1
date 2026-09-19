@@ -158,6 +158,7 @@ const MainRouter: React.FC = () => {
           <UrsellaAIPage
             initialPrompt={aiPrompt}
             onPromptConsumed={handlePromptConsumed}
+            onNavigate={navigateTo}
           />
         )}
         {currentRoute === 'more' && <MoreMenuPage onNavigate={navigateTo} />}

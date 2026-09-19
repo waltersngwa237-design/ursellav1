@@ -12,6 +12,7 @@ import {
 import { AIMessageCard } from '../../components/ai/AIMessageCard.tsx';
 import { SuggestedPromptChips } from '../../components/ai/SuggestedPromptChips.tsx';
 import { UrsellaAIGlyph } from '../../components/common/UrsellaLogo.tsx';
+import { type AppNavRoute } from '../../types/index.ts';
 import {
   Send,
   Plus,
@@ -30,12 +31,14 @@ import {
   MoreVertical,
   AlertTriangle,
   ChevronDown,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface UrsellaAIPageProps {
   initialPrompt?: string;
   onPromptConsumed?: () => void;
   onOpenMobileMenu?: () => void;
+  onNavigate?: (route: AppNavRoute) => void;
 }
 
 // Module-level cache to guarantee prompt strings are never re-run multiple times across component unmounts/remounts
@@ -45,6 +48,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   initialPrompt,
   onPromptConsumed,
   onOpenMobileMenu,
+  onNavigate,
 }) => {
   const { user } = useAuth();
   const { activeBusiness, activeSettings, currency } = useBusiness();
@@ -126,6 +130,31 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       if (vv) vv.removeEventListener('resize', handleResize);
     };
   }, []);
+
+  // Touch gesture support: swipe right from screen edge to return to previous page
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current || isSidebarOpen) return;
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const diffX = endX - touchStartRef.current.x;
+    const diffY = Math.abs(endY - touchStartRef.current.y);
+
+    // If gesture starts near the left edge (< 40px) and swipes right (> 75px) horizontally
+    if (touchStartRef.current.x < 40 && diffX > 75 && diffY < 80) {
+      if (onNavigate) {
+        onNavigate('home');
+      }
+    }
+    touchStartRef.current = null;
+  };
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
 
@@ -590,7 +619,10 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   }
 
   return (
-    <div className={`flex flex-1 min-h-0 w-full overflow-hidden relative ${
+    <div 
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className={`flex flex-1 min-h-0 w-full overflow-hidden relative ${
       isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* ========================================================================= */}
@@ -949,29 +981,29 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         >
           {/* Welcome Screen when Chat is empty */}
           {messages.length === 0 && (
-            <div className="max-w-3xl mx-auto py-6 sm:py-14 space-y-6">
-              <div className="text-center space-y-2">
-                <div className={`inline-flex p-3 sm:p-3.5 rounded-2xl border shadow-lg mb-2 ${
+            <div className="max-w-2xl mx-auto py-4 sm:py-10 space-y-5">
+              <div className="text-center space-y-1.5 px-2">
+                <div className={`inline-flex p-2.5 sm:p-3 rounded-2xl border shadow-md mb-1 ${
                   isDark 
                     ? 'bg-zinc-900 border-sky-500/30 shadow-sky-950/40' 
                     : 'bg-white border-sky-200 shadow-sky-100/50'
                 }`}>
-                  <UrsellaAIGlyph sizeClass="w-8 h-8 sm:w-10 sm:h-10" />
+                  <UrsellaAIGlyph sizeClass="w-7 h-7 sm:w-9 sm:h-9" />
                 </div>
-                <h2 className={`text-xl sm:text-2xl font-bold tracking-tight ${
+                <h2 className={`text-lg sm:text-2xl font-bold tracking-tight ${
                   isDark ? 'text-white' : 'text-slate-900'
                 }`}>
                   {isFr ? 'Bonjour ! Que souhaitez-vous analyser ?' : 'Good day! How can I assist your business?'}
                 </h2>
-                <p className={`text-xs sm:text-sm max-w-md mx-auto leading-relaxed ${
+                <p className={`text-xs sm:text-sm max-w-sm mx-auto leading-relaxed ${
                   isDark ? 'text-zinc-400' : 'text-slate-600'
                 }`}>
-                  {isFr ? 'Interrogez vos ventes en temps réel, niveaux de stock, bénéfices et prévisions intelligentes.' : 'Ask real-time questions about your sales, stock valuation, margins, or business decisions.'}
+                  {isFr ? 'Interrogez vos ventes, niveaux de stock, bénéfices et prévisions en temps réel.' : 'Ask real-time questions about your sales, stock valuation, margins, or business decisions.'}
                 </p>
               </div>
 
               {/* Suggested Questions Grid */}
-              <div className="pt-2">
+              <div className="pt-1">
                 <SuggestedPromptChips
                   onSelectPrompt={(prompt) => handleSendMessage(prompt)}
                   onInsertPrompt={(prompt) => {
@@ -1181,13 +1213,11 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
         {/* 3. INPUT BAR - Fixed at bottom of chat workspace                          */}
         {/* ========================================================================= */}
         <div 
-          className={`p-3 sm:p-4 border-t shrink-0 z-20 transition-all ${
+          className={`p-2.5 sm:p-4 border-t shrink-0 z-20 transition-all ${
             isDark ? 'border-zinc-800/80 bg-zinc-950' : 'border-slate-200 bg-white shadow-xs'
           }`}
           style={{
-            paddingBottom: isMobileScreen && !isKeyboardOpen
-              ? 'calc(4rem + max(0.5rem, env(safe-area-inset-bottom, 0px)))'
-              : 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+            paddingBottom: 'max(0.75rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)))',
           }}
         >
           <div className="max-w-3xl lg:max-w-4xl mx-auto">
