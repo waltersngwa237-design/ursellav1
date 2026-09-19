@@ -63,7 +63,7 @@ export const MetricTrendCard: React.FC<MetricTrendCardProps> = ({
 
   return (
     <div
-      className="p-4 rounded-xl bg-white dark:bg-zinc-900/70 border border-slate-200/90 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700 transition-all flex flex-col justify-between shadow-xs"
+      className="p-4 rounded-xl bg-white dark:bg-zinc-900/70 border border-slate-200/90 dark:border-zinc-800/80 hover:border-slate-300 dark:hover:border-zinc-700 transition-all flex flex-col justify-between shadow-xs isolate [contain:paint] [transform:translateZ(0)]"
       title={tooltip}
     >
       <div className="flex items-center justify-between gap-2 mb-2">

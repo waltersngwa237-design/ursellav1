@@ -28,7 +28,7 @@ export const Card: React.FC<CardProps> = ({
 
   return (
     <div
-      className={`rounded-xl sm:rounded-2xl ${variantMap[variant]} ${paddingMap[padding]} transition-all ${className}`}
+      className={`rounded-xl sm:rounded-2xl ${variantMap[variant]} ${paddingMap[padding]} transition-all isolate [contain:paint] [transform:translateZ(0)] ${className}`}
       {...props}
     >
       {children}

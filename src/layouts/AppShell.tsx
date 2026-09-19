@@ -617,7 +617,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* ========================================================================= */}
       {currentRoute !== 'ai' && (
         <nav 
-          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-lg border-t border-slate-200/90 dark:border-zinc-800/90 px-1 py-1.5 flex items-center justify-around shadow-lg dark:shadow-2xl safe-area-bottom transition-all duration-200"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-lg border-t border-slate-200/90 dark:border-zinc-800/90 px-1 py-1.5 flex items-center justify-around shadow-lg dark:shadow-2xl safe-area-bottom transition-all duration-200 isolate [transform:translateZ(0)]"
           style={{
             paddingBottom: 'max(0.375rem, calc(0.25rem + env(safe-area-inset-bottom, 0px)))',
             paddingLeft: 'max(0.25rem, env(safe-area-inset-left, 0px))',

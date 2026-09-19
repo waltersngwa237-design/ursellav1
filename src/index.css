@@ -71,10 +71,22 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Safari & WebKit backdrop-filter compatibility */
-  [class*="backdrop-blur"] {
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
+  /* Robust, hardware-safe backdrop-filter handling across Android, WebKit & iOS */
+  @supports ((-webkit-backdrop-filter: blur(12px)) or (backdrop-filter: blur(12px))) {
+    [class*="backdrop-blur"] {
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
+  }
+
+  /* GPU Rendering Isolation: Prevent framebuffer and texture tile corruption on Mali/PowerVR/Adreno GPUs */
+  .ursella-gpu-isolated {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    contain: paint;
+    isolation: isolate;
   }
 
   /* Cross-browser input normalization (removes iOS default shadow & glossy styling) */
