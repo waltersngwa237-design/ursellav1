@@ -2000,19 +2000,6 @@ ${
       throw new Error('Gemini AI client not initialized');
     }
 
-    const systemPrompt = `You are an expert multilingual speech-to-text audio transcriber.
-Your task is to transcribe the merchant's spoken voice accurately into text.
-The speaker may speak in:
-- West African Pidgin English (e.g., "How market be today?", "Who never pay debt?", "Wetin be my best seller?", "I spend 3000 for transport", "Which goods don finish?")
-- Plain English
-- French (e.g., "Quel est mon bénéfice ce mois ?", "Qui me doit de l'argent ?")
-- Blended code-switching (English, French, Pidgin, Camfranglais)
-
-Rules:
-1. Accurately capture every word spoken, preserving Pidgin English terms and numbers faithfully.
-2. Do not censor or normalize vernacular phrasing (keep natural phrasing like "How market dey", "Who dey owe", etc.).
-3. Output ONLY the clean transcribed text without any preamble, markdown code fences, notes, or labels.`;
-
     const audioPart = {
       inlineData: {
         mimeType: mimeType || 'audio/webm',
@@ -2022,24 +2009,37 @@ Rules:
 
     const promptText = preferredLanguage === 'fr'
       ? 'Transcris fidèlement cet enregistrement audio en texte.'
-      : 'Transcribe this spoken audio accurately into text, capturing Pidgin English, English, or French.';
+      : 'Transcribe this audio recording accurately into text.';
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-transcribe',
-      contents: {
-        parts: [audioPart, { text: promptText }],
-      },
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.1,
-      },
-    });
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-transcribe',
+        contents: {
+          parts: [audioPart, { text: promptText }],
+        },
+      });
 
-    const transcript = (response.text || '').trim();
-    return {
-      transcript,
-      detectedLanguage: preferredLanguage,
-    };
+      const transcript = (response.text || '').trim();
+      return {
+        transcript,
+        detectedLanguage: preferredLanguage,
+      };
+    } catch (primaryErr: any) {
+      console.warn('[GeminiService] Primary transcription call failed, retrying with fallback payload format:', primaryErr?.message);
+      // Fallback: try with minimal instruction or prompt
+      const fallbackResponse = await ai.models.generateContent({
+        model: 'gemini-3.5-transcribe',
+        contents: {
+          parts: [audioPart, { text: 'Transcribe audio.' }],
+        },
+      });
+
+      const fallbackTranscript = (fallbackResponse.text || '').trim();
+      return {
+        transcript: fallbackTranscript,
+        detectedLanguage: preferredLanguage,
+      };
+    }
   }
 }
 
