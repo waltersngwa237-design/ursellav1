@@ -182,16 +182,20 @@ Respond with a JSON object strictly adhering to this schema:
     }
   ],
   "proposedAction": {
-    "actionType": "create_expense" | "create_inventory_adjustment" | "create_product" | "record_payment" | "create_reminder" | "create_customer_followup",
-    "title": "Clear action title (e.g., 'Log Fuel Expense: ${ctx.currency} 5,000')",
+    "actionType": "create_expense" | "create_restock_task" | "create_inventory_adjustment" | "create_product" | "record_payment" | "create_reminder" | "create_customer_followup",
+    "title": "Clear action title (e.g., 'Restock Milo (+10)', 'Log Fuel Expense: ${ctx.currency} 5,000')",
     "description": "Clear explanation of what will be recorded upon confirmation",
     "category": "expense_review" | "inventory_restock" | "debt_reminder" | "product_creation" | "task_creation",
     "phaseStatus": "ready_for_execution",
     "payload": {
       // For create_expense:
       // { "amount": 5000, "category": "fuel" | "utilities" | "rent" | "salaries" | "logistics" | "maintenance" | "supplies" | "other", "description": "Generator fuel", "paymentMethod": "cash" | "mobile_money" | "bank_transfer" }
-      // For create_inventory_adjustment (restock or damage):
-      // { "productId": "uuid if found from product catalog", "productName": "Item Name", "adjustmentQuantity": 20, "unitCost": 3500, "reason": "Restock replenishment" }
+      // For create_restock_task (INCREMENTAL REPLENISHMENT - ADDS to current stock):
+      // ALWAYS use create_restock_task whenever restocking, buying stock, or replenishing items!
+      // { "productId": "uuid if found from product catalog", "productName": "Item Name", "quantity": 10, "unitCost": 3500, "reason": "Supplier restock" }
+      // For create_inventory_adjustment (PHYSICAL AUDIT RECOUNT ONLY - sets absolute stock count):
+      // ONLY use when doing a shelf audit recount or discrepancy correction (e.g., "Found 4 units on shelf"):
+      // { "productId": "uuid", "productName": "Item Name", "adjustmentQuantity": 4, "reason": "Physical count audit" }
       // For create_product:
       // { "name": "Product Name", "selling_price": 12000, "cost_price": 8500, "stock_quantity": 10, "unit_of_measure": "piece" }
       // For record_payment:
@@ -899,26 +903,35 @@ ${
         };
       }
 
+      const currentStock = Number(matchedProduct?.stock_quantity ?? 0);
+      const projectedStock = currentStock + restockQty;
+
       return {
         answer: isFr
-          ? `J'ai préparé le réapprovisionnement de **+${restockQty} unités** pour **${prodName}**.\n\nApprouvez cette opération pour ajuster le stock et enregistrer le mouvement d'inventaire.`
-          : `I have prepared an inventory replenishment of **+${restockQty} units** for **${prodName}**.\n\nPlease approve to update stock levels and log the movement.`,
+          ? `J'ai préparé le réapprovisionnement de **+${restockQty} unités** pour **${prodName}** (Stock actuel : ${currentStock} &rarr; Nouveau stock : **${projectedStock} unités**).\n\nApprouvez cette opération pour ajouter ces unités et enregistrer l'entrée d'inventaire.`
+          : `I have prepared an inventory replenishment of **+${restockQty} units** for **${prodName}** (Current stock: ${currentStock} &rarr; New stock: **${projectedStock} units**).\n\nPlease approve to add these units to your existing inventory and log the replenishment.`,
         confidence: 'high_confidence',
         responseSource: 'DETERMINISTIC_FALLBACK',
         provider: 'deterministic_fallback',
         keyMetrics: [
-          { label: isFr ? 'Quantité à ajouter' : 'Restock Quantity', value: restockQty, formattedValue: `+${restockQty}`, trend: 'positive' },
+          { label: isFr ? 'Stock actuel' : 'Current Stock', value: currentStock, formattedValue: `${currentStock}`, trend: 'neutral' },
+          { label: isFr ? 'Quantité à ajouter' : 'Units to Add', value: restockQty, formattedValue: `+${restockQty}`, trend: 'positive' },
+          { label: isFr ? 'Nouveau total' : 'Projected Total', value: projectedStock, formattedValue: `${projectedStock}`, trend: 'positive' },
         ],
         proposedAction: {
-          actionType: 'create_inventory_adjustment',
+          actionType: 'create_restock_task',
           title: isFr ? `Réapprovisionner ${prodName} (+${restockQty})` : `Restock ${prodName} (+${restockQty})`,
-          description: isFr ? `Augmenter le stock de ${restockQty} unités.` : `Replenish stock by ${restockQty} units.`,
+          description: isFr
+            ? `Ajouter ${restockQty} unités au stock actuel (${currentStock} -> ${projectedStock} unités).`
+            : `Add ${restockQty} units to current stock (${currentStock} -> ${projectedStock} units).`,
           category: 'inventory_restock',
           phaseStatus: 'ready_for_execution',
           payload: {
             productId: matchedProduct?.product_id,
             productName: prodName,
-            adjustmentQuantity: restockQty,
+            currentStock,
+            quantity: restockQty,
+            newStock: projectedStock,
             unitCost: matchedProduct?.unit_cost || 0,
             reason: isFr ? 'Réapprovisionnement via Ursella IA' : 'Restock via Ursella AI Agent',
           },

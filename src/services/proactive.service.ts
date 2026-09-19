@@ -517,8 +517,29 @@ export class ProactiveService {
       const rawProductId = payload.productId || payload.product_id;
       const rawProductName = payload.productName || payload.product_name || payload.name;
       const qty = Number(payload.adjustmentQuantity ?? payload.quantity);
+      const reason = payload.reason || payload.description || 'Proactive inventory adjustment';
       if (isNaN(qty) || qty < 0) {
         throw new Error('Non-negative adjustment quantity required.');
+      }
+
+      // Safety guard: If this adjustment was intended as a restock replenishment, route to create_restock_task
+      const isRestockIntent =
+        payload.isRestock ||
+        payload.type === 'restock' ||
+        /restock|réapprovision|replenish|achat stock/i.test(reason);
+
+      if (isRestockIntent) {
+        return this.executeAction({
+          ...params,
+          actionType: 'create_restock_task',
+          payload: {
+            ...payload,
+            productId: rawProductId,
+            productName: rawProductName,
+            quantity: qty,
+            description: reason,
+          },
+        }).then((res) => res.result || res);
       }
 
       const resolved = await this.resolveProduct(businessId, rawProductId, rawProductName);
@@ -530,7 +551,7 @@ export class ProactiveService {
           product_id: targetId,
           type: 'adjustment',
           quantity: qty,
-          notes: payload.reason || 'Proactive inventory adjustment',
+          notes: reason,
         });
       }
 

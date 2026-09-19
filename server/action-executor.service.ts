@@ -677,6 +677,26 @@ export class ActionExecutorService {
       throw new Error('Valid non-negative adjustmentQuantity required.');
     }
 
+    // Safety guard: If this adjustment action has a reason or payload indicating a restock replenishment
+    // rather than an absolute audit count, delegate to executeRestockTask so it adds instead of replacing
+    const isRestockIntent =
+      payload.isRestock ||
+      payload.type === 'restock' ||
+      /restock|réapprovision|replenish|achat stock/i.test(reason);
+
+    if (isRestockIntent) {
+      return this.executeRestockTask(businessId, userId, {
+        ...payload,
+        items: [{
+          productId: rawProductId,
+          productName: rawProductName,
+          quantity: adjustmentQuantity,
+          unitCost: payload.unitCost,
+        }],
+        description: reason,
+      });
+    }
+
     const resolvedProduct = await this.resolveServerProduct(businessId, rawProductId, rawProductName);
 
     if (resolvedProduct && isServerSupabaseConfigured) {

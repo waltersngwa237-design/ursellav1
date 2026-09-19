@@ -301,14 +301,26 @@ export const AIActionProposalCard: React.FC<AIActionProposalCardProps> = ({
           </div>
         )}
 
-        {/* Quantity delta */}
-        {payload.adjustmentQuantity !== undefined && (
+        {/* Quantity delta / Units to restock */}
+        {(payload.quantity !== undefined || payload.adjustmentQuantity !== undefined || payload.suggestedQuantity !== undefined) && (
           <div>
             <div className={`text-[10px] ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
-              {isFr ? 'Variation stock' : 'Stock Change'}
+              {isFr ? 'Quantité à ajouter' : 'Restock Units'}
             </div>
             <div className="font-semibold text-emerald-600 dark:text-emerald-400">
-              +{payload.adjustmentQuantity}
+              +{payload.quantity ?? payload.adjustmentQuantity ?? payload.suggestedQuantity}
+            </div>
+          </div>
+        )}
+
+        {/* Current & Projected Stock */}
+        {payload.currentStock !== undefined && (
+          <div>
+            <div className={`text-[10px] ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
+              {isFr ? 'Impact stock' : 'Stock Impact'}
+            </div>
+            <div className={`font-semibold ${isDark ? 'text-zinc-100' : 'text-slate-900'}`}>
+              {payload.currentStock} &rarr; <span className="text-emerald-600 dark:text-emerald-400 font-bold">{payload.newStock ?? (Number(payload.currentStock) + Number(payload.quantity ?? payload.adjustmentQuantity ?? payload.suggestedQuantity ?? 0))}</span>
             </div>
           </div>
         )}
