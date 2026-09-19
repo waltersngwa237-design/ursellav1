@@ -74,10 +74,12 @@ export const AppShell: React.FC<AppShellProps> = ({
   const prevRouteRef = React.useRef<AppNavRoute>(currentRoute);
 
   useEffect(() => {
-    if (currentRoute !== 'ai' && prevRouteRef.current !== currentRoute) {
-      setPreviousRoute(prevRouteRef.current);
+    if (prevRouteRef.current !== currentRoute) {
+      if (prevRouteRef.current !== 'ai') {
+        setPreviousRoute(prevRouteRef.current);
+      }
+      prevRouteRef.current = currentRoute;
     }
-    prevRouteRef.current = currentRoute;
   }, [currentRoute]);
 
   const [viewportHeight, setViewportHeight] = useState<number | null>(() => {
@@ -433,8 +435,12 @@ export const AppShell: React.FC<AppShellProps> = ({
           <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
             {currentRoute === 'ai' ? (
               <button
-                onClick={() => onNavigate(previousRoute || 'home')}
-                className="p-1.5 sm:p-2 rounded-xl text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-zinc-200 dark:hover:text-white dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0 flex items-center gap-1"
+                type="button"
+                onClick={() => {
+                  const target = previousRoute && previousRoute !== 'ai' ? previousRoute : 'home';
+                  onNavigate(target);
+                }}
+                className="p-1.5 sm:p-2 rounded-xl text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-zinc-200 dark:hover:text-white dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0 flex items-center gap-1 cursor-pointer"
                 title={language === 'fr' ? 'Retour' : 'Back'}
                 aria-label={language === 'fr' ? 'Retour' : 'Back'}
               >

@@ -1085,6 +1085,21 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
           }`}
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Desktop Back Button */}
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('home')}
+                className={`p-2 rounded-lg transition-colors shrink-0 cursor-pointer ${
+                  isDark ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+                title={isFr ? 'Retour à l’accueil' : 'Back to Dashboard'}
+                aria-label={isFr ? 'Retour à l’accueil' : 'Back to Dashboard'}
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+
             {/* Desktop Sidebar Toggle */}
             <button
               onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
