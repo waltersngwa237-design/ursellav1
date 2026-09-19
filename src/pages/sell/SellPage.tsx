@@ -42,6 +42,7 @@ import {
   Printer,
   Lock,
   QrCode,
+  Eye,
 } from 'lucide-react';
 import { PDFAndPrintService } from '../../services/pdf.service.ts';
 import { HardwarePrinterService } from '../../services/hardware-printer.service.ts';
@@ -109,6 +110,7 @@ export const SellPage: React.FC = () => {
   const [historyStatusFilter, setHistoryStatusFilter] = useState<PaymentStatusType | 'all'>('all');
   const [selectedHistorySale, setSelectedHistorySale] = useState<SaleWithDetails | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   // Load Data
   const loadData = async () => {
@@ -322,6 +324,7 @@ export const SellPage: React.FC = () => {
     setPaymentReference('');
     setSaleNotes('');
     setSaleError(null);
+    setIsReviewModalOpen(false);
   };
 
   // Submit Sale Handler
@@ -1062,20 +1065,34 @@ export const SellPage: React.FC = () => {
                   </div>
                 )}
 
-                <Button
-                  variant="primary"
-                  size="lg"
-                  onClick={handleCompleteSale}
-                  disabled={cart.length === 0 || isSubmittingSale}
-                  isLoading={isSubmittingSale}
-                  allowWrap
-                  className="w-full py-3 px-3 sm:px-4 text-xs sm:text-sm font-extrabold shadow-lg shadow-emerald-950/40 cursor-pointer min-h-[44px]"
-                >
-                  <CheckCircle2 className="w-4 h-4 mr-1.5 shrink-0" />
-                  {isSubmittingSale
-                    ? (isFr ? 'Finalisation de la vente...' : 'Processing Sale...')
-                    : `${t.pos.completeSale} (${currencyConfig.format(cartTotal)})`}
-                </Button>
+                <div className="space-y-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setIsReviewModalOpen(true)}
+                    disabled={cart.length === 0 || isSubmittingSale}
+                    className="w-full py-2.5 px-3 text-xs sm:text-sm font-bold border-zinc-700 text-zinc-200 hover:text-white hover:bg-zinc-800 cursor-pointer min-h-[42px] flex items-center justify-center gap-1.5"
+                  >
+                    <Eye className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{isFr ? 'Vérifier la Commande' : 'Review Order'}</span>
+                  </Button>
+
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    onClick={handleCompleteSale}
+                    disabled={cart.length === 0 || isSubmittingSale}
+                    isLoading={isSubmittingSale}
+                    allowWrap
+                    className="w-full py-3 px-3 sm:px-4 text-xs sm:text-sm font-extrabold shadow-lg shadow-emerald-950/40 cursor-pointer min-h-[44px]"
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-1.5 shrink-0" />
+                    {isSubmittingSale
+                      ? (isFr ? 'Finalisation de la vente...' : 'Processing Sale...')
+                      : `${t.pos.completeSale} (${currencyConfig.format(cartTotal)})`}
+                  </Button>
+                </div>
               </div>
             </Card>
           </div>
@@ -1431,6 +1448,170 @@ export const SellPage: React.FC = () => {
         currencyConfig={currencyConfig}
         isFr={isFr}
       />
+
+      {/* Pre-Checkout Review Order Modal */}
+      <Modal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        title={isFr ? 'Vérification de la Commande' : 'Review Order Summary'}
+        description={
+          isFr
+            ? 'Vérifiez les articles du panier, le client et les détails du règlement avant d’enregistrer la vente.'
+            : 'Verify itemized breakdown, customer, and payment split before finalizing the sale.'
+        }
+        maxWidth="lg"
+      >
+        <div className="space-y-4 pt-1">
+          {/* Cart Items List */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <ShoppingCart className="w-3.5 h-3.5 text-emerald-400" />
+                {isFr ? 'Articles commandés' : 'Ordered Products'} ({cart.length})
+              </span>
+              <span className="text-emerald-400 font-mono font-bold">
+                {currencyConfig.format(cartSubtotal)}
+              </span>
+            </h4>
+            <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1 border border-zinc-800/80 rounded-xl bg-zinc-950 p-2">
+              {cart.map((item) => {
+                const itemTotal = item.quantity * item.unit_price - (item.discount || 0);
+                return (
+                  <div
+                    key={item.product.id}
+                    className="flex items-center justify-between gap-3 p-2 rounded-lg bg-zinc-900/80 border border-zinc-800/80 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-zinc-800 text-zinc-300 flex items-center justify-center font-bold text-xs shrink-0 border border-zinc-700/50">
+                        {item.product.name.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-white truncate">{item.product.name}</p>
+                        <p className="text-[11px] text-zinc-400">
+                          {currencyConfig.format(item.unit_price)} × {item.quantity}
+                          {item.discount ? ` · Disc: -${currencyConfig.format(item.discount)}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-bold font-mono text-emerald-400">
+                        {currencyConfig.format(itemTotal)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Customer & Payment Method Breakdown */}
+          {(() => {
+            const currentCustomerObj = customers.find((c) => c.id === selectedCustomerId);
+            const paidVal = amountPaidInput === '' ? cartTotal : Number(amountPaidInput) || 0;
+            const changeInfo = calculateChangeDue(cartTotal, paidVal);
+
+            return (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800/80 space-y-1">
+                    <span className="text-[10px] text-zinc-400 uppercase font-bold block">
+                      {isFr ? 'Client' : 'Customer'}
+                    </span>
+                    <div className="flex items-center gap-2 text-zinc-100 font-semibold">
+                      <User className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="truncate">
+                        {currentCustomerObj ? currentCustomerObj.name : isFr ? 'Client de passage' : 'Walk-in Customer'}
+                      </span>
+                    </div>
+                    {currentCustomerObj?.phone && (
+                      <p className="text-[11px] text-zinc-400 pl-6">{currentCustomerObj.phone}</p>
+                    )}
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800/80 space-y-1">
+                    <span className="text-[10px] text-zinc-400 uppercase font-bold block">
+                      {isFr ? 'Mode de Règlement' : 'Payment Method'}
+                    </span>
+                    <div className="flex items-center gap-2 text-zinc-100 font-semibold capitalize">
+                      {paymentMethod === 'cash' && <Banknote className="w-4 h-4 text-emerald-400 shrink-0" />}
+                      {paymentMethod === 'card' && <CreditCard className="w-4 h-4 text-emerald-400 shrink-0" />}
+                      {paymentMethod === 'mobile_money' && <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />}
+                      {paymentMethod === 'bank_transfer' && <Building2 className="w-4 h-4 text-blue-400 shrink-0" />}
+                      {paymentMethod === 'other' && <Building2 className="w-4 h-4 text-amber-400 shrink-0" />}
+                      <span>{paymentMethod.replace('_', ' ')}</span>
+                    </div>
+                    {paymentReference && (
+                      <p className="text-[11px] text-zinc-400 pl-6 font-mono truncate">{paymentReference}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Financial Ledger Summary */}
+                <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl space-y-1.5 text-xs">
+                  <div className="flex justify-between text-zinc-400">
+                    <span>{isFr ? 'Sous-total' : 'Subtotal'}:</span>
+                    <span className="font-mono text-zinc-200">{currencyConfig.format(cartSubtotal)}</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-emerald-400">
+                      <span>{isFr ? 'Remise' : 'Discount'}:</span>
+                      <span className="font-mono">-{currencyConfig.format(discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-black text-white pt-2 border-t border-zinc-800">
+                    <span>{isFr ? 'Total Général' : 'Total Payable'}:</span>
+                    <span className="text-emerald-400 font-mono text-base">
+                      {currencyConfig.format(cartTotal)}
+                    </span>
+                  </div>
+                  {paymentMethod === 'cash' && (
+                    <div className="flex justify-between text-zinc-400 text-[11px] pt-1 border-t border-zinc-800/60">
+                      <span>{isFr ? 'Donné / Monnaie à rendre' : 'Amount Paid / Change Due'}:</span>
+                      <span className="font-mono">
+                        {currencyConfig.format(paidVal)}
+                        {' · '}
+                        <span className="text-emerald-400 font-bold">
+                          {isFr ? 'Monnaie' : 'Change'}: {currencyConfig.format(changeInfo.change)}
+                        </span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+
+          {saleError && (
+            <div className="p-2.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-xs text-rose-300 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <span>{saleError}</span>
+            </div>
+          )}
+
+          {/* Modal Action Buttons */}
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsReviewModalOpen(false)}
+              disabled={isSubmittingSale}
+              className="cursor-pointer"
+            >
+              {isFr ? 'Modifier le Panier' : 'Edit Cart'}
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleCompleteSale}
+              isLoading={isSubmittingSale}
+              className="cursor-pointer font-extrabold"
+              leftIcon={<CheckCircle2 className="w-4 h-4" />}
+            >
+              {isFr ? 'Confirmer & Enregistrer' : 'Confirm & Finalize Sale'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
