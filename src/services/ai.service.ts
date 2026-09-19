@@ -10,8 +10,75 @@ import {
 
 const LOCAL_STORAGE_CONVERSATIONS_KEY = 'ursella_ai_conversations';
 const LOCAL_STORAGE_MESSAGES_KEY = 'ursella_ai_messages';
+const LOCAL_STORAGE_LAST_ACTIVE_KEY = 'ursella_ai_last_active_conv';
 
 export class AIService {
+  /**
+   * Synchronously retrieves the last active conversation ID for a business from local storage.
+   */
+  public static getCachedLastActiveConversationId(businessId: string): string | null {
+    if (!businessId) return null;
+    try {
+      return localStorage.getItem(`${LOCAL_STORAGE_LAST_ACTIVE_KEY}_${businessId}`);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Persists the active conversation ID synchronously so it can be restored immediately on remount.
+   */
+  public static setCachedLastActiveConversationId(businessId: string, conversationId: string | null): void {
+    if (!businessId) return;
+    try {
+      if (conversationId) {
+        localStorage.setItem(`${LOCAL_STORAGE_LAST_ACTIVE_KEY}_${businessId}`, conversationId);
+      } else {
+        localStorage.removeItem(`${LOCAL_STORAGE_LAST_ACTIVE_KEY}_${businessId}`);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Synchronously retrieves cached conversations for a business to prevent initial blank frame / flash.
+   */
+  public static getCachedConversations(businessId: string): AIConversationSummary[] {
+    if (!businessId) return [];
+    try {
+      const raw = localStorage.getItem(`${LOCAL_STORAGE_CONVERSATIONS_KEY}_${businessId}`);
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  }
+
+  /**
+   * Synchronously retrieves cached messages for a conversation to render immediately where the user left off.
+   */
+  public static getCachedMessages(conversationId: string): AIChatMessage[] {
+    if (!conversationId) return [];
+    try {
+      const raw = localStorage.getItem(`${LOCAL_STORAGE_MESSAGES_KEY}_${conversationId}`);
+      if (raw) {
+        const parsed: AIChatMessage[] = JSON.parse(raw);
+        const seenIds = new Set<string>();
+        return parsed.filter((m) => {
+          if (!m.id || seenIds.has(m.id)) return false;
+          seenIds.add(m.id);
+          return true;
+        });
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  }
+
   /**
    * Sends a user query to the Ursella AI engine via the full-stack server route.
    */

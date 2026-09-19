@@ -56,10 +56,32 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
   const { language, t } = useLanguage();
   const isFr = language === 'fr';
 
-  // Conversations & Messages State
-  const [conversations, setConversations] = useState<AIConversationSummary[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<AIChatMessage[]>([]);
+  // Conversations & Messages State (Initialized synchronously from cache to eliminate any flash)
+  const [conversations, setConversations] = useState<AIConversationSummary[]>(() => {
+    if (activeBusiness?.id) {
+      return AIService.getCachedConversations(activeBusiness.id);
+    }
+    return [];
+  });
+
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(() => {
+    if (!activeBusiness?.id) return null;
+    const lastActive = AIService.getCachedLastActiveConversationId(activeBusiness.id);
+    if (lastActive) return lastActive;
+    const cachedConvs = AIService.getCachedConversations(activeBusiness.id);
+    return cachedConvs.length > 0 ? cachedConvs[0].id : null;
+  });
+
+  const [messages, setMessages] = useState<AIChatMessage[]>(() => {
+    if (!activeBusiness?.id) return [];
+    const targetId = AIService.getCachedLastActiveConversationId(activeBusiness.id) ||
+      (AIService.getCachedConversations(activeBusiness.id)[0]?.id);
+    if (targetId) {
+      return AIService.getCachedMessages(targetId);
+    }
+    return [];
+  });
+
   const [inputText, setInputText] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
@@ -213,7 +235,12 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       setConversations(list);
 
       if (list.length > 0) {
-        setActiveConversationId((prev) => (prev && list.some((c) => c.id === prev) ? prev : list[0].id));
+        const lastActiveCached = AIService.getCachedLastActiveConversationId(activeBusiness.id);
+        setActiveConversationId((prev) => {
+          if (prev && list.some((c) => c.id === prev)) return prev;
+          if (lastActiveCached && list.some((c) => c.id === lastActiveCached)) return lastActiveCached;
+          return list[0].id;
+        });
       } else {
         // Create initial default conversation
         const newConv = await AIService.createConversation(
@@ -233,13 +260,16 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     loadConversations();
   }, [loadConversations]);
 
-  // When switching conversations
+  // When switching conversations, persist active conversation ID and load messages
   useEffect(() => {
+    if (activeBusiness?.id) {
+      AIService.setCachedLastActiveConversationId(activeBusiness.id, activeConversationId);
+    }
     if (activeConversationId !== prevActiveConvIdRef.current) {
       prevActiveConvIdRef.current = activeConversationId;
       isInitialLoadRef.current = true;
     }
-  }, [activeConversationId]);
+  }, [activeConversationId, activeBusiness?.id]);
 
   // Load messages whenever activeConversationId changes
   useEffect(() => {
@@ -247,6 +277,24 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       setMessages([]);
       return;
     }
+
+    // Populate from synchronous cache immediately if not already present
+    const cached = AIService.getCachedMessages(activeConversationId);
+    if (cached.length > 0) {
+      setMessages((prev) => (prev.length === 0 ? cached : prev));
+      if (isInitialLoadRef.current) {
+        requestAnimationFrame(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+          }
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+          }
+        });
+      }
+    }
+
+    // Reconcile with async/remote store in the background without UI flicker
     AIService.getMessages(activeConversationId).then((msgs) => {
       const seen = new Set<string>();
       const deduplicated = msgs.filter((m) => {
@@ -256,7 +304,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
       });
       setMessages(deduplicated);
 
-      // Old chats only should start reading from the bottom (latest messages)
+      // Scroll to bottom on initial load
       if (isInitialLoadRef.current) {
         requestAnimationFrame(() => {
           if (deduplicated.length > 0) {
@@ -450,6 +498,9 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
 
   // Create new conversation
   const handleNewConversation = useCallback(() => {
+    if (activeBusiness?.id) {
+      AIService.setCachedLastActiveConversationId(activeBusiness.id, null);
+    }
     setActiveConversationId(null);
     setMessages([]);
     setError(null);
@@ -458,7 +509,7 @@ export const UrsellaAIPage: React.FC<UrsellaAIPageProps> = ({
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
-  }, []);
+  }, [activeBusiness?.id]);
 
   // Listen to AppShell top navbar events (mobile header buttons)
   useEffect(() => {
