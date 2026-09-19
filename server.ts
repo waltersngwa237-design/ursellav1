@@ -218,7 +218,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
   try {
     const payload: AIChatRequestPayload = req.body;
-    const { businessId, message, conversationId, history = [], preferredTimeHorizonDays = 30, businessContext, osContext, language: requestedLang } = payload;
+    const { businessId, message, conversationId, history = [], preferredTimeHorizonDays = 30, businessContext, osContext, memories = [], language: requestedLang } = payload;
 
     if (!businessId || !message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Missing required parameters: businessId and message are mandatory.' });
@@ -403,6 +403,7 @@ app.post('/api/ai/chat', async (req, res) => {
       language: resolvedLanguage,
       toolResults,
       osContext,
+      memories,
       conversationHistory: history,
       parsedIntent: {
         intent: intentResult.intent,

@@ -134,6 +134,25 @@ export interface AIDailyBrief {
   confidence: AIDataConfidence;
 }
 
+export type UrsaMemoryCategory =
+  | 'business_rule'
+  | 'preference'
+  | 'supplier'
+  | 'target'
+  | 'note'
+  | 'general';
+
+export interface UrsaMemoryFact {
+  id: string;
+  business_id: string;
+  category: UrsaMemoryCategory;
+  key: string;
+  content: string;
+  source: 'user_pinned' | 'auto_extracted';
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AIChatBusinessContext {
   businessName?: string;
   businessType?: string;
@@ -158,6 +177,7 @@ export interface AIChatRequestPayload {
   preferredTimeHorizonDays?: number;
   businessContext?: AIChatBusinessContext;
   osContext?: Record<string, unknown>;
+  memories?: UrsaMemoryFact[];
 }
 
 export interface AIChatResponsePayload {

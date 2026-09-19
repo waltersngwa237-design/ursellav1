@@ -1,6 +1,7 @@
 import {
   type AIStructuredResponse,
   type AIDailyBrief,
+  type UrsaMemoryFact,
 } from '../src/types/ai.ts';
 import {
   getGeminiClient,
@@ -22,6 +23,7 @@ export interface ChatReasoningContext {
   language?: 'en' | 'fr';
   toolResults: Record<string, unknown>;
   osContext?: any;
+  memories?: UrsaMemoryFact[];
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   parsedIntent?: {
     intent: string;
@@ -266,6 +268,15 @@ ${ctx.parsedIntent.resolvedContextTopic ? `Resolved Topic: ${ctx.parsedIntent.re
 
 === VERIFIED BUSINESS DATA (GROUND TRUTH) ===
 ${JSON.stringify(ctx.toolResults, null, 2)}
+
+=== MERCHANT STORED MEMORIES & PINNED FACTS ===
+${
+  ctx.memories?.length
+    ? ctx.memories
+        .map((m) => `• [${m.category.toUpperCase()}] ${m.key}: ${m.content} (Source: ${m.source})`)
+        .join('\n')
+    : 'No stored memory facts recorded yet.'
+}
 
 === USER CONVERSATION HISTORY ===
 ${

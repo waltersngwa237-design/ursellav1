@@ -7,6 +7,7 @@ import {
   type AIConversationSummary,
   type AIDailyBrief,
 } from '../types/ai.ts';
+import { UrsaMemoryService } from './ursa-memory.service.ts';
 
 const LOCAL_STORAGE_CONVERSATIONS_KEY = 'ursella_ai_conversations';
 const LOCAL_STORAGE_MESSAGES_KEY = 'ursella_ai_messages';
@@ -206,6 +207,7 @@ export class AIService {
     history?: Array<{ role: 'user' | 'assistant'; content: string }>
   ): Promise<{ content: string; metadata?: any }> {
     const validLang: 'en' | 'fr' = language === 'fr' ? 'fr' : 'en';
+    const memories = UrsaMemoryService.getMemories(businessId);
     const result = await this.sendChatMessage({
       businessId,
       conversationId,
@@ -213,6 +215,7 @@ export class AIService {
       language: validLang,
       businessContext,
       history,
+      memories,
     });
     return {
       content: result.response?.answer || (validLang === 'fr' ? 'Analyse indisponible pour le moment.' : 'Intelligence temporarily unavailable.'),
