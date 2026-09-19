@@ -2008,38 +2008,36 @@ ${
     };
 
     const promptText = preferredLanguage === 'fr'
-      ? 'Transcris fidèlement cet enregistrement audio en texte.'
-      : 'Transcribe this audio recording accurately into text.';
+      ? 'Transcris fidèlement et exactement cet enregistrement audio en texte. Ne renvoie que le texte transcrit.'
+      : 'Transcribe this audio recording accurately into text. Capture spoken words in English, Pidgin English, or French verbatim. Output only the transcript.';
 
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-transcribe',
-        contents: {
-          parts: [audioPart, { text: promptText }],
-        },
-      });
+    // Try primary transcription model gemini-3.5-transcribe, with automatic fallback to gemini-3.7-flash and gemini-3.1-flash-lite
+    const modelsToTry = ['gemini-3.5-transcribe', 'gemini-3.7-flash', 'gemini-3.1-flash-lite'];
+    let lastError: any = null;
 
-      const transcript = (response.text || '').trim();
-      return {
-        transcript,
-        detectedLanguage: preferredLanguage,
-      };
-    } catch (primaryErr: any) {
-      console.warn('[GeminiService] Primary transcription call failed, retrying with fallback payload format:', primaryErr?.message);
-      // Fallback: try with minimal instruction or prompt
-      const fallbackResponse = await ai.models.generateContent({
-        model: 'gemini-3.5-transcribe',
-        contents: {
-          parts: [audioPart, { text: 'Transcribe audio.' }],
-        },
-      });
+    for (const modelName of modelsToTry) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: {
+            parts: [audioPart, { text: promptText }],
+          },
+        });
 
-      const fallbackTranscript = (fallbackResponse.text || '').trim();
-      return {
-        transcript: fallbackTranscript,
-        detectedLanguage: preferredLanguage,
-      };
+        const transcript = (response.text || '').trim();
+        if (transcript) {
+          return {
+            transcript,
+            detectedLanguage: preferredLanguage,
+          };
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[GeminiService] Transcription with model "${modelName}" failed:`, err?.message || err);
+      }
     }
+
+    throw lastError || new Error('Audio transcription failed across available models');
   }
 }
 
